@@ -48,6 +48,9 @@ import {
 import { toast } from 'react-hot-toast'
 import logoImg from '../assets/logo2.png'
 import { useClinicStore } from '../store/clinicStore'
+import { createDocument as createDocumentApi } from '../features/calendar/api/clinicAdminApi'
+
+
 import { Brain } from 'lucide-react'
 
 const { Option } = Select
@@ -325,6 +328,13 @@ export default function DashboardLayout({ children }) {
   const [taskForm] = Form.useForm()
   const [convertForm] = Form.useForm()
 
+  React.useEffect(() => {
+    store.fetchAppointments()
+    if (userRole === 'sales' || userRole === 'head_admin') {
+      store.fetchLeads()
+    }
+  }, [userRole])
+
   // Quote generator states inside Send Proposal modal
   const [proposalLeadId, setProposalLeadId] = useState(null)
   const [proposalDrs, setProposalDrs] = useState(3)
@@ -337,8 +347,8 @@ export default function DashboardLayout({ children }) {
   const discount = proposalPromo.toUpperCase() === 'ALLIED20' ? subtotal * 0.20 : 0
   const totalProposalPrice = subtotal - discount
 
-  const handleCreateLead = (values) => {
-    store.addLead({
+  const handleCreateLead = async (values) => {
+    await store.addLead({
       name: values.name,
       contactPerson: values.contactPerson,
       contact: values.contact,
@@ -347,7 +357,7 @@ export default function DashboardLayout({ children }) {
       practitioners: parseInt(values.practitioners) || 1,
       value: parseFloat(values.value) || 0,
       stage: values.stage || 'New Lead',
-      source: values.source || 'Direct Lead',
+      source: values.source || 'Web Form',
       notes: values.notes || ''
     })
     toast.success(`Lead ${values.name} registered successfully!`)
@@ -431,53 +441,7 @@ export default function DashboardLayout({ children }) {
   }
 
   const renderSalesActionsBar = () => {
-    if (userRole !== 'sales' || location.pathname !== '/clinic') return null
-    return (
-      <div className="flex flex-wrap items-center gap-2 pb-4 border-b border-slate-100 dark:border-slate-800 mb-4 select-none">
-        <Button 
-          type="primary" 
-          icon={<PlusOutlined />} 
-          onClick={() => store.setSalesLeadModalOpen(true)}
-          style={{ backgroundColor: '#F59E0B', borderColor: '#F59E0B' }}
-          className="rounded-xl font-bold text-xs h-9 text-white"
-        >
-          New Lead
-        </Button>
-        <Button 
-          type="primary" 
-          icon={<CalendarOutlined />} 
-          onClick={() => store.setSalesDemoModalOpen(true)}
-          style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
-          className="rounded-xl font-bold text-xs h-9 text-white"
-        >
-          Book Demo
-        </Button>
-        <Button 
-          icon={<ClockCircleOutlined />} 
-          onClick={() => store.setSalesTaskModalOpen(true)}
-          className="rounded-xl font-semibold text-xs h-9 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-350"
-        >
-          Add Task
-        </Button>
-        <Button 
-          icon={<FileTextOutlined />} 
-          onClick={() => store.setSalesProposalModalOpen(true)}
-          className="rounded-xl font-semibold text-xs h-9 dark:bg-slate-900 dark:border-slate-800 dark:text-slate-355"
-        >
-          Send Proposal
-        </Button>
-        <Button 
-          icon={<CheckCircleOutlined />} 
-          onClick={() => {
-            store.setSalesSelectedLeadId(null)
-            store.setSalesConvertModalOpen(true)
-          }}
-          className="rounded-xl font-semibold text-xs h-9 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 border-none"
-        >
-          Convert Clinic
-        </Button>
-      </div>
-    )
+    return null
   }
 
   const renderPractitionerActionsBar = () => {
@@ -948,20 +912,29 @@ export default function DashboardLayout({ children }) {
   const addDocument = useClinicStore(state => state.addDocument)
   const [addForm] = Form.useForm()
 
-  const handleAddSubmit = (values) => {
-    addDocument({
-      name: values.name,
-      patientName: values.patientName,
-      patientId: 'N/A',
-      doctor: 'N/A',
-      doctorId: 'N/A',
-      uploadBy: 'Admin Asad',
-      status: 'Active'
-    })
-    toast.success('Document uploaded and saved successfully!')
-    setAddDocModalOpen(false)
-    addForm.resetFields()
+  const handleAddSubmit = async (values) => {
+    try {
+      const newDoc = await createDocumentApi({
+        name: values.name,
+        patientName: values.patientName,
+        sentTo: 'Client John Miller',
+        uploadBy: 'Doctor Dr.APJ Kalam',
+        date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+        type: 'Assessment',
+        status: 'Active'
+      })
+      if (newDoc && newDoc.data) {
+        addDocument(newDoc.data)
+      }
+      toast.success('Document uploaded and saved to live database!')
+      setAddDocModalOpen(false)
+      addForm.resetFields()
+      window.dispatchEvent(new CustomEvent('document-added'))
+    } catch (err) {
+      toast.error('Failed to save document to live database')
+    }
   }
+
 
   const handleLogout = () => {
     toast.success('Logged out successfully.')

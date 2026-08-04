@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   Table, Input, Select, Space, Modal, Form, Tag,
   TimePicker, Switch, Tooltip, Divider, InputNumber,
@@ -13,6 +13,7 @@ import { toast } from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useClinicStore } from '../../../store/clinicStore'
 import dayjs from 'dayjs'
+import { getPractitioners, createPractitioner, updatePractitioner, deletePractitioner, getBranches } from '../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 const { TextArea } = Input
@@ -98,9 +99,14 @@ function AvailabilityEditor({ value, onChange }) {
 }
 
 export default function DoctorsManagePage() {
-  const { practitioners, branches, services, addPractitioner, editPractitioner, deletePractitioner } =
-    useClinicStore()
+  const store = useClinicStore()
   const navigate = useNavigate()
+
+  const [practitionerList, setPractitionerList] = useState([])
+  const practitioners = practitionerList
+  const [branchList, setBranchList] = useState(store.branches || [])
+  const branches = branchList
+  const [loading, setLoading] = useState(false)
 
   const [searchText, setSearchText] = useState('')
   const [statusFilter, setStatusFilter] = useState(undefined)
@@ -114,6 +120,41 @@ export default function DoctorsManagePage() {
   const [qualInput, setQualInput] = useState('')
   const [quals, setQuals] = useState([])
   const [form] = Form.useForm()
+
+  const loadPractitioners = async () => {
+    setLoading(true)
+    try {
+      const res = await getPractitioners()
+      if (res && res.success && res.data) {
+        setPractitionerList(res.data)
+      } else if (store.practitioners && store.practitioners.length > 0) {
+        setPractitionerList(store.practitioners)
+      }
+    } catch (err) {
+      console.error("Failed to load practitioners from database:", err)
+      if (store.practitioners && store.practitioners.length > 0) {
+        setPractitionerList(store.practitioners)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadBranches = async () => {
+    try {
+      const res = await getBranches()
+      if (res && res.success && res.data) {
+        setBranchList(res.data)
+      }
+    } catch (err) {
+      console.error("Failed to load branches:", err)
+    }
+  }
+
+  useEffect(() => {
+    loadPractitioners()
+    loadBranches()
+  }, [])
 
   const openAdd = () => {
     setCurrentDoc(null)
@@ -175,14 +216,31 @@ export default function DoctorsManagePage() {
 
   const removeQual = (q) => setQuals(quals.filter((x) => x !== q))
 
-  const handleSubmit = (values) => {
+  const handleSubmit = async (values) => {
     const data = { ...values, color: pickedColor, availability, qualifications: quals }
-    if (modalMode === 'add') {
-      addPractitioner(data)
-      toast.success('Practitioner added successfully!')
-    } else {
-      editPractitioner({ ...currentDoc, ...data })
-      toast.success('Practitioner updated successfully!')
+    try {
+      if (modalMode === 'add') {
+        const res = await createPractitioner(data)
+        if (res && res.success) {
+          toast.success('Practitioner added to live database!')
+          if (store.addPractitioner) store.addPractitioner(res.data)
+          await loadPractitioners()
+        } else {
+          toast.error(res?.message || 'Failed to add practitioner')
+        }
+      } else {
+        const res = await updatePractitioner(currentDoc.id, data)
+        if (res && res.success) {
+          toast.success('Practitioner updated in live database!')
+          if (store.editPractitioner) store.editPractitioner({ ...currentDoc, ...data })
+          await loadPractitioners()
+        } else {
+          toast.error(res?.message || 'Failed to update practitioner')
+        }
+      }
+    } catch (err) {
+      console.error("Error saving practitioner:", err)
+      toast.error('Error saving practitioner to live database')
     }
     closeModal()
   }
@@ -194,14 +252,25 @@ export default function DoctorsManagePage() {
       okText: 'Delete',
       okButtonProps: { danger: true },
       cancelText: 'Cancel',
-      onOk: () => {
-        deletePractitioner(record.id)
-        toast.success(`Removed practitioner: ${record.name}`)
+      onOk: async () => {
+        try {
+          const res = await deletePractitioner(record.id)
+          if (res && res.success) {
+            toast.success(`Removed practitioner: ${record.name}`)
+            if (store.deletePractitioner) store.deletePractitioner(record.id)
+            await loadPractitioners()
+          } else {
+            toast.error(res?.message || 'Failed to delete practitioner')
+          }
+        } catch (err) {
+          console.error("Failed to delete practitioner:", err)
+          toast.error('Failed to delete practitioner from database')
+        }
       },
     })
   }
 
-  const filtered = practitioners.filter((p) => {
+  const filtered = practitionerList.filter((p) => {
     const q = searchText.toLowerCase()
     const matchSearch =
       (p.name || '').toLowerCase().includes(q) ||
@@ -213,9 +282,9 @@ export default function DoctorsManagePage() {
   })
 
   // Stats
-  const totalActive = practitioners.filter((p) => p.status === 'Active').length
-  const totalInactive = practitioners.filter((p) => p.status !== 'Active').length
-  const specialties = [...new Set(practitioners.map((p) => p.specialty).filter(Boolean))]
+  const totalActive = practitionerList.filter((p) => p.status === 'Active').length
+  const totalInactive = practitionerList.filter((p) => p.status !== 'Active').length
+  const specialties = [...new Set(practitionerList.map((p) => p.specialty).filter(Boolean))]
 
   const columns = [
     {
@@ -257,7 +326,7 @@ export default function DoctorsManagePage() {
         if (!ids || ids.length === 0)
           return <span className="text-slate-300 text-xs">—</span>
         const names = ids
-          .map((id) => branches.find((b) => b.id === id)?.name)
+          .map((id) => branchList.find((b) => b.id === id)?.name)
           .filter(Boolean)
         return (
           <div className="flex flex-wrap gap-1">
@@ -490,7 +559,7 @@ export default function DoctorsManagePage() {
                       optionFilterProp="children"
                       className="rounded-xl flex items-center min-h-[40px] dark:bg-slate-900 border-slate-200 dark:border-slate-850"
                     >
-                      {branches.map((b) => (
+                      {branchList.map((b) => (
                         <Option key={b.id} value={b.id}>{b.name}</Option>
                       ))}
                     </Select>
@@ -704,7 +773,7 @@ export default function DoctorsManagePage() {
                       <span className="text-slate-300 text-xs">No branches assigned</span>
                     ) : (
                       (currentDoc.assignedBranches || []).map((bid) => {
-                        const br = branches.find((b) => b.id === bid)
+                        const br = branchList.find((b) => b.id === bid)
                         return (
                           <span
                             key={bid}
@@ -837,7 +906,7 @@ export default function DoctorsManagePage() {
       {/* Stats */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Total Practitioners', value: practitioners.length, icon: <TeamOutlined />, color: '#8C4BFF' },
+          { label: 'Total Practitioners', value: practitionerList.length, icon: <TeamOutlined />, color: '#8C4BFF' },
           { label: 'Active', value: totalActive, icon: <UserOutlined />, color: '#10B981' },
           { label: 'Inactive', value: totalInactive, icon: <ClockCircleOutlined />, color: '#64748B' },
           { label: 'Specialties', value: specialties.length, icon: <TrophyOutlined />, color: '#0E1B33' },
@@ -884,19 +953,6 @@ export default function DoctorsManagePage() {
           }}
         />
       </div>
-
-      {/* ======================== MODAL ======================== */}
-      <Modal
-        open={modalOpen && modalMode === 'view'}
-        onCancel={closeModal}
-        footer={null}
-        destroyOnHidden
-        width="100%"
-        style={{ top: 0, padding: 0, margin: 0, maxWidth: '100vw' }}
-        bodyStyle={{ minHeight: '100vh', padding: '28px 36px' }}
-      >
-        {/* View Mode content stays here */}
-      </Modal>
     </div>
   )
 }

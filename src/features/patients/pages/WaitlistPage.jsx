@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Table, Button, Modal, Form, Input, DatePicker, Select } from 'antd'
 import { PlusOutlined, InfoCircleOutlined } from '@ant-design/icons'
 import { useClinicStore } from '../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
+import { getWaitlist, createWaitlist, updateWaitlist } from '../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 
@@ -13,9 +14,30 @@ export default function WaitlistPage() {
   const [searchText, setSearchText] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
 
-  const handleAddWaitlist = (values) => {
+  const fetchWaitlistData = async () => {
+    setLoading(true)
+    try {
+      const res = await getWaitlist({ search: searchText, appointmentType: typeFilter, status: statusFilter })
+      if (res && res.success && Array.isArray(res.data)) {
+        store.setWaitlist(res.data)
+      }
+    } catch (err) {
+      console.error('Failed to fetch waitlist:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchWaitlistData()
+  }, [searchText, typeFilter, statusFilter])
+
+  const handleAddWaitlist = async (values) => {
+    setSubmitting(true)
     const entry = {
       clientName: values.clientName,
       dob: values.dob ? values.dob.format('YYYY-MM-DD') : '',
@@ -29,10 +51,36 @@ export default function WaitlistPage() {
       branch: values.branch || '',
     }
 
-    store.addToWaitlist(entry)
-    toast.success('Client added to the waitlist!')
-    setModalVisible(false)
-    form.resetFields()
+    try {
+      const res = await createWaitlist(entry)
+      if (res && res.success && res.data) {
+        store.addToWaitlist(res.data)
+        toast.success('Client added to the waitlist!')
+        setModalVisible(false)
+        form.resetFields()
+        fetchWaitlistData()
+      } else {
+        toast.error('Failed to add client to waitlist')
+      }
+    } catch (err) {
+      console.error('Add waitlist error:', err)
+      toast.error('Error adding client to waitlist database')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleStatusChange = async (recordId, newStatus) => {
+    try {
+      const res = await updateWaitlist(recordId, { status: newStatus })
+      if (res && res.success && res.data) {
+        store.updateWaitlistStatus(recordId, newStatus)
+        toast.success(`Waitlist status updated to ${newStatus}`)
+      }
+    } catch (err) {
+      console.error('Failed to update waitlist status:', err)
+      toast.error('Failed to update waitlist status in database')
+    }
   }
 
   const columns = [
@@ -94,10 +142,7 @@ export default function WaitlistPage() {
           <div className={`status-tag status-${safeStatus.toLowerCase()}`}>
             <Select
               value={safeStatus}
-              onChange={(val) => {
-                store.updateWaitlistStatus(record.id, val)
-                toast.success(`Waitlist status updated to ${val}`)
-              }}
+              onChange={(val) => handleStatusChange(record.id, val)}
               bordered={false}
               className="waitlist-status-select"
               style={{ width: '100%', height: '100%' }}
@@ -113,6 +158,7 @@ export default function WaitlistPage() {
       },
     },
   ]
+
 
   const filtered = (store.waitlist || []).filter((w) => {
     if (!w) return false

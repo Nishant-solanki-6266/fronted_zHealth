@@ -32,6 +32,7 @@ import {
 import { useClinicStore } from '../../../store/clinicStore'
 import AppointmentModal from '../components/NewScheduleModal'
 import AppointmentDetailsModal from '../components/AppointmentDetailsModal'
+import { getAppointments } from '../api/clinicAdminApi'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
 import 'dayjs/locale/en-gb'
@@ -696,6 +697,21 @@ export default function CalendarPage() {
   const [defaultSlot, setDefaultSlot] = useState(null)
 
   const today = dayjs()
+
+  // Load appointments from live MySQL database
+  useEffect(() => {
+    const loadAppointmentsFromLiveDB = async () => {
+      try {
+        const res = await getAppointments({ search: searchVal })
+        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
+          res.data.forEach(appt => store.addAppointment(appt))
+        }
+      } catch (err) {
+        console.error('Failed to load appointments from live DB:', err)
+      }
+    }
+    loadAppointmentsFromLiveDB()
+  }, [searchVal])
 
   // Calculate navigations based on selected view mode
   const prevWeek = () => {

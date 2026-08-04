@@ -119,6 +119,10 @@ export default function SalesExecutiveDashboardPage() {
   const userRole = store.userRole
   const navigate = useNavigate()
 
+  React.useEffect(() => {
+    store.fetchLeads()
+  }, [])
+
   const modalContextProps = {
     setLeadModalOpen: store.setSalesLeadModalOpen,
     setDemoModalOpen: store.setSalesDemoModalOpen,

@@ -9,10 +9,40 @@ const { Option } = Select
 export default function SalesCommissions({ store: propStore }) {
   const localStore = useClinicStore()
   const store = propStore || localStore
-  const { clinics } = store
+  const { clinics, leads } = store
   const [filterStatus, setFilterStatus] = useState('All')
 
-  const colinClinics = clinics.filter(c => c.salesperson === 'Colin Edegbe')
+  React.useEffect(() => {
+    if (store.fetchSalesClinics) store.fetchSalesClinics()
+    if (store.fetchLeads) store.fetchLeads()
+  }, [])
+
+  // Combine database clinics + converted sales leads into converted clinics view for commissions
+  const dbClinicsFormatted = (clinics || []).map(c => ({
+    id: c.id,
+    name: c.name,
+    tier: c.tier || 'Basic',
+    revenue: parseFloat(c.revenue) || 100,
+    commissionStatus: c.commissionStatus || 'Paid',
+    commissionPaidDate: c.commissionPaidDate || (c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Active'),
+    salesperson: c.salesperson || 'Sales Executive',
+    signupDate: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent',
+  }))
+
+  const convertedLeadsFormatted = (leads || [])
+    .filter(l => l.stage === 'Converted' || l.status === 'Converted')
+    .map(l => ({
+      id: l.id,
+      name: l.name || l.companyName,
+      tier: l.tier || 'Basic',
+      revenue: parseFloat(l.value) || 100,
+      commissionStatus: 'Pending',
+      commissionPaidDate: 'Awaiting Cycle',
+      salesperson: l.assignedTo || 'Sales Executive',
+      signupDate: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'Recent',
+    }))
+
+  const colinClinics = [...dbClinicsFormatted, ...convertedLeadsFormatted]
 
   const paidCommissionSum = colinClinics
     .filter(c => c.commissionStatus === 'Paid')
@@ -33,14 +63,14 @@ export default function SalesCommissions({ store: propStore }) {
     { label: 'Pending Payout', value: `$${pendingCommissionSum.toFixed(2)}`, icon: <ClockCircleOutlined />, color: '#F59E0B', sub: 'Awaiting monthly cycle' },
   ]
 
-  // Monthly trend data (simulated)
+  // Monthly trend data
   const trendData = [
     { month: 'Jan', commission: 0 },
     { month: 'Feb', commission: 0 },
     { month: 'Mar', commission: 0 },
-    { month: 'Apr', commission: 29700 },
-    { month: 'May', commission: 0 },
-    { month: 'Jun', commission: 13980 + (totalMrr * 0.12) },
+    { month: 'Apr', commission: Math.round(paidCommissionSum * 0.8) },
+    { month: 'May', commission: Math.round(paidCommissionSum) },
+    { month: 'Jun', commission: Math.round(thisMonthCommission) },
   ]
 
   // Filter ledger data

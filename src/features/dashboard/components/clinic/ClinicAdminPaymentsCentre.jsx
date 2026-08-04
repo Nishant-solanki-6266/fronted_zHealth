@@ -1,76 +1,99 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Table, Button, Input, Modal, Form, Select, DatePicker, Tooltip } from 'antd'
 import { SearchOutlined } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
+import dayjs from 'dayjs'
 import { useClinicStore } from '../../../../store/clinicStore'
+import { getPayments, createPayment } from '../../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 
-const initialPayments = [
-  { id: 'RCPT-0383', from: 'Feras Taha', amount: 187.50, date: '23 Jun 2026' },
-  { id: 'RCPT-0376', from: 'Peter Bent', amount: 92.00, date: '19 Jun 2026' },
-  { id: 'RCPT-0377', from: 'Andrej Anastasov', amount: 241.87, date: '19 Jun 2026' },
-  { id: 'RCPT-0379', from: 'Noah Lawrence', amount: 257.71, date: '18 Jun 2026' },
-  { id: 'RCPT-0378', from: 'Alessia Sharpe', amount: 232.24, date: '17 Jun 2026' },
-  { id: 'RCPT-0381', from: 'Liliana Radojcic', amount: 229.99, date: '17 Jun 2026' },
-  { id: 'RCPT-0380', from: 'Peter Bent', amount: 264.64, date: '16 Jun 2026' },
-  { id: 'RCPT-0382', from: 'Liam Eagles', amount: 229.99, date: '16 Jun 2026' },
-  { id: 'RCPT-0375', from: 'Alessia Sharpe', amount: 232.24, date: '15 Jun 2026' },
-  { id: 'RCPT-0370', from: 'Allan Schaudin', amount: 213.99, date: '12 Jun 2026' },
-]
-
 export default function ClinicAdminPaymentsCentre() {
-  const { darkMode } = useClinicStore()
-  const [payments, setPayments] = useState(initialPayments)
+  const store = useClinicStore()
+  const [payments, setPayments] = useState([])
   const [search, setSearch] = useState('')
+  const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [form] = Form.useForm()
 
-  const filtered = payments.filter(p =>
-    p.from.toLowerCase().includes(search.toLowerCase()) ||
-    p.id.toLowerCase().includes(search.toLowerCase())
-  )
-
-  const handleAddPayment = (values) => {
-    const newPayment = {
-      id: `RCPT-${String(payments.length + 1).padStart(4, '0')}`,
-      from: values.from,
-      amount: parseFloat(values.amount),
-      date: values.date ? values.date.format('D MMM YYYY') : new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+  const fetchPaymentsData = async () => {
+    setLoading(true)
+    try {
+      const res = await getPayments({ search })
+      if (res && res.success && Array.isArray(res.data)) {
+        setPayments(res.data)
+      }
+    } catch (err) {
+      console.error('Failed to fetch payments:', err)
+    } finally {
+      setLoading(false)
     }
-    setPayments(prev => [newPayment, ...prev])
-    toast.success('New payment recorded!')
-    setModalOpen(false)
-    form.resetFields()
   }
+
+  useEffect(() => {
+    fetchPaymentsData()
+  }, [search])
+
+  const handleAddPayment = async (values) => {
+    setSubmitting(true)
+    const newPayment = {
+      from: values.from,
+      clientName: values.from,
+      amount: parseFloat(values.amount) || 0,
+      paymentDate: values.date ? values.date.format('DD MMM YYYY') : dayjs().format('DD MMM YYYY'),
+    }
+
+    try {
+      const res = await createPayment(newPayment)
+      if (res && res.success && res.data) {
+        setPayments(prev => [res.data, ...prev])
+        toast.success('New payment recorded successfully in database!')
+        setModalOpen(false)
+        form.resetFields()
+        fetchPaymentsData()
+      } else {
+        toast.error('Failed to record payment')
+      }
+    } catch (err) {
+      console.error('Add payment error:', err)
+      toast.error('Error saving payment to live database')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const filtered = (payments || []).filter(p => {
+    if (!p) return false
+    const q = (search || '').toLowerCase()
+    const pFrom = (p.clientName || p.from || '').toLowerCase()
+    const pId = (p.receiptNumber || p.id || '').toLowerCase()
+    return !search || pFrom.includes(q) || pId.includes(q)
+  })
 
   const columns = [
     {
       title: <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200">Payment #</span>,
-      dataIndex: 'id', 
-      key: 'id',
-      sorter: (a, b) => a.id.localeCompare(b.id),
-      render: val => <span className="font-medium text-slate-700 dark:text-slate-300 text-[13px]">{val}</span>,
+      key: 'receiptNumber',
+      sorter: (a, b) => (a.receiptNumber || a.id || '').localeCompare(b.receiptNumber || b.id || ''),
+      render: (_, record) => <span className="font-medium text-slate-700 dark:text-slate-300 text-[13px]">{record.receiptNumber || record.id}</span>,
     },
     {
       title: <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200">From</span>,
-      dataIndex: 'from', 
       key: 'from',
-      render: val => <span className="font-medium text-[#8C4BFF] cursor-pointer text-[13px]">{val}</span>,
+      render: (_, record) => <span className="font-medium text-[#8C4BFF] cursor-pointer text-[13px]">{record.clientName || record.from}</span>,
     },
     {
       title: <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200">Amount</span>,
       dataIndex: 'amount', 
       key: 'amount',
-      render: val => <span className="font-medium text-slate-700 dark:text-slate-300 text-[13px]">{val.toFixed(2)}</span>,
+      render: val => <span className="font-medium text-slate-700 dark:text-slate-300 text-[13px]">${(parseFloat(val) || 0).toFixed(2)}</span>,
     },
     {
       title: <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200">Payment date</span>,
-      dataIndex: 'date', 
       key: 'date',
       align: 'right',
-      sorter: (a, b) => new Date(a.date) - new Date(b.date),
-      render: val => <span className="font-medium text-slate-700 dark:text-slate-300 text-[13px]">{val}</span>,
+      render: (_, record) => <span className="font-medium text-slate-700 dark:text-slate-300 text-[13px]">{record.paymentDate || record.date}</span>,
     },
   ]
 
@@ -91,12 +114,14 @@ export default function ClinicAdminPaymentsCentre() {
       <div className="flex gap-2 mb-6">
         <Input
           placeholder="Search for recipient name and payment number"
-          value={search} onChange={e => setSearch(e.target.value)}
+          value={search} 
+          onChange={e => setSearch(e.target.value)}
+          onPressEnter={fetchPaymentsData}
           className="rounded-md h-[40px] flex-1 border-[#d9d9d9] dark:border-slate-700 dark:bg-slate-800 text-[13px]"
         />
         <Button
           className="rounded-md h-[40px] px-6 font-medium text-[13px] border-[#d9d9d9] text-[#202020] dark:text-slate-200 dark:border-slate-700 hover:border-[#8C4BFF] hover:text-[#8C4BFF]"
-          onClick={() => toast.success('Searching...')}
+          onClick={fetchPaymentsData}
         >
           Search
         </Button>
@@ -107,45 +132,63 @@ export default function ClinicAdminPaymentsCentre() {
         <Table
           dataSource={filtered} 
           columns={columns} 
-          rowKey="id"
+          loading={loading}
+          rowKey={record => record.id || record.receiptNumber}
           expandable={{
-            expandedRowRender: record => (
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl space-y-2 text-xs">
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  <div>
-                    <span className="text-slate-400 font-semibold block uppercase text-[10px]">Payment Method</span>
-                    <span className="font-bold text-slate-700 dark:text-slate-200">Stripe / Credit Card</span>
+            expandedRowRender: record => {
+              const rcpt = record.receiptNumber || record.id || 'RCPT'
+              const invRef = record.invoiceReference || `INV-${rcpt.replace('RCPT-', '')}`
+              const txId = record.transactionId || `tx_${rcpt.toLowerCase().replace(/[^a-z0-9]/g, '')}_892`
+              const method = record.paymentMethod || 'Stripe / Credit Card'
+              const status = record.status || 'Successful (Paid)'
+
+              return (
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-xl border border-slate-200 dark:border-slate-700 my-2 space-y-3 text-xs shadow-sm">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-700">
+                    <span className="font-extrabold text-sm text-slate-800 dark:text-white">
+                      Payment Details: <span className="text-[#8C4BFF]">{rcpt}</span>
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                      {status}
+                    </span>
                   </div>
-                  <div>
-                    <span className="text-slate-400 font-semibold block uppercase text-[10px]">Invoice Reference</span>
-                    <span className="font-bold text-[#8C4BFF]">INV-{record.id.replace('RCPT-', '')}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 font-semibold block uppercase text-[10px]">Transaction Status</span>
-                    <span className="font-bold text-emerald-500">Successful (Paid)</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 font-semibold block uppercase text-[10px]">Transaction ID</span>
-                    <span className="font-bold text-slate-600 dark:text-slate-400 font-mono">tx_{record.id.toLowerCase()}_892</span>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div>
+                      <span className="text-slate-400 font-semibold block uppercase text-[10px]">Client / From</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-200">{record.clientName || record.from}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-semibold block uppercase text-[10px]">Payment Method</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-200">{method}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-semibold block uppercase text-[10px]">Invoice Reference</span>
+                      <span className="font-bold text-[#8C4BFF]">{invRef}</span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 font-semibold block uppercase text-[10px]">Transaction ID</span>
+                      <span className="font-bold text-slate-600 dark:text-slate-400 font-mono">{txId}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ),
+              )
+            },
             expandIcon: ({ expanded, onExpand, record }) => (
               <div 
-                className="text-slate-400 cursor-pointer text-center w-6" 
+                className="text-[#8C4BFF] font-black cursor-pointer text-center w-6 text-sm hover:scale-125 transition-transform select-none" 
                 onClick={e => onExpand(record, e)}
+                title={expanded ? 'Hide details (-)' : 'Show details (+)'}
               >
-                {expanded ? '-' : '+'}
+                {expanded ? '−' : '+'}
               </div>
             )
           }}
           pagination={{ 
-            total: 382,
+            total: filtered.length,
             pageSize: 10, 
             showSizeChanger: true, 
             pageSizeOptions: ['10', '20', '50'],
-            showTotal: (total, range) => `${range[0]}-${range[1]} of 382 items`,
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
             position: ['bottomRight']
           }}
           className="payments-table custom-pagination-table"
@@ -172,7 +215,6 @@ export default function ClinicAdminPaymentsCentre() {
           border-bottom: none !important;
         }
         
-        /* Custom Pagination styles matching image */
         .payments-table.ant-table-wrapper .ant-table-pagination.ant-pagination {
           padding: 16px !important;
           margin: 0 !important;
@@ -218,26 +260,30 @@ export default function ClinicAdminPaymentsCentre() {
       {/* New Payment Modal */}
       <Modal
         title={<span className="font-bold text-slate-800 dark:text-white">Record New Payment</span>}
-        open={modalOpen} onCancel={() => { setModalOpen(false); form.resetFields() }} footer={null}
+        open={modalOpen} 
+        onCancel={() => { setModalOpen(false); form.resetFields() }} 
+        footer={null}
+        destroyOnClose
       >
         <Form form={form} layout="vertical" onFinish={handleAddPayment} className="mt-4">
-          <Form.Item name="from" label="Client Name" rules={[{ required: true }]}>
+          <Form.Item name="from" label="Client Name" rules={[{ required: true, message: 'Please enter client name' }]}>
             <Input className="rounded-md" placeholder="e.g. John Miller" />
           </Form.Item>
-          <Form.Item name="amount" label="Amount" rules={[{ required: true }]}>
-            <Input type="number" className="rounded-md" placeholder="e.g. 180.00" />
+          <Form.Item name="amount" label="Amount" rules={[{ required: true, message: 'Please enter amount' }]}>
+            <Input type="number" step="0.01" className="rounded-md" placeholder="e.g. 180.00" />
           </Form.Item>
-          <Form.Item name="date" label="Payment Date" rules={[{ required: true }]}>
+          <Form.Item name="date" label="Payment Date" rules={[{ required: true, message: 'Please select payment date' }]}>
             <DatePicker className="rounded-md w-full" format="YYYY-MM-DD" />
           </Form.Item>
           <div className="flex justify-end gap-2 mt-4">
             <Button onClick={() => { setModalOpen(false); form.resetFields() }} className="rounded-md">Cancel</Button>
-            <Button type="primary" htmlType="submit" style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }} className="rounded-md font-bold text-white">Save</Button>
+            <Button type="primary" htmlType="submit" loading={submitting} style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }} className="rounded-md font-bold text-white">Save</Button>
           </div>
         </Form>
       </Modal>
     </div>
   )
 }
+
 
 

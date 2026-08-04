@@ -1,5 +1,10 @@
 import { create } from 'zustand'
 import dayjs from 'dayjs'
+import api from '../api/axios'
+import { 
+  getIntegrations, updateIntegration, createIntegration, deleteIntegration,
+  getClinicSettingsTemplates, createClinicSettingsTemplate, updateClinicSettingsTemplate, deleteClinicSettingsTemplate 
+} from '../features/settings/api/settingsApi'
 
 export const useClinicStore = create((set, get) => ({
   darkMode: typeof window !== 'undefined' ? localStorage.getItem('darkMode') === 'true' : false,
@@ -124,14 +129,99 @@ export const useClinicStore = create((set, get) => ({
   messageBoard: [],
 
   /* Settings Actions */
+  integrationsLoading: false,
   updateSettings: (key, value) => {
     set((state) => ({ [key]: value }))
   },
-  toggleIntegration: (id) => {
+  fetchIntegrations: async () => {
+    set({ integrationsLoading: true })
+    try {
+      const res = await getIntegrations()
+      if (res && res.success && Array.isArray(res.data)) {
+        set({ integrations: res.data })
+        return res.data
+      }
+    } catch (err) {
+      console.error('❌ Error fetching integrations from DB:', err)
+    } finally {
+      set({ integrationsLoading: false })
+    }
+  },
+  templatesLoading: false,
+  fetchSettingsTemplates: async () => {
+    set({ templatesLoading: true })
+    try {
+      const res = await getClinicSettingsTemplates()
+      if (res && res.success) {
+        const { forms, letters, notes, invoiceTemplates } = res.data
+        set({
+          formTemplates: forms || [],
+          letterTemplates: letters || [],
+          noteTemplates: notes || [],
+          invoiceTemplates: invoiceTemplates || get().invoiceTemplates
+        })
+      }
+    } catch (err) {
+      console.error('❌ Error fetching templates from DB:', err)
+    } finally {
+      set({ templatesLoading: false })
+    }
+  },
+  addSettingsTemplate: async (type, template) => {
+    try {
+      const res = await createClinicSettingsTemplate({ type, ...template })
+      if (res && res.success) {
+         await get().fetchSettingsTemplates()
+         return { success: true }
+      }
+      return { success: false }
+    } catch (err) {
+      console.error('❌ Error adding template:', err)
+      return { success: false }
+    }
+  },
+  updateSettingsTemplate: async (type, id, template) => {
+    try {
+      const res = await updateClinicSettingsTemplate(type, id, template)
+      if (res && res.success) {
+         await get().fetchSettingsTemplates()
+         return { success: true }
+      }
+      return { success: false }
+    } catch (err) {
+      console.error('❌ Error updating template:', err)
+      return { success: false }
+    }
+  },
+  removeSettingsTemplate: async (type, id) => {
+    try {
+      const res = await deleteClinicSettingsTemplate(type, id)
+      if (res && res.success) {
+         await get().fetchSettingsTemplates()
+         return { success: true }
+      }
+      return { success: false }
+    } catch (err) {
+      console.error('❌ Error deleting template:', err)
+      return { success: false }
+    }
+  },
+  toggleIntegration: async (id, overrideConnected) => {
+    try {
+      const current = get().integrations.find((item) => item.id === id)
+      const nextConnected = overrideConnected !== undefined ? overrideConnected : !(current?.connected)
+      const res = await updateIntegration(id, { connected: nextConnected })
+      if (res && res.success && Array.isArray(res.data)) {
+        set({ integrations: res.data })
+        return res.data
+      }
+    } catch (err) {
+      console.error('❌ Error toggling integration in DB:', err)
+    }
     set((state) => ({
       integrations: state.integrations.map((item) => {
         if (item.id === id) {
-          const nowConnected = !item.connected
+          const nowConnected = overrideConnected !== undefined ? overrideConnected : !item.connected
           return {
             ...item,
             connected: nowConnected,
@@ -140,6 +230,59 @@ export const useClinicStore = create((set, get) => ({
         }
         return item
       }),
+    }))
+  },
+  syncIntegration: async (id) => {
+    try {
+      const now = new Date().toLocaleString()
+      const res = await updateIntegration(id, { connected: true, lastSync: now })
+      if (res && res.success && Array.isArray(res.data)) {
+        set({ integrations: res.data })
+        return res.data
+      }
+    } catch (err) {
+      console.error('❌ Error syncing integration in DB:', err)
+    }
+    set((state) => ({
+      integrations: state.integrations.map((item) =>
+        item.id === id ? { ...item, lastSync: new Date().toLocaleString() } : item
+      ),
+    }))
+  },
+  addIntegration: async (data) => {
+    try {
+      const res = await createIntegration(data)
+      if (res && res.success && Array.isArray(res.data)) {
+        set({ integrations: res.data })
+        return res.data
+      }
+    } catch (err) {
+      console.error('❌ Error creating integration in DB:', err)
+    }
+    const newInt = {
+      id: `custom_${Date.now()}`,
+      name: data.name,
+      type: data.type || 'Custom Integration',
+      connected: Boolean(data.connected),
+      lastSync: data.connected ? new Date().toLocaleString() : null,
+      description: data.description || 'Custom software integration.',
+      isCustom: true
+    }
+    set((state) => ({ integrations: [newInt, ...state.integrations] }))
+    return newInt
+  },
+  deleteIntegration: async (id) => {
+    try {
+      const res = await deleteIntegration(id)
+      if (res && res.success && Array.isArray(res.data)) {
+        set({ integrations: res.data })
+        return res.data
+      }
+    } catch (err) {
+      console.error('❌ Error deleting integration from DB:', err)
+    }
+    set((state) => ({
+      integrations: state.integrations.filter((item) => item.id !== id),
     }))
   },
   addMessageBoardItem: (msg) => {
@@ -255,6 +398,7 @@ export const useClinicStore = create((set, get) => ({
   },
 
   /* Patient CRUD */
+  setPatients: (patients) => set({ patients: Array.isArray(patients) ? patients : [] }),
   addPatient: (patient) => {
     const newPatient = {
       id: `p_${Date.now()}`,
@@ -281,14 +425,9 @@ export const useClinicStore = create((set, get) => ({
   },
 
   /* Waitlist Actions */
+  setWaitlist: (waitlist) => set({ waitlist: Array.isArray(waitlist) ? waitlist : [] }),
   addToWaitlist: (entry) => {
-    const newEntry = {
-      id: `w_${Date.now()}`,
-      dateAdded: new Date().toISOString().split('T')[0],
-      status: 'Waiting',
-      ...entry,
-    }
-    set((state) => ({ waitlist: [...state.waitlist, newEntry] }))
+    set((state) => ({ waitlist: [entry, ...(state.waitlist || [])] }))
   },
   updateWaitlistStatus: (id, status) => {
     set((state) => ({
@@ -301,10 +440,11 @@ export const useClinicStore = create((set, get) => ({
     }))
   },
 
+
   /* Contacts Actions */
+  setContacts: (contacts) => set({ contacts: Array.isArray(contacts) ? contacts : [] }),
   addContact: (contact) => {
-    const newContact = { id: `c_${Date.now()}`, associatedClients: [], ...contact }
-    set((state) => ({ contacts: [...state.contacts, newContact] }))
+    set((state) => ({ contacts: [contact, ...(state.contacts || [])] }))
   },
   updateContact: (updatedContact) => {
     set((state) => ({
@@ -317,29 +457,28 @@ export const useClinicStore = create((set, get) => ({
     }))
   },
 
+
   /* Invoice management Actions */
+  setInvoices: (invoices) => set({ invoices: Array.isArray(invoices) ? invoices : [] }),
   addInvoice: (invoice) => {
-    const newInvoice = {
-      id: `INV-${String(get().invoices.length + 1).padStart(3, '0')}`,
-      issueDate: new Date().toISOString().split('T')[0],
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      due: invoice.amount || 0,
-      status: 'Draft',
-      sentStatus: 'Not Sent',
-      ...invoice,
-    }
-    set((state) => ({ invoices: [...state.invoices, newInvoice] }))
+    set((state) => ({ invoices: [invoice, ...(state.invoices || [])] }))
   },
   updateInvoiceStatus: (id, status, dueVal) => {
     set((state) => ({
-      invoices: state.invoices.map((inv) =>
+      invoices: (state.invoices || []).map((inv) =>
         inv.id === id ? { ...inv, status, due: dueVal !== undefined ? dueVal : inv.due } : inv
       ),
     }))
   },
-  deleteInvoice: (id) => {
-    set((state) => ({ invoices: state.invoices.filter((inv) => inv.id !== id) }))
+  updateInvoice: (updatedInv) => {
+    set((state) => ({
+      invoices: (state.invoices || []).map((inv) => (inv.id === updatedInv.id ? { ...inv, ...updatedInv } : inv)),
+    }))
   },
+  deleteInvoice: (id) => {
+    set((state) => ({ invoices: (state.invoices || []).filter((inv) => inv.id !== id) }))
+  },
+
 
   /* Documents Actions */
   setAddDocModalOpen: (isOpen) => set({ addDocModalOpen: isOpen }),
@@ -370,23 +509,69 @@ export const useClinicStore = create((set, get) => ({
   },
 
   /* Appointment Actions */
-  addAppointment: (appointment) => {
+  fetchAppointments: async (params = {}) => {
+    try {
+      const role = get().userRole
+      const endpoint = role === 'practitioner' ? '/api/practitioner/appointments' : '/api/clinic-admin/appointments'
+      const res = await api.get(endpoint, { params })
+      if (res?.data?.success && Array.isArray(res.data.data)) {
+        set({ appointments: res.data.data })
+        return res.data.data
+      }
+    } catch (err) {
+      console.error('❌ Error fetching appointments from DB:', err?.response?.status, err?.message)
+    }
+  },
+  addAppointment: async (appointment) => {
+    try {
+      const role = get().userRole
+      const endpoint = role === 'practitioner' ? '/api/practitioner/appointments' : '/api/clinic-admin/appointments'
+      const res = await api.post(endpoint, appointment)
+      if (res?.data?.success && res.data.data) {
+        const created = res.data.data
+        set((state) => ({ appointments: [created, ...(state.appointments || []).filter(a => a.id !== created.id)] }))
+        return created
+      }
+    } catch (err) {
+      console.error('❌ Error saving appointment to DB:', err?.response?.status, err?.message)
+    }
     const newAppt = {
       id: `a_${Date.now()}`,
       location: 'Melbourne Clinic',
       room: 'Room A',
       ...appointment,
     }
-    set((state) => ({ appointments: [...state.appointments, newAppt] }))
+    set((state) => ({ appointments: [newAppt, ...(state.appointments || []).filter(a => a.id !== newAppt.id)] }))
+    return newAppt
   },
-  updateAppointment: (updated) =>
+  updateAppointment: async (updated) => {
+    try {
+      if (updated.id && !String(updated.id).startsWith('a_')) {
+        const role = get().userRole
+        const endpoint = role === 'practitioner' ? `/api/practitioner/appointments/${updated.id}` : `/api/clinic-admin/appointments/${updated.id}`
+        await api.put(endpoint, updated)
+      }
+    } catch (err) {
+      console.error('❌ Error updating appointment in DB:', err?.response?.status, err?.message)
+    }
     set((state) => ({
-      appointments: (state.appointments || []).map((a) => (a.id === updated.id ? updated : a)),
-    })),
-  deleteAppointment: (id) =>
+      appointments: (state.appointments || []).map((a) => (a.id === updated.id ? { ...a, ...updated } : a)),
+    }))
+  },
+  deleteAppointment: async (id) => {
+    try {
+      if (id && !String(id).startsWith('a_')) {
+        const role = get().userRole
+        const endpoint = role === 'practitioner' ? `/api/practitioner/appointments/${id}` : `/api/clinic-admin/appointments/${id}`
+        await api.delete(endpoint)
+      }
+    } catch (err) {
+      console.error('❌ Error deleting appointment from DB:', err?.response?.status, err?.message)
+    }
     set((state) => ({
       appointments: (state.appointments || []).filter((a) => a.id !== id),
-    })),
+    }))
+  },
 
   /* Subscription State */
   subscription: {
@@ -540,8 +725,97 @@ export const useClinicStore = create((set, get) => ({
   salesTasks: [],
   salesCalendarEvents: [],
   salesMessages: [],
+  salesProfile: null,
 
-  addLead: (lead) => {
+  /* Sales Profile Live API */
+  fetchSalesProfile: async () => {
+    try {
+      const res = await api.get('/api/sales/profile')
+      if (res?.data?.success) {
+        set({ salesProfile: res.data.data })
+        return res.data.data
+      }
+    } catch (err) {
+      console.error('❌ Error fetching sales profile:', err?.response?.status, err?.message)
+    }
+  },
+
+  updateSalesProfile: async (data) => {
+    try {
+      const res = await api.put('/api/sales/profile', data)
+      if (res?.data?.success) {
+        set({ salesProfile: res.data.data })
+        return { success: true, data: res.data.data }
+      }
+      return { success: false, message: res?.data?.message || 'Update failed' }
+    } catch (err) {
+      console.error('❌ Error updating sales profile:', err?.response?.status, err?.message)
+      return { success: false, message: err?.response?.data?.message || 'Update failed' }
+    }
+  },
+
+  changeSalesPassword: async ({ currentPassword, newPassword }) => {
+    try {
+      const res = await api.put('/api/sales/profile/password', { currentPassword, newPassword })
+      if (res?.data?.success) {
+        return { success: true }
+      }
+      return { success: false, message: res?.data?.message || 'Password change failed' }
+    } catch (err) {
+      console.error('❌ Error changing sales password:', err?.response?.status, err?.message)
+      const msg = err?.response?.data?.message || 'Password change failed'
+      return { success: false, message: msg }
+    }
+  },
+
+  fetchLeads: async () => {
+    try {
+      console.log('📡 Fetching sales leads from http://localhost:5001/api/sales/leads...')
+      const res = await api.get('/api/sales/leads')
+      if (res?.data?.success) {
+        console.log('✅ Sales leads fetched successfully:', res.data.data.length, 'records')
+        set({ leads: res.data.data })
+        return res.data.data
+      }
+    } catch (err) {
+      console.error('❌ Failed to fetch /api/sales/leads:', err?.response?.status, err?.response?.data || err.message)
+      // Fallback try
+      try {
+        const fallback = await api.get('/api/super-admin/sales-leads')
+        if (fallback?.data?.success) {
+          set({ leads: fallback.data.data })
+          return fallback.data.data
+        }
+      } catch (fbErr) {
+        console.error('❌ Fallback /api/super-admin/sales-leads error:', fbErr?.response?.status, fbErr?.message)
+      }
+    }
+  },
+
+  addLead: async (lead) => {
+    try {
+      const payload = {
+        name: lead.name || lead.companyName,
+        contactPerson: lead.contactPerson,
+        contact: lead.contact || lead.phone,
+        email: lead.email,
+        location: lead.location || lead.territory,
+        value: lead.value,
+        stage: lead.stage || 'New Lead',
+        notes: lead.notes,
+        source: lead.source || 'Web Form',
+      }
+      console.log('📡 POSTing new lead to /api/sales/leads:', payload)
+      const res = await api.post('/api/sales/leads', payload)
+      if (res?.data?.success) {
+        const created = res.data.data
+        console.log('✅ Lead created in MySQL database:', created)
+        set((state) => ({ leads: [created, ...state.leads] }))
+        return created
+      }
+    } catch (err) {
+      console.error('❌ Error adding lead to DB:', err?.response?.status, err?.response?.data || err.message)
+    }
     const newLead = {
       id: `lead_${Date.now()}`,
       dateAdded: new Date().toISOString().split('T')[0],
@@ -549,17 +823,48 @@ export const useClinicStore = create((set, get) => ({
       notes: '',
       ...lead,
     }
-    set((state) => ({ leads: [...state.leads, newLead] }))
+    set((state) => ({ leads: [newLead, ...state.leads] }))
+    return newLead
   },
-  updateLead: (updated) => {
+
+  updateLead: async (updated) => {
+    try {
+      if (updated.id && !String(updated.id).startsWith('lead_')) {
+        console.log(`📡 PUT updating lead ${updated.id} in DB...`)
+        const res = await api.put(`/api/sales/leads/${updated.id}`, updated)
+        console.log('✅ Lead updated in DB:', res?.data)
+      }
+    } catch (err) {
+      console.error('❌ Error updating lead in DB:', err?.response?.status, err?.response?.data || err.message)
+    }
     set((state) => ({
       leads: state.leads.map((l) => (l.id === updated.id ? { ...l, ...updated } : l)),
     }))
   },
-  deleteLead: (id) => {
+
+  deleteLead: async (id) => {
+    try {
+      if (id && !String(id).startsWith('lead_')) {
+        console.log(`📡 DELETE deleting lead ${id} from DB...`)
+        const res = await api.delete(`/api/sales/leads/${id}`)
+        console.log('✅ Lead deleted from DB:', res?.data)
+      }
+    } catch (err) {
+      console.error('❌ Error deleting lead from DB:', err?.response?.status, err?.response?.data || err.message)
+    }
     set((state) => ({ leads: state.leads.filter((l) => l.id !== id) }))
   },
-  moveLeadStage: (id, newStage) => {
+
+  moveLeadStage: async (id, newStage) => {
+    try {
+      if (id && !String(id).startsWith('lead_')) {
+        console.log(`📡 PATCH stage update for lead ${id} to ${newStage}...`)
+        const res = await api.patch(`/api/sales/leads/${id}/status`, { stage: newStage, status: newStage })
+        console.log('✅ Stage updated in DB:', res?.data)
+      }
+    } catch (err) {
+      console.error('❌ Error moving lead stage in DB:', err?.response?.status, err?.response?.data || err.message)
+    }
     set((state) => ({
       leads: state.leads.map((l) => {
         if (l.id === id) {
@@ -577,7 +882,21 @@ export const useClinicStore = create((set, get) => ({
       }),
     }))
   },
-  addLeadActivity: (leadId, activityText) => {
+  addLeadActivity: async (leadId, activityText) => {
+    try {
+      if (leadId && !String(leadId).startsWith('lead_')) {
+        const res = await api.post(`/api/sales/leads/${leadId}/activity`, { text: activityText })
+        if (res?.data?.success) {
+          const updated = res.data.data
+          set((state) => ({
+            leads: state.leads.map((l) => (l.id === leadId ? updated : l)),
+          }))
+          return updated
+        }
+      }
+    } catch (err) {
+      console.error('❌ Error saving lead activity to DB:', err?.response?.status, err?.message)
+    }
     set((state) => ({
       leads: state.leads.map((l) => {
         if (l.id === leadId) {
@@ -590,29 +909,145 @@ export const useClinicStore = create((set, get) => ({
       }),
     }))
   },
-  addSalesTask: (task) => {
+  convertLeadToClinic: async (leadId, tier, value, salesperson) => {
+    try {
+      if (leadId && !String(leadId).startsWith('lead_')) {
+        const res = await api.post('/api/sales/clinics/convert', { leadId, tier, value, salesperson })
+        if (res?.data?.success) {
+          const { clinic, lead } = res.data.data
+          set((state) => ({
+            clinics: [clinic, ...state.clinics],
+            leads: state.leads.map(l => l.id === leadId ? lead : l)
+          }))
+          return { success: true, data: res.data.data }
+        }
+      }
+    } catch (err) {
+      console.error('❌ Error converting lead to clinic in DB:', err?.response?.status, err?.message)
+      return { success: false, message: err?.response?.data?.message || 'Conversion failed' }
+    }
+  },
+
+  /* Sales Tasks Live API */
+  fetchSalesTasks: async () => {
+    try {
+      const res = await api.get('/api/sales/tasks')
+      if (res?.data?.success) {
+        set({ salesTasks: res.data.data })
+        return res.data.data
+      }
+    } catch (err) {
+      console.error('❌ Error fetching sales tasks:', err?.response?.status, err?.message)
+    }
+  },
+  addSalesTask: async (task) => {
+    try {
+      const res = await api.post('/api/sales/tasks', task)
+      if (res?.data?.success) {
+        const created = res.data.data
+        set((state) => ({ salesTasks: [created, ...state.salesTasks] }))
+        return created
+      }
+    } catch (err) {
+      console.error('❌ Error adding sales task to DB:', err?.response?.status, err?.message)
+    }
     const newTask = { id: `task_${Date.now()}`, status: 'Pending', ...task }
     set((state) => ({ salesTasks: [...state.salesTasks, newTask] }))
+    return newTask
   },
-  updateSalesTask: (id, updates) => {
+  updateSalesTask: async (id, updates) => {
+    try {
+      if (id && !String(id).startsWith('task_')) {
+        await api.put(`/api/sales/tasks/${id}`, updates)
+      }
+    } catch (err) {
+      console.error('❌ Error updating sales task in DB:', err?.response?.status, err?.message)
+    }
     set((state) => ({
       salesTasks: state.salesTasks.map((t) => (t.id === id ? { ...t, ...updates } : t)),
     }))
   },
-  deleteSalesTask: (id) => {
+  deleteSalesTask: async (id) => {
+    try {
+      if (id && !String(id).startsWith('task_')) {
+        await api.delete(`/api/sales/tasks/${id}`)
+      }
+    } catch (err) {
+      console.error('❌ Error deleting sales task from DB:', err?.response?.status, err?.message)
+    }
     set((state) => ({ salesTasks: state.salesTasks.filter((t) => t.id !== id) }))
   },
-  addSalesCalendarEvent: (evt) => {
+
+  /* Sales Calendar Events Live API */
+  fetchSalesCalendarEvents: async () => {
+    try {
+      const res = await api.get('/api/sales/calendar-events')
+      if (res?.data?.success) {
+        set({ salesCalendarEvents: res.data.data })
+        return res.data.data
+      }
+    } catch (err) {
+      console.error('❌ Error fetching sales calendar events:', err?.response?.status, err?.message)
+    }
+  },
+  addSalesCalendarEvent: async (evt) => {
+    try {
+      const res = await api.post('/api/sales/calendar-events', evt)
+      if (res?.data?.success) {
+        const created = res.data.data
+        set((state) => ({ salesCalendarEvents: [created, ...state.salesCalendarEvents] }))
+        return created
+      }
+    } catch (err) {
+      console.error('❌ Error adding sales calendar event to DB:', err?.response?.status, err?.message)
+    }
     const newEvt = { id: `evt_${Date.now()}`, ...evt }
     set((state) => ({ salesCalendarEvents: [...state.salesCalendarEvents, newEvt] }))
+    return newEvt
   },
-  addSalesMessage: (msg) => {
+
+  /* Sales Messages Live API */
+  fetchSalesMessages: async () => {
+    try {
+      const res = await api.get('/api/sales/messages')
+      if (res?.data?.success) {
+        set({ salesMessages: res.data.data })
+        return res.data.data
+      }
+    } catch (err) {
+      console.error('❌ Error fetching sales messages:', err?.response?.status, err?.message)
+    }
+  },
+  addSalesMessage: async (msg) => {
+    try {
+      const res = await api.post('/api/sales/messages', msg)
+      if (res?.data?.success) {
+        const created = res.data.data
+        set((state) => ({ salesMessages: [...state.salesMessages, created] }))
+        return created
+      }
+    } catch (err) {
+      console.error('❌ Error sending sales message to DB:', err?.response?.status, err?.message)
+    }
     const newMsg = {
       id: `msg_${Date.now()}`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       ...msg,
     }
     set((state) => ({ salesMessages: [...state.salesMessages, newMsg] }))
+  },
+
+  /* Sales Clinics Live API */
+  fetchSalesClinics: async () => {
+    try {
+      const res = await api.get('/api/sales/clinics')
+      if (res?.data?.success) {
+        set({ clinics: res.data.data })
+        return res.data.data
+      }
+    } catch (err) {
+      console.error('❌ Error fetching sales clinics:', err?.response?.status, err?.message)
+    }
   },
   setClinicStatus: (clinicId, status) => {
     set((state) => ({
@@ -622,7 +1057,14 @@ export const useClinicStore = create((set, get) => ({
   addClinic: (newClinic) => {
     set((state) => ({ clinics: [newClinic, ...state.clinics] }))
   },
-  editClinic: (updated) => {
+  editClinic: async (updated) => {
+    try {
+      if (updated.id && !String(updated.id).startsWith('clinic_')) {
+        await api.put(`/api/sales/clinics/${updated.id}`, updated)
+      }
+    } catch (err) {
+      console.error('❌ Error updating clinic in DB:', err?.response?.status, err?.message)
+    }
     set((state) => ({
       clinics: state.clinics.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),
     }))

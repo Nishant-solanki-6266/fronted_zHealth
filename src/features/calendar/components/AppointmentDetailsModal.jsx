@@ -205,7 +205,7 @@ export default function AppointmentDetailsModal({ open, onCancel, appointment, o
         onCancel={onCancel}
         footer={null}
         width={650}
-        destroyOnClose
+        destroyOnHidden
         className="documents-modal"
       >
         {isRescheduling ? (

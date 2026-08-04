@@ -15,13 +15,17 @@ import {
 import { toast } from 'react-hot-toast'
 import { useClinicStore } from '../../../store/clinicStore'
 import dayjs from 'dayjs'
+import {
+  getDocuments,
+  createDocument as createDocumentApi,
+  updateDocument as updateDocumentApi,
+  deleteDocument as deleteDocumentApi
+} from '../../calendar/api/clinicAdminApi'
+
 
 const { Option } = Select
 
 export default function DocumentsPage() {
-  const documents = useClinicStore(state => state.documents)
-  const updateDocument = useClinicStore(state => state.updateDocument)
-  const deleteDocument = useClinicStore(state => state.deleteDocument)
   const setAddDocModalOpen = useClinicStore(state => state.setAddDocModalOpen)
 
   const [searchText, setSearchText] = useState('')
@@ -30,6 +34,9 @@ export default function DocumentsPage() {
   const [clientFilter, setClientFilter] = useState(undefined)
   const [uploadedByFilter, setUploadedByFilter] = useState(undefined)
   const [dateFilter, setDateFilter] = useState(null)
+
+  const [liveDocs, setLiveDocs] = useState([])
+  const [loading, setLoading] = useState(false)
   
   // Modals state
   const [detailVisible, setDetailVisible] = useState(false)
@@ -38,37 +45,44 @@ export default function DocumentsPage() {
   const [selectedDoc, setSelectedDoc] = useState(null)
   const [editForm] = Form.useForm()
 
-  // Enrich mock documents with type, status and sentTo if missing
-  const enrichedDocs = documents.map((doc, idx) => {
-    const types = ['Assessment', 'Plan', 'Consent', 'Note', 'Referral', 'Invoice']
-    const statuses = ['Active', 'Sent', 'Draft', 'Archived']
-    return {
-      ...doc,
-      type: doc.type || types[idx % types.length],
-      status: doc.status || statuses[idx % statuses.length],
-      sentTo: doc.sentTo || (doc.uploadBy.includes('Admin') ? 'Doctor Dr.APJ Kalam' : 'Client John Miller'),
+  const fetchLiveDocuments = async () => {
+    setLoading(true)
+    try {
+      const params = {
+        search: searchText,
+        type: typeFilter,
+        status: statusFilter,
+        client: clientFilter,
+        uploadedBy: uploadedByFilter,
+        date: dateFilter
+      }
+      const res = await getDocuments(params)
+      if (res && res.success && Array.isArray(res.data)) {
+        setLiveDocs(res.data)
+      }
+    } catch (err) {
+      console.error('Error fetching live documents:', err)
+    } finally {
+      setLoading(false)
     }
-  })
+  }
 
-  // Filter lists
-  const filteredDocs = enrichedDocs.filter(doc => {
-    const matchesSearch = doc.name.toLowerCase().includes(searchText.toLowerCase()) ||
-                          doc.patientName.toLowerCase().includes(searchText.toLowerCase()) ||
-                          doc.uploadBy.toLowerCase().includes(searchText.toLowerCase()) ||
-                          (doc.sentTo || '').toLowerCase().includes(searchText.toLowerCase())
-      
-    const matchesType = !typeFilter || doc.type === typeFilter
-    const matchesStatus = !statusFilter || doc.status === statusFilter
-    const matchesClient = !clientFilter || doc.patientName === clientFilter
-    const matchesUploadedBy = !uploadedByFilter || doc.uploadBy === uploadedByFilter
-    const matchesDate = !dateFilter || doc.date === dateFilter
+  React.useEffect(() => {
+    fetchLiveDocuments()
+  }, [searchText, typeFilter, statusFilter, clientFilter, uploadedByFilter, dateFilter])
 
-    return matchesSearch && matchesType && matchesStatus && matchesClient && matchesUploadedBy && matchesDate
-  })
+  React.useEffect(() => {
+    const handleDocumentAdded = () => fetchLiveDocuments()
+    window.addEventListener('document-added', handleDocumentAdded)
+    return () => window.removeEventListener('document-added', handleDocumentAdded)
+  }, [])
+
+  const filteredDocs = liveDocs
 
   // Extract unique clients & uploaders for filters
-  const uniqueClients = Array.from(new Set(enrichedDocs.map(d => d.patientName).filter(Boolean)))
-  const uniqueUploaders = Array.from(new Set(enrichedDocs.map(d => d.uploadBy).filter(Boolean)))
+  const uniqueClients = Array.from(new Set(liveDocs.map(d => d.patientName).filter(Boolean)))
+  const uniqueUploaders = Array.from(new Set(liveDocs.map(d => d.uploadBy).filter(Boolean)))
+
 
   const handleRowClick = (doc) => {
     setSelectedDoc(doc)
@@ -400,10 +414,15 @@ export default function DocumentsPage() {
 
                 <Button 
                   icon={<SendOutlined />} 
-                  onClick={() => {
-                    updateDocument({ ...selectedDoc, status: 'Sent' })
-                    toast.success(`Document dispatched to ${selectedDoc.sentTo || 'Recipient'}`)
-                    setDetailVisible(false)
+                  onClick={async () => {
+                    try {
+                      await updateDocumentApi(selectedDoc.id, { status: 'Sent' })
+                      toast.success(`Document dispatched to ${selectedDoc.sentTo || 'Recipient'}`)
+                      setDetailVisible(false)
+                      fetchLiveDocuments()
+                    } catch (err) {
+                      toast.error('Failed to send document')
+                    }
                   }}
                   className="rounded-xl font-bold text-xs h-10 flex items-center justify-center text-blue-600 border-blue-200"
                 >
@@ -412,10 +431,15 @@ export default function DocumentsPage() {
 
                 <Upload
                   showUploadList={false}
-                  beforeUpload={(file) => {
-                    updateDocument({ ...selectedDoc, name: file.name })
-                    toast.success(`File replaced with ${file.name}!`)
-                    setDetailVisible(false)
+                  beforeUpload={async (file) => {
+                    try {
+                      await updateDocumentApi(selectedDoc.id, { name: file.name })
+                      toast.success(`File replaced with ${file.name} in live database!`)
+                      setDetailVisible(false)
+                      fetchLiveDocuments()
+                    } catch (err) {
+                      toast.error('Failed to replace file')
+                    }
                     return false
                   }}
                   className="w-full"
@@ -430,10 +454,15 @@ export default function DocumentsPage() {
 
                 <Button 
                   icon={<FolderOpenOutlined />} 
-                  onClick={() => {
-                    updateDocument({ ...selectedDoc, status: 'Archived' })
-                    toast.success('Document marked as Archived')
-                    setDetailVisible(false)
+                  onClick={async () => {
+                    try {
+                      await updateDocumentApi(selectedDoc.id, { status: 'Archived' })
+                      toast.success('Document marked as Archived in live database')
+                      setDetailVisible(false)
+                      fetchLiveDocuments()
+                    } catch (err) {
+                      toast.error('Failed to archive document')
+                    }
                   }}
                   className="rounded-xl font-bold text-xs h-10 flex items-center justify-center text-slate-500 border-slate-200"
                 >
@@ -442,10 +471,15 @@ export default function DocumentsPage() {
 
                 <Button 
                   icon={<DeleteOutlined />} 
-                  onClick={() => {
-                    if (deleteDocument) deleteDocument(selectedDoc.id)
-                    toast.success('Document deleted permanently')
-                    setDetailVisible(false)
+                  onClick={async () => {
+                    try {
+                      await deleteDocumentApi(selectedDoc.id)
+                      toast.success('Document deleted permanently from live database')
+                      setDetailVisible(false)
+                      fetchLiveDocuments()
+                    } catch (err) {
+                      toast.error('Failed to delete document')
+                    }
                   }}
                   danger
                   className="rounded-xl font-bold text-xs h-10 flex items-center justify-center sm:col-span-2"
@@ -477,12 +511,18 @@ export default function DocumentsPage() {
         <Form 
           layout="vertical" 
           form={editForm} 
-          onFinish={(values) => {
-            updateDocument({ ...selectedDoc, ...values })
-            toast.success('Document updated successfully!')
-            setEditVisible(false)
+          onFinish={async (values) => {
+            try {
+              await updateDocumentApi(selectedDoc.id, values)
+              toast.success('Document updated successfully in live database!')
+              setEditVisible(false)
+              fetchLiveDocuments()
+            } catch (err) {
+              toast.error('Failed to update document in live database')
+            }
           }}
         >
+
           <div className="grid grid-cols-1 gap-4">
             <Form.Item 
               name="name" 

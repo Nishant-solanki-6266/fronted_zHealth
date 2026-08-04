@@ -21,6 +21,10 @@ export default function SalesTasks({ store, modalContext }) {
   const [priorityFilter, setPriorityFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('Active')
 
+  React.useEffect(() => {
+    if (store.fetchSalesTasks) store.fetchSalesTasks()
+  }, [])
+
   const handleToggleStatus = (task) => {
     const nextStatus = task.status === 'Completed' ? 'Pending' : 'Completed'
     store.updateSalesTask(task.id, { status: nextStatus })

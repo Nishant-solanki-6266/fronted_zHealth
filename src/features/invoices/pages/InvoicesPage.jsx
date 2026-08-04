@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Table, Button, Tag, Input, Select, DatePicker, Modal, Space, Form, InputNumber } from 'antd'
 import { SearchOutlined, PlusOutlined, DollarOutlined, FilePdfOutlined, MailOutlined, EditOutlined, CopyOutlined, CloseCircleOutlined, DeleteOutlined, DownloadOutlined, InfoCircleOutlined } from '@ant-design/icons'
 import { useClinicStore } from '../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
+import { getInvoices, createInvoice, updateInvoice, deleteInvoice, getPatients } from '../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 
@@ -16,37 +17,201 @@ export default function InvoicesPage() {
   const [issueDateFilter, setIssueDateFilter] = useState(null)
   const [dueDateFilter, setDueDateFilter] = useState(null)
   
+  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
   const [detailVisible, setDetailVisible] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState(null)
   
   const [createVisible, setCreateVisible] = useState(false)
   const [createForm] = Form.useForm()
 
-  const handleCreateInvoice = (values) => {
-    store.addInvoice({
+  const fetchInvoicesData = async () => {
+    setLoading(true)
+    try {
+      if (!store.patients || store.patients.length === 0) {
+        const pRes = await getPatients().catch(() => null)
+        if (pRes && pRes.success && Array.isArray(pRes.data)) {
+          store.setPatients(pRes.data)
+        }
+      }
+      const res = await getInvoices({
+        search: searchText,
+        status: statusFilter,
+        practitioner: practitionerFilter,
+        recipient: recipientFilter,
+      })
+      if (res && res.success && Array.isArray(res.data)) {
+        store.setInvoices(res.data)
+      }
+    } catch (err) {
+      console.error('Failed to fetch invoices:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchInvoicesData()
+  }, [searchText, statusFilter, practitionerFilter, recipientFilter])
+
+  const handleCreateInvoice = async (values) => {
+    setSubmitting(true)
+    const newInvoice = {
       clientName: values.clientName,
+      patientName: values.clientName,
       recipient: values.recipient || values.clientName,
       practitionerName: values.practitionerName,
-      amount: values.amount,
-      due: values.amount,
+      amount: parseFloat(values.amount) || 0,
+      due: parseFloat(values.amount) || 0,
       status: 'Processing',
       sentStatus: 'Not Sent',
       service: values.service || 'MSK',
-      patientId: values.patientId || String(256800 + store.invoices.length),
+      patientId: values.patientId || null,
       issueDate: dayjs().format('YYYY-MM-DD'),
       dueDate: dayjs().add(7, 'day').format('YYYY-MM-DD'),
-    })
-    toast.success('Invoice draft created!')
-    setCreateVisible(false)
-    createForm.resetFields()
+    }
+
+    try {
+      const res = await createInvoice(newInvoice)
+      if (res && res.success && res.data) {
+        store.addInvoice(res.data)
+        toast.success('Invoice created successfully!')
+        setCreateVisible(false)
+        createForm.resetFields()
+        fetchInvoicesData()
+      } else {
+        toast.error('Failed to create invoice')
+      }
+    } catch (err) {
+      console.error('Create invoice error:', err)
+      toast.error('Error creating invoice in backend database')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const handleRecordPayment = async (invoiceId) => {
+    try {
+      const res = await updateInvoice(invoiceId, { status: 'Paid', due: 0.00 })
+      if (res && res.success && res.data) {
+        store.updateInvoice(res.data)
+        toast.success('Payment recorded successfully!')
+        setDetailVisible(false)
+        fetchInvoicesData()
+      }
+    } catch (err) {
+      console.error('Record payment error:', err)
+      toast.error('Failed to record payment')
+    }
+  }
+
+  const handleSendInvoice = async (invoice) => {
+    try {
+      const res = await updateInvoice(invoice.id, { sentStatus: 'Sent' })
+      if (res && res.success && res.data) {
+        store.updateInvoice(res.data)
+        toast.success(`Invoice ${invoice.displayId || invoice.invoiceNumber || invoice.id} dispatched to ${invoice.recipient || invoice.clientName}`)
+        setDetailVisible(false)
+        fetchInvoicesData()
+      }
+    } catch (err) {
+      console.error('Send invoice error:', err)
+      toast.error('Failed to update sent status')
+    }
+  }
+
+  const handleCancelInvoice = async (invoiceId) => {
+    try {
+      const res = await updateInvoice(invoiceId, { status: 'Cancelled' })
+      if (res && res.success && res.data) {
+        store.updateInvoice(res.data)
+        toast.success('Invoice marked Cancelled')
+        setDetailVisible(false)
+        fetchInvoicesData()
+      }
+    } catch (err) {
+      console.error('Cancel invoice error:', err)
+      toast.error('Failed to cancel invoice')
+    }
+  }
+
+  const handleDeleteInvoice = async (invoiceId) => {
+    try {
+      await deleteInvoice(invoiceId)
+      store.deleteInvoice(invoiceId)
+      toast.success('Invoice deleted from live database')
+      setDetailVisible(false)
+      fetchInvoicesData()
+    } catch (err) {
+      console.error('Delete invoice error:', err)
+      toast.error('Failed to delete invoice from database')
+    }
+  }
+
+  const handleDownloadPDF = (invoice) => {
+    const invNum = invoice.displayId || invoice.invoiceNumber || (invoice.id ? `INV-${invoice.id.slice(0, 6).toUpperCase()}` : 'INV-000001')
+    const clientName = invoice.clientName || invoice.patientName || 'Client'
+    const practitionerName = invoice.practitionerName || 'General Practitioner'
+    
+    const content = `===================================================================
+                       ZEALTHOS CLINIC INVOICE
+===================================================================
+Invoice Number: ${invNum}
+Issue Date:     ${invoice.issueDate || dayjs().format('YYYY-MM-DD')}
+Due Date:       ${invoice.dueDate || dayjs().add(7, 'day').format('YYYY-MM-DD')}
+
+BILL TO:
+Name:           ${clientName}
+Company:        ${invoice.recipient || clientName}
+
+PRACTITIONER / DETAILS:
+Attending:      ${practitionerName}
+Service:        ${invoice.service || 'Medical Service'}
+
+FINANCIAL SUMMARY:
+Total Amount:   $${(invoice.amount || 0).toFixed(2)}
+Remaining Due:  $${(invoice.due || 0).toFixed(2)}
+Status:         ${invoice.status || 'Processing'}
+Sent Status:    ${invoice.sentStatus || 'Sent'}
+===================================================================`
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${invNum.replace(/[^a-zA-Z0-9_-]/g, '')}_Invoice.pdf`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    toast.success(`PDF compiled & downloaded: ${invNum}_Invoice.pdf`)
+  }
+
+  const getInvoiceDisplayNumber = (inv) => {
+    if (!inv) return 'INV-000001'
+    if (inv.displayId) return inv.displayId
+    if (inv.invoiceNumber) return inv.invoiceNumber
+    if (inv.id) {
+      if (inv.id.startsWith('INV-')) return inv.id
+      return `INV-${inv.id.slice(0, 6).toUpperCase()}`
+    }
+    return 'INV-000001'
   }
 
   // Filter lists
-  const filteredInvoices = store.invoices.filter(inv => {
+
+  const invoicesList = (store.invoices || []).filter(Boolean)
+
+  const filteredInvoices = invoicesList.filter(inv => {
+    const q = (searchText || '').toLowerCase()
     const matchesSearch = !searchText || 
-                          inv.id.toLowerCase().includes(searchText.toLowerCase()) ||
-                          inv.clientName.toLowerCase().includes(searchText.toLowerCase()) ||
-                          inv.practitionerName.toLowerCase().includes(searchText.toLowerCase())
+                          (inv.id || '').toLowerCase().includes(q) ||
+                          (inv.displayId || '').toLowerCase().includes(q) ||
+                          (inv.invoiceNumber || '').toLowerCase().includes(q) ||
+                          (inv.clientName || '').toLowerCase().includes(q) ||
+                          (inv.patientName || '').toLowerCase().includes(q) ||
+                          (inv.practitionerName || '').toLowerCase().includes(q)
     
     const matchesStatus = !statusFilter || (
       statusFilter === 'Completed' ? (inv.status === 'Completed' || inv.status === 'Paid') :
@@ -70,24 +235,39 @@ export default function InvoicesPage() {
 
   // Extract unique practitioner names from list for filter
   const uniquePractitioners = Array.from(
-    new Set(store.invoices.map(inv => inv.practitionerName).filter(Boolean))
+    new Set(invoicesList.map(inv => inv.practitionerName).filter(Boolean))
   )
 
   const columns = [
     {
       title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300">Invoice #</span>,
-      dataIndex: 'id',
-      key: 'id',
-      render: (text) => <span className="font-bold text-slate-800 dark:text-slate-200">{text.replace('#', 'INV-')}</span>
+      dataIndex: 'displayId',
+      key: 'displayId',
+      render: (text, record) => {
+        const invNum = text || record.invoiceNumber || record.id || 'INV'
+        return <span className="font-bold text-slate-800 dark:text-slate-200">{invNum.replace('#', '')}</span>
+      }
     },
     {
       title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300">To (Client & Company)</span>,
       key: 'to',
       render: (_, record) => {
-        const hasRecipient = record.recipient && record.recipient !== record.clientName
+        let clientDisplayName = record.clientName || record.patientName || ''
+        const foundPatient = store.patients.find(p => p.id === clientDisplayName || p.displayId === clientDisplayName || p.id === record.patientId || p.displayId === record.patientId)
+        if (foundPatient) {
+          clientDisplayName = foundPatient.fullName || foundPatient.name || clientDisplayName
+        }
+        if (!clientDisplayName || clientDisplayName.startsWith('CLI-') || clientDisplayName.length > 25) {
+          if (foundPatient) {
+            clientDisplayName = foundPatient.fullName || foundPatient.name
+          }
+        }
+        const finalName = clientDisplayName || 'Client'
+        const hasRecipient = record.recipient && record.recipient !== finalName
+
         return (
           <div className="flex flex-col">
-            <span className="font-semibold text-slate-800 dark:text-slate-200">{record.clientName}</span>
+            <span className="font-semibold text-slate-800 dark:text-slate-200">{finalName}</span>
             {hasRecipient && (
               <span className="text-[10px] text-slate-400 font-semibold">{record.recipient}</span>
             )}
@@ -95,6 +275,7 @@ export default function InvoicesPage() {
         )
       }
     },
+
     {
       title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300">Practitioner</span>,
       dataIndex: 'practitionerName',
@@ -307,9 +488,14 @@ export default function InvoicesPage() {
         <Form layout="vertical" form={createForm} onFinish={handleCreateInvoice} className="mt-4">
           <Form.Item name="clientName" label="Client Patient Name" rules={[{ required: true }]}>
             <Select className="rounded-xl h-10 bg-slate-50 dark:bg-slate-800/50 flex items-center">
-              {store.patients.map(p => (
-                <Option key={p.id} value={p.name}>{p.name}</Option>
-              ))}
+              {store.patients.map(p => {
+                const pName = p.fullName || p.name || p.displayId || 'Patient'
+                return (
+                  <Option key={p.id} value={pName}>
+                    {pName} {p.displayId ? `(${p.displayId})` : ''}
+                  </Option>
+                )
+              })}
             </Select>
           </Form.Item>
 
@@ -343,7 +529,7 @@ export default function InvoicesPage() {
 
       {/* Invoice Details Modal */}
       <Modal
-        title={selectedInvoice ? `Invoice details: ${selectedInvoice.id.replace('#', 'INV-')}` : ''}
+        title={selectedInvoice ? `Invoice details: ${getInvoiceDisplayNumber(selectedInvoice)}` : ''}
         open={detailVisible}
         onCancel={() => { setDetailVisible(false); setSelectedInvoice(null); }}
         footer={null}
@@ -403,11 +589,7 @@ export default function InvoicesPage() {
                 
                 <Button 
                   icon={<DollarOutlined />} 
-                  onClick={() => {
-                    store.updateInvoiceStatus(selectedInvoice.id, 'Paid', 0.00)
-                    toast.success('Payment recorded successfully!')
-                    setDetailVisible(false)
-                  }}
+                  onClick={() => handleRecordPayment(selectedInvoice.id)}
                   disabled={selectedInvoice.status === 'Paid' || selectedInvoice.status === 'Completed'}
                   className="rounded-xl font-bold text-xs h-10 border-emerald-200 text-emerald-600 hover:border-emerald-500 hover:text-emerald-500 flex items-center justify-center"
                 >
@@ -416,10 +598,7 @@ export default function InvoicesPage() {
 
                 <Button 
                   icon={<MailOutlined />} 
-                  onClick={() => {
-                    toast.success(`Invoice ${selectedInvoice.id} dispatched to ${selectedInvoice.recipient}`)
-                    setDetailVisible(false)
-                  }}
+                  onClick={() => handleSendInvoice(selectedInvoice)}
                   className="rounded-xl font-bold text-xs h-10 flex items-center justify-center"
                 >
                   Send Invoice
@@ -427,26 +606,23 @@ export default function InvoicesPage() {
 
                 <Button 
                   icon={<FilePdfOutlined />} 
-                  onClick={() => {
-                    toast.success(`PDF Compiled! Downloaded ${selectedInvoice.id.replace('#', '')}.pdf`)
-                  }}
+                  onClick={() => handleDownloadPDF(selectedInvoice)}
                   className="rounded-xl font-bold text-xs h-10 text-red-500 border-red-200 flex items-center justify-center"
                 >
                   Download PDF
                 </Button>
 
+
                 <Button 
                   icon={<CopyOutlined />} 
                   onClick={() => {
-                    store.addInvoice({
+                    handleCreateInvoice({
                       clientName: selectedInvoice.clientName,
                       recipient: selectedInvoice.recipient,
                       practitionerName: selectedInvoice.practitionerName,
                       amount: selectedInvoice.amount,
                       due: selectedInvoice.amount,
                     })
-                    toast.success('Invoice duplicated successfully!')
-                    setDetailVisible(false)
                   }}
                   className="rounded-xl font-bold text-xs h-10 flex items-center justify-center"
                 >
@@ -455,11 +631,7 @@ export default function InvoicesPage() {
 
                 <Button 
                   icon={<CloseCircleOutlined />} 
-                  onClick={() => {
-                    store.updateInvoiceStatus(selectedInvoice.id, 'Cancelled')
-                    toast.success('Invoice marked Cancelled')
-                    setDetailVisible(false)
-                  }}
+                  onClick={() => handleCancelInvoice(selectedInvoice.id)}
                   disabled={selectedInvoice.status === 'Cancelled' || selectedInvoice.status === 'Cancel'}
                   className="rounded-xl font-bold text-xs h-10 text-slate-500 border-slate-200 flex items-center justify-center col-span-2 md:col-span-1"
                 >
@@ -468,15 +640,12 @@ export default function InvoicesPage() {
 
                 <Button 
                   icon={<DeleteOutlined />} 
-                  onClick={() => {
-                    store.deleteInvoice(selectedInvoice.id)
-                    toast.success('Invoice deleted')
-                    setDetailVisible(false)
-                  }}
+                  onClick={() => handleDeleteInvoice(selectedInvoice.id)}
                   className="rounded-xl font-bold text-xs h-10 text-red-600 border-red-100 flex items-center justify-center col-span-2 md:col-span-1"
                 >
                   Delete
                 </Button>
+
 
               </div>
             </div>

@@ -5,6 +5,9 @@ import dayjs from 'dayjs'
 import { useClinicStore } from '../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
 import PractitionerProfilePage from './PractitionerProfilePage'
+import SalesSettings from '../../dashboard/components/sales/SalesSettings'
+import { getSuperAdminProfile, updateSuperAdminProfile } from '../api/settingsApi'
+import { getClinicAdminProfile, updateClinicAdminProfile } from '../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 
@@ -17,6 +20,9 @@ export default function AdminProfilePage() {
     return <PractitionerProfilePage />
   }
   
+  const isSalesContext = store.userRole === 'sales'
+  const isClinicAdminContext = window.location.pathname.startsWith('/clinic-admin') || store.userRole === 'clinic' || store.userRole === 'CLINIC_ADMIN'
+
   // This state holds the loaded user details to display in the header card
   const [userInfo, setUserInfo] = useState({
     name: '',
@@ -28,107 +34,139 @@ export default function AdminProfilePage() {
   })
 
   useEffect(() => {
-    const authUserId = localStorage.getItem('userId') || '1'
-    let authUser = null
+    let isMounted = true
+    const loadLiveProfile = async () => {
+      try {
+        let res;
+        if (isSalesContext && store.fetchSalesProfile) {
+          const rawProfile = await store.fetchSalesProfile()
+          if (rawProfile) {
+            res = { success: true, data: rawProfile }
+          }
+        } else {
+          res = isClinicAdminContext ? await getClinicAdminProfile() : await getSuperAdminProfile()
+        }
 
-    if (store.userRole === 'practitioner' && store.practitioners) {
-      authUser = store.practitioners.find(p => p.id === authUserId) || store.practitioners[0]
-    } else if (store.userRole === 'patient' && store.patients) {
-      authUser = store.patients.find(p => p.id === authUserId) || store.patients[0]
-    } else if ((store.userRole === 'clinic' || store.userRole === 'head_admin') && store.admins) {
-      authUser = store.admins.find(a => a.id === authUserId) || store.admins[0]
+        if (res && res.success && res.data && isMounted) {
+          const userData = res.data
+          const pData = userData.profileData || {}
+          setUserInfo({
+            name: userData.name || (isSalesContext ? 'Sales Representative' : (isClinicAdminContext ? 'Clinic Manager' : 'Alex Sadman')),
+            role: userData.role === 'SUPER_ADMIN' ? 'Super Admin' : (userData.role === 'CLINIC_ADMIN' ? 'Clinic Admin' : (userData.role || 'Clinic Admin')),
+            id: userData.displayId || userData.id || (isSalesContext ? '6351651' : (isClinicAdminContext ? 'ADM-000001' : '6351651')),
+            username: userData.email ? userData.email.split('@')[0] : (isSalesContext ? 'sales_admin' : (isClinicAdminContext ? 'clinic_admin' : 'head_admin_admin')),
+            status: userData.status === 'ACTIVE' ? 'Active' : (userData.status || 'Active'),
+            avatar: userData.avatarUrl || null
+          })
+
+          form.setFieldsValue({
+            name: userData.name || (isSalesContext ? 'Sales Representative' : (isClinicAdminContext ? 'Clinic Manager' : 'Alex Sadman')),
+            email: userData.email || (isSalesContext ? 'sales@clinic.com' : (isClinicAdminContext ? 'clinic_manager@clinic.com' : 'head_admin@clinic.com')),
+            mobile: userData.phone || (isSalesContext ? '+61 412 345 678' : (isClinicAdminContext ? '+61 400 111 222' : '+61 412 345 678')),
+            dob: pData.dob ? dayjs(pData.dob) : dayjs(isSalesContext ? '1980-01-01' : (isClinicAdminContext ? '1985-06-15' : '1980-01-01')),
+            gender: pData.gender || 'Female',
+            street: pData.street || (isSalesContext ? '45 Care Street' : (isClinicAdminContext ? '123 Health Ave' : '45 Care Street')),
+            city: pData.city || (isSalesContext ? 'Sydney' : (isClinicAdminContext ? 'Medical District' : 'Sydney')),
+            state: pData.state || 'NSW',
+            country: pData.country || 'Australia',
+            postalCode: pData.postalCode || '2000'
+          })
+        }
+      } catch (err) {
+        console.error("Failed to load live profile from database:", err)
+      }
     }
 
-    let roleDisplay = 'Clinic Admin'
-    let nameDisplay = 'Admin User'
+    loadLiveProfile()
+    return () => { isMounted = false }
+  }, [form, isClinicAdminContext])
 
-    if (store.userRole === 'head_admin') {
-      roleDisplay = 'Super Admin'
-      nameDisplay = 'Alex Sadman'
-    } else if (store.userRole === 'clinic') {
-      roleDisplay = 'Clinic Admin'
-      nameDisplay = 'Clinic Manager'
-    } else if (store.userRole === 'sales') {
-      roleDisplay = 'Sales Executive'
-      nameDisplay = 'Sales Representative'
-    } else if (store.userRole === 'patient') {
-      roleDisplay = 'Patient'
-    }
-
-    if (authUser) {
-      setUserInfo({
-        name: nameDisplay, // Override the name with a clean default for demo
-        role: roleDisplay,
-        id: authUser.id || (store.userRole === 'patient' ? 'p1' : '6351651'),
-        username: authUser.username || authUser.email?.split('@')[0] || store.userRole,
-        status: authUser.status || 'Active',
-        avatar: authUser.avatar || null
-      })
-
-      form.setFieldsValue({
-        name: nameDisplay,
-        mobile: authUser.phone || '+61 400 000 000',
-        email: authUser.email || `${store.userRole}@clinic.com`,
-        dob: authUser.dob ? dayjs(authUser.dob) : dayjs('1985-06-15'),
-        gender: authUser.gender || 'Female',
-        street: '123 Health Ave',
-        city: 'Medical District',
-        state: 'NSW',
-        country: 'Australia',
-        postalCode: '2000'
-      })
-    } else {
-      setUserInfo({
-        name: nameDisplay,
-        role: roleDisplay,
-        id: '6351651',
-        username: `${store.userRole}_admin`,
-        status: 'Active',
-        avatar: null
-      })
-      form.setFieldsValue({
-        name: nameDisplay,
-        mobile: '+61 412 345 678',
-        email: `${store.userRole}@clinic.com`,
-        dob: dayjs('1980-01-01'),
-        gender: 'Female',
-        street: '45 Care Street',
-        city: 'Sydney',
-        state: 'NSW',
-        country: 'Australia',
-        postalCode: '2000'
-      })
-    }
-  }, [store, form])
-
-  const handleSave = (values) => {
+  const handleSave = async (values) => {
     if (values.newPassword && values.newPassword !== values.confirmPassword) {
       toast.error('Passwords do not match!')
       return
     }
 
     setSaving(true)
-    setTimeout(() => {
+    try {
+      const payload = {
+        name: values.name,
+        email: values.email,
+        phone: values.mobile,
+        avatarUrl: userInfo.avatar,
+        profileData: {
+          dob: values.dob ? values.dob.format('YYYY-MM-DD') : null,
+          gender: values.gender,
+          street: values.street,
+          city: values.city,
+          state: values.state,
+          country: values.country,
+          postalCode: values.postalCode
+        }
+      }
+
+      let res;
+      if (isSalesContext && store.updateSalesProfile) {
+        res = await store.updateSalesProfile(payload)
+        if (values.newPassword) {
+          await store.changeSalesPassword({
+            currentPassword: values.currentPassword,
+            newPassword: values.newPassword
+          })
+        }
+      } else {
+        res = isClinicAdminContext ? await updateClinicAdminProfile(payload) : await updateSuperAdminProfile(payload)
+      }
+
+      if (res && res.success) {
+        toast.success('Profile updated in live database successfully!')
+        const updated = res.data || payload
+        setUserInfo(prev => ({
+          ...prev,
+          name: updated.name || values.name,
+          avatar: updated.avatarUrl || prev.avatar
+        }))
+        form.setFieldsValue({ currentPassword: '', newPassword: '', confirmPassword: '' })
+      } else {
+        toast.error(res?.message || 'Failed to update profile in database')
+      }
+    } catch (err) {
+      console.error("Error saving profile to database:", err)
+      toast.error('Error saving profile to live database')
+    } finally {
       setSaving(false)
-      toast.success('Profile updated successfully!')
-      setUserInfo(prev => ({
-        ...prev,
-        name: values.name
-      }))
-      // Reset password fields after save
-      form.setFieldsValue({ currentPassword: '', newPassword: '', confirmPassword: '' })
-    }, 800)
+    }
   }
 
-  const handleAvatarRemove = () => {
+  const handleAvatarRemove = async () => {
     setUserInfo(prev => ({ ...prev, avatar: null }))
-    toast.success('Profile photo removed')
+    try {
+      if (isSalesContext && store.updateSalesProfile) {
+        await store.updateSalesProfile({ avatarUrl: null })
+      } else {
+        isClinicAdminContext ? await updateClinicAdminProfile({ avatarUrl: null }) : await updateSuperAdminProfile({ avatarUrl: null })
+      }
+      toast.success('Profile photo removed from live database')
+    } catch (err) {
+      toast.error('Failed to update avatar in database')
+    }
   }
 
   const beforeUpload = (file) => {
     const reader = new FileReader()
-    reader.onload = (e) => {
-      setUserInfo(prev => ({ ...prev, avatar: e.target.result }))
+    reader.onload = async (e) => {
+      const dataUrl = e.target.result
+      setUserInfo(prev => ({ ...prev, avatar: dataUrl }))
+      try {
+        if (isSalesContext && store.updateSalesProfile) {
+          await store.updateSalesProfile({ avatarUrl: dataUrl })
+        } else {
+          isClinicAdminContext ? await updateClinicAdminProfile({ avatarUrl: dataUrl }) : await updateSuperAdminProfile({ avatarUrl: dataUrl })
+        }
+        toast.success('Profile photo updated in live database!')
+      } catch (err) {
+        console.error("Avatar update error:", err)
+      }
     }
     reader.readAsDataURL(file)
     return false // Prevent automatic upload

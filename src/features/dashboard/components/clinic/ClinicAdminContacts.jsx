@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Select, Modal, Form, Input, Tag } from 'antd'
 import { PlusOutlined, SearchOutlined } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
 import { useClinicStore } from '../../../../store/clinicStore'
+import { getContacts, createContact } from '../../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 
@@ -14,27 +15,58 @@ export default function ClinicAdminContacts() {
   const [typeFilter, setTypeFilter] = useState('')
   const [companyFilter, setCompanyFilter] = useState('')
   const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false)
   const [form] = Form.useForm()
 
   const basePath = window.location.pathname.split('/')[1] ? `/${window.location.pathname.split('/')[1]}` : '/clinic'
 
-  const handleAddSubmit = (values) => {
-    const newContact = {
-      id: Date.now().toString(),
-      name: values.name,
-      type: values.type || 'Other',
-      company: values.company || '',
-      email: values.email || '',
-      mobileNumber: values.mobileNumber || '',
+  const fetchContactsData = async () => {
+    setLoading(true)
+    try {
+      const res = await getContacts({ search: searchText, type: typeFilter, company: companyFilter })
+      if (res && res.success && Array.isArray(res.data)) {
+        store.setContacts(res.data)
+      }
+    } catch (err) {
+      console.error('Failed to fetch contacts:', err)
+    } finally {
+      setLoading(false)
     }
-    useClinicStore.setState((state) => ({
-      contacts: [newContact, ...state.contacts],
-    }))
-    toast.success('Contact added successfully!')
-    setIsAddModalOpen(false)
-    form.resetFields()
   }
+
+  useEffect(() => {
+    fetchContactsData()
+  }, [searchText, typeFilter, companyFilter])
+
+  const handleAddSubmit = async (values) => {
+    setSubmitting(true)
+    try {
+      const res = await createContact({
+        name: values.name,
+        type: values.type || 'Other',
+        company: values.company || '',
+        email: values.email || '',
+        mobileNumber: values.mobileNumber || '',
+      })
+      if (res && res.success && res.data) {
+        store.addContact(res.data)
+        toast.success('Contact added successfully!')
+        setIsAddModalOpen(false)
+        form.resetFields()
+        fetchContactsData()
+      } else {
+        toast.error('Failed to save contact')
+      }
+    } catch (err) {
+      console.error('Add contact error:', err)
+      toast.error('Error adding contact to backend database')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
 
   const PAGE_SIZE = 15
 

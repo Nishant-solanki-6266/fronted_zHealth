@@ -3,6 +3,7 @@ import { Modal, Form, Input, Select, DatePicker, TimePicker, Switch, Space, Butt
 import { useClinicStore } from '../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
+import { createAppointment } from '../api/clinicAdminApi'
 
 const { Option } = Select
 
@@ -51,7 +52,7 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
     }
   }, [open, defaultTimeSlot])
 
-  const onFinish = (values) => {
+  const onFinish = async (values) => {
     const patientObj = store.patients.find(p => p.id === values.patientId)
     const practitionerObj = store.practitioners.find(p => p.id === values.practitionerId)
     const serviceObj = store.services.find(s => s.id === values.serviceId)
@@ -62,9 +63,9 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
 
     const newAppt = {
       patientId: values.patientId,
-      patientName: patientObj ? patientObj.name : 'Unknown Client',
+      patientName: patientObj ? (patientObj.name || patientObj.fullName) : 'Unknown Client',
       practitionerId: values.practitionerId,
-      practitionerName: practitionerObj ? practitionerObj.name : 'Unknown Practitioner',
+      practitionerName: practitionerObj ? (practitionerObj.name || practitionerObj.fullName) : 'Unknown Practitioner',
       date: values.date ? values.date.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
       time: values.time ? values.time.format('HH:mm') : '09:00',
       endTime: values.endTime ? values.endTime.format('HH:mm') : '10:00',
@@ -85,37 +86,47 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
       invoiceStatus: values.doNotInvoice ? 'Do Not Invoice' : 'Not Invoiced',
     }
 
-    store.addAppointment(newAppt)
-    toast.success(`Appointment scheduled for ${newAppt.patientName}!`)
+    try {
+      const res = await createAppointment(newAppt)
+      const savedAppt = res.data || newAppt
+      store.addAppointment(savedAppt)
+      toast.success(`Appointment scheduled & saved to live database for ${savedAppt.patientName}!`)
+    } catch (err) {
+      store.addAppointment(newAppt)
+      toast.success(`Appointment scheduled for ${newAppt.patientName}!`)
+    }
     form.resetFields()
     onCancel()
   }
 
   return (
     <Modal
-      title="Create Appointment"
+      title={<span className="font-extrabold text-base text-slate-800 dark:text-slate-200">Create Appointment</span>}
       open={open}
       onCancel={onCancel}
       footer={null}
-      destroyOnClose
-      width={700}
-      className="rounded-2xl overflow-hidden"
+      destroyOnHidden
+      centered
+      width={720}
+      style={{ top: 20, maxWidth: '95vw' }}
+      className="rounded-2xl overflow-hidden responsive-modal"
     >
-      <Form
-        form={form}
-        layout="vertical"
-        onFinish={onFinish}
-        initialValues={{
-          location: 'Clinic',
-          room: 'Room A',
-          providerTravel: false,
-          nonLabourCosts: false,
-          repeat: 'None',
-          doNotInvoice: false,
-          fundingType: 'Private',
-        }}
-        className="mt-4 space-y-4"
-      >
+      <div className="max-h-[75vh] md:max-h-[80vh] overflow-y-auto pr-1 sm:pr-2 space-y-4 my-2">
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={onFinish}
+          initialValues={{
+            location: 'Clinic',
+            room: 'Room A',
+            providerTravel: false,
+            nonLabourCosts: false,
+            repeat: 'None',
+            doNotInvoice: false,
+            fundingType: 'Private',
+          }}
+          className="space-y-4"
+        >
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Form.Item name="patientId" label={<span className="text-slate-600 dark:text-slate-350 font-semibold text-xs">Client Patient</span>} rules={[{ required: true }]} className="mb-0">
             <Select 
@@ -430,6 +441,7 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
           </Space>
         </div>
       </Form>
-    </Modal>
-  )
+    </div>
+  </Modal>
+)
 }

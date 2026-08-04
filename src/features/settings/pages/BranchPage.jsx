@@ -1,16 +1,23 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Table, Input, Select, Space, Modal, Form } from 'antd'
 import { SearchOutlined, PlusOutlined, EditOutlined, DeleteOutlined, EnvironmentOutlined, InfoCircleOutlined } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useClinicStore } from '../../../store/clinicStore'
+import { 
+  getBranches as getBranchesApi, 
+  createBranch as createBranchApi, 
+  updateBranch as updateBranchApi, 
+  deleteBranch as deleteBranchApi 
+} from '../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 
 export default function BranchPage() {
   const store = useClinicStore()
   const navigate = useNavigate()
-  const branches = store.branches
+  const [branches, setBranches] = useState([])
+  const [loading, setLoading] = useState(false)
   const [searchText, setSearchText] = useState('')
   const [statusFilter, setStatusFilter] = useState(undefined)
   const [addVisible, setAddVisible] = useState(false)
@@ -18,7 +25,25 @@ export default function BranchPage() {
   const [currentBranch, setCurrentBranch] = useState(null)
   const [form] = Form.useForm()
 
-  const handleAdd = (values) => {
+  const fetchBranches = async () => {
+    setLoading(true)
+    try {
+      const res = await getBranchesApi({ search: searchText, status: statusFilter })
+      if (res && res.success) {
+        setBranches(res.data || [])
+      }
+    } catch (err) {
+      console.error("Error fetching live branches:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchBranches()
+  }, [searchText, statusFilter])
+
+  const handleAdd = async (values) => {
     const formattedBranch = {
       name: values.name,
       email: values.email,
@@ -31,34 +56,42 @@ export default function BranchPage() {
         endTime: values.endTime || '17:00'
       }
     }
-    if (modalMode === 'add') {
-      store.addBranch(formattedBranch)
-      toast.success('Branch added successfully!')
-    } else if (modalMode === 'edit') {
-      store.editBranch({
-        ...currentBranch,
-        ...formattedBranch
-      })
-      toast.success('Branch details updated successfully!')
+    try {
+      if (modalMode === 'add') {
+        const res = await createBranchApi(formattedBranch)
+        if (res && res.success) {
+          toast.success('Branch added to live database successfully!')
+        }
+      } else if (modalMode === 'edit') {
+        const res = await updateBranchApi(currentBranch.id, formattedBranch)
+        if (res && res.success) {
+          toast.success('Branch details updated in live database!')
+        }
+      }
+      setAddVisible(false)
+      form.resetFields()
+      setCurrentBranch(null)
+      fetchBranches()
+    } catch (err) {
+      console.error("Error saving branch to database:", err)
+      toast.error('Failed to save branch to database')
     }
-    setAddVisible(false)
-    form.resetFields()
-    setCurrentBranch(null)
   }
 
-  const handleDelete = (id, name) => {
-    store.deleteBranch(id)
-    toast.success(`Branch "${name}" deleted!`)
+  const handleDelete = async (id, name) => {
+    try {
+      const res = await deleteBranchApi(id)
+      if (res && res.success) {
+        toast.success(`Branch "${name}" deleted from database!`)
+        fetchBranches()
+      }
+    } catch (err) {
+      console.error("Error deleting branch:", err)
+      toast.error('Failed to delete branch')
+    }
   }
 
-  const filtered = branches.filter(b => {
-    const matchesSearch = 
-      b.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      b.email.toLowerCase().includes(searchText.toLowerCase())
-    
-    const matchesStatus = statusFilter ? b.status === statusFilter : true
-    return matchesSearch && matchesStatus
-  })
+  const filtered = branches
 
   const columns = [
     {

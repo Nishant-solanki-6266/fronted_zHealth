@@ -9,9 +9,45 @@ const { Option } = Select
 export default function SalesClinics({ store: propStore }) {
   const localStore = useClinicStore()
   const store = propStore || localStore
-  const { clinics } = store
+  const { clinics, leads } = store
 
-  const colinClinics = clinics.filter(c => c.salesperson === 'Colin Edegbe')
+  React.useEffect(() => {
+    if (store.fetchSalesClinics) store.fetchSalesClinics()
+    if (store.fetchLeads) store.fetchLeads()
+  }, [])
+
+  // Combine database clinics + converted sales leads into converted clinics view
+  const dbClinicsFormatted = (clinics || []).map(c => ({
+    id: c.id,
+    name: c.name,
+    contactPerson: c.contactPerson || c.name,
+    email: c.email || '',
+    state: c.state || c.country || 'General',
+    tier: c.tier || 'Basic',
+    revenue: parseFloat(c.revenue) || 100,
+    status: c.status || 'Active',
+    salesperson: c.salesperson || 'Sales Executive',
+    signupDate: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent',
+    isLead: false,
+  }))
+
+  const convertedLeadsFormatted = (leads || [])
+    .filter(l => l.stage === 'Converted' || l.status === 'Converted')
+    .map(l => ({
+      id: l.id,
+      name: l.name || l.companyName,
+      contactPerson: l.contactPerson || l.name || l.companyName,
+      email: l.email || '',
+      state: l.location || l.territory || 'General Platform',
+      tier: l.tier || 'Basic',
+      revenue: parseFloat(l.value) || 100,
+      status: 'Active',
+      salesperson: l.assignedTo || 'Sales Executive',
+      signupDate: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'Recent',
+      isLead: true,
+    }))
+
+  const colinClinics = [...dbClinicsFormatted, ...convertedLeadsFormatted]
   const [selectedClinic, setSelectedClinic] = useState(null)
   const [onboardingStates, setOnboardingStates] = useState({})
 
@@ -34,8 +70,12 @@ export default function SalesClinics({ store: propStore }) {
 
   const handlePlanUpgrade = (newTier) => {
     const revenueMap = { Basic: 100, Pro: 250, Enterprise: 1000 }
-    const updated = { ...selectedClinic, tier: newTier, revenue: revenueMap[newTier] }
-    store.editClinic(updated)
+    const updated = { ...selectedClinic, tier: newTier, revenue: revenueMap[newTier], value: revenueMap[newTier] }
+    if (selectedClinic?.isLead) {
+      if (store.updateLead) store.updateLead(updated)
+    } else {
+      if (store.editClinic) store.editClinic(updated)
+    }
     setSelectedClinic(updated)
     toast.success(`Plan upgraded to ${newTier} ($${revenueMap[newTier]}/mo)`)
   }

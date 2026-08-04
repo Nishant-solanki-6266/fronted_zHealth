@@ -51,6 +51,11 @@ function SalesCalendarView({ store, navigate }) {
 
   const today = dayjs()
 
+  useEffect(() => {
+    if (store.fetchSalesCalendarEvents) store.fetchSalesCalendarEvents()
+    if (store.fetchLeads) store.fetchLeads()
+  }, [])
+
   // Sync Google Calendar handler
   const handleCalendarSync = () => {
     setSyncing(true)
@@ -293,7 +298,7 @@ function SalesCalendarView({ store, navigate }) {
                   ? 'border-[#8C4BFF] bg-[#8C4BFF]/5 dark:bg-[#241A42]/10'
                   : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900'
               }`}
-              bodyStyle={{ padding: '12px', display: 'flex', flexDirection: 'column', flexGrow: 1 }}
+              styles={{ body: { padding: '12px', display: 'flex', flexDirection: 'column', flexGrow: 1 } }}
             >
               {/* Card Day Header */}
               <div className="border-b border-slate-100 dark:border-slate-800 pb-2.5 mb-3.5 flex items-center justify-between flex-shrink-0">
@@ -374,7 +379,7 @@ function SalesCalendarView({ store, navigate }) {
         onCancel={() => setSelectedEvent(null)}
         title={<span className="font-bold text-slate-850 dark:text-white text-base">Calendar Event details</span>}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         className="dark:bg-slate-900 rounded-2xl"
       >
         {selectedEvent && (
@@ -444,7 +449,7 @@ function SalesCalendarView({ store, navigate }) {
         onCancel={() => setBookModalVisible(false)}
         title={<span className="font-bold text-slate-850 dark:text-white text-base">Book Demo / Meeting Slot</span>}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleBookDemo} initialValues={{ type: 'Demos', stage: 'Demo Scheduled' }}>
           <Form.Item

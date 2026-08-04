@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Form, Input, Select, Checkbox, Space, Card, Radio, Table, Modal, Button, Tag, Divider, Tabs } from 'antd'
 import {
   ApiOutlined,
@@ -41,6 +41,15 @@ import PatientSettings from '../../dashboard/components/patient/PatientSettings'
 import ClinicDetailsTab from '../components/ClinicDetailsTab'
 import SubscriptionPage from './SubscriptionPage'
 import RolesPermissionsTab from '../components/RolesPermissionsTab'
+import { getBodyChartTemplates, createBodyChartTemplate, deleteBodyChartTemplate } from '../../calendar/api/clinicAdminApi'
+import { 
+  getPractitionerLoginHistory, 
+  recordPractitionerLoginLog, 
+  revokePractitionerSession,
+  changePractitionerPassword,
+  getPractitionerSecuritySettings,
+  updatePractitionerSecuritySettings
+} from '../api/settingsApi'
 
 export const tagIconsMap = {
   TagOutlined: <TagOutlined />,
@@ -183,6 +192,259 @@ export default function PractitionerSettingsPage() {
   const [errorModalOpen, setErrorModalOpen] = useState(false)
   const [selectedErrors, setSelectedErrors] = useState([])
   const [selectedLogFileName, setSelectedLogFileName] = useState('')
+
+  // Body Chart Templates State (live DB)
+  const [bodyChartTemplates, setBodyChartTemplates] = useState([])
+  const [bodyChartLoading, setBodyChartLoading] = useState(false)
+
+  useEffect(() => {
+    const loadBodyChartTemplates = async () => {
+      setBodyChartLoading(true)
+      try {
+        const res = await getBodyChartTemplates()
+        if (res && res.success) {
+          setBodyChartTemplates(res.data || [])
+        }
+      } catch (err) {
+        console.error('Failed to load body chart templates from live DB:', err)
+      } finally {
+        setBodyChartLoading(false)
+      }
+    }
+    loadBodyChartTemplates()
+  }, [])
+
+  // Integrations Live DB State & Handlers
+  const [integrationSearch, setIntegrationSearch] = useState('')
+  const [integrationCategory, setIntegrationCategory] = useState('All')
+  const [integrationStatusFilter, setIntegrationStatusFilter] = useState('All')
+  const [addIntegrationModalOpen, setAddIntegrationModalOpen] = useState(false)
+  const [addIntegrationForm] = Form.useForm()
+  const [integrationActionLoading, setIntegrationActionLoading] = useState({})
+
+  useEffect(() => {
+    store.fetchIntegrations()
+    store.fetchSettingsTemplates()
+  }, [])
+
+  const handleToggleIntegrationItem = async (item) => {
+    if (item.id === 'myob') {
+      toast.error('MYOB integration is coming soon in a future update!')
+      return
+    }
+    setIntegrationActionLoading(prev => ({ ...prev, [item.id]: true }))
+    try {
+      await store.toggleIntegration(item.id)
+      toast.success(`${item.name} status updated in live database!`)
+    } catch (err) {
+      toast.error(`Failed to update ${item.name}`)
+    } finally {
+      setIntegrationActionLoading(prev => ({ ...prev, [item.id]: false }))
+    }
+  }
+
+  const handleSyncIntegrationItem = async (item) => {
+    setIntegrationActionLoading(prev => ({ ...prev, [`sync_${item.id}`]: true }))
+    try {
+      await store.syncIntegration(item.id)
+      toast.success(`Synced details from ${item.name} in live database!`)
+    } catch (err) {
+      toast.error(`Failed to sync ${item.name}`)
+    } finally {
+      setIntegrationActionLoading(prev => ({ ...prev, [`sync_${item.id}`]: false }))
+    }
+  }
+
+  const handleCreateCustomIntegrationSubmit = async (values) => {
+    try {
+      await store.addIntegration({
+        name: values.name,
+        type: values.type || 'Custom Integration',
+        description: values.description,
+        connected: Boolean(values.connected)
+      })
+      toast.success(`Integration "${values.name}" added to live database!`)
+      addIntegrationForm.resetFields()
+      setAddIntegrationModalOpen(false)
+    } catch (err) {
+      toast.error('Failed to create custom integration')
+    }
+  }
+
+  const handleDeleteIntegrationItem = async (id, name) => {
+    try {
+      await store.deleteIntegration(id)
+      toast.success(`Integration "${name}" deleted from live database!`)
+    } catch (err) {
+      toast.error('Failed to delete integration')
+    }
+  }
+
+  const filteredIntegrations = React.useMemo(() => {
+    return (store.integrations || []).filter((item) => {
+      const matchesSearch = !integrationSearch || 
+        item.name.toLowerCase().includes(integrationSearch.toLowerCase()) || 
+        (item.type && item.type.toLowerCase().includes(integrationSearch.toLowerCase())) ||
+        (item.description && item.description.toLowerCase().includes(integrationSearch.toLowerCase()))
+      const matchesCategory = integrationCategory === 'All' || item.type === integrationCategory
+      const matchesStatus = integrationStatusFilter === 'All' || 
+        (integrationStatusFilter === 'Connected' ? item.connected : !item.connected)
+      return matchesSearch && matchesCategory && matchesStatus
+    })
+  }, [store.integrations, integrationSearch, integrationCategory, integrationStatusFilter])
+
+  // Login History Live DB State & Handlers
+  const [loginLogs, setLoginLogs] = useState([])
+  const [loginLoading, setLoginLoading] = useState(false)
+  const [loginSearch, setLoginSearch] = useState('')
+  const [loginStatusFilter, setLoginStatusFilter] = useState('All')
+  const [recordLoginModalOpen, setRecordLoginModalOpen] = useState(false)
+  const [recordLoginForm] = Form.useForm()
+
+  const loadLoginHistoryLogs = async () => {
+    setLoginLoading(true)
+    try {
+      const res = await getPractitionerLoginHistory()
+      if (res && res.success && Array.isArray(res.data)) {
+        setLoginLogs(res.data)
+      }
+    } catch (err) {
+      console.error('Failed to load login history from DB:', err)
+    } finally {
+      setLoginLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadLoginHistoryLogs()
+  }, [])
+
+  const handleRevokeSession = async (id) => {
+    try {
+      await revokePractitionerSession(id)
+      setLoginLogs(prev => prev.map(item => item.id === id ? { ...item, status: 'Revoked' } : item))
+      toast.success('Session revoked in live database successfully!')
+    } catch (err) {
+      toast.error('Failed to revoke session')
+    }
+  }
+
+  const handleRecordNewLoginSubmit = async (values) => {
+    try {
+      const res = await recordPractitionerLoginLog({
+        device: values.device,
+        ip: values.ip,
+        location: values.location,
+        status: values.status || 'Active Session'
+      })
+      if (res && res.success && res.data) {
+        setLoginLogs(prev => [res.data, ...prev])
+        toast.success('New login activity recorded in live database!')
+        recordLoginForm.resetFields()
+        setRecordLoginModalOpen(false)
+      }
+    } catch (err) {
+      toast.error('Failed to record login activity')
+    }
+  }
+
+  const filteredLoginLogs = React.useMemo(() => {
+    return loginLogs.filter((item) => {
+      const matchesSearch = !loginSearch ||
+        (item.device && item.device.toLowerCase().includes(loginSearch.toLowerCase())) ||
+        (item.ip && item.ip.toLowerCase().includes(loginSearch.toLowerCase())) ||
+        (item.location && item.location.toLowerCase().includes(loginSearch.toLowerCase())) ||
+        (item.date && item.date.toLowerCase().includes(loginSearch.toLowerCase()))
+      const matchesStatus = loginStatusFilter === 'All' ||
+        (item.status && item.status.toLowerCase() === loginStatusFilter.toLowerCase())
+      return matchesSearch && matchesStatus
+    })
+  }, [loginLogs, loginSearch, loginStatusFilter])
+
+  // Account Security Live DB State & Handlers
+  const [passwordForm] = Form.useForm()
+  const [passwordLoading, setPasswordLoading] = useState(false)
+  const [securityLoading, setSecurityLoading] = useState(false)
+
+  useEffect(() => {
+    const loadSecuritySettings = async () => {
+      try {
+        const res = await getPractitionerSecuritySettings()
+        if (res && res.success && res.data) {
+          if (res.data.tfaEnabled !== undefined) setTfaEnabled(Boolean(res.data.tfaEnabled))
+          if (res.data.tfaMethod) setTfaMethod(res.data.tfaMethod)
+        }
+      } catch (err) {
+        console.error('Failed to load security settings:', err)
+      }
+    }
+    loadSecuritySettings()
+  }, [])
+
+  const handlePasswordChangeSubmit = async (values) => {
+    if (!values.currentPassword || !values.newPassword) {
+      toast.error('Please enter current and new password')
+      return
+    }
+    if (values.newPassword !== values.confirmPassword) {
+      toast.error('New password and confirm password do not match')
+      return
+    }
+    setPasswordLoading(true)
+    try {
+      const res = await changePractitionerPassword({
+        currentPassword: values.currentPassword,
+        newPassword: values.newPassword
+      })
+      if (res && res.success) {
+        toast.success(res.message || 'Password updated in live database!')
+        passwordForm.resetFields()
+      } else {
+        toast.error(res?.message || 'Failed to update password')
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Current password does not match')
+    } finally {
+      setPasswordLoading(false)
+    }
+  }
+
+  const handleTfaToggleChange = async (enabled) => {
+    setSecurityLoading(true)
+    try {
+      const res = await updatePractitionerSecuritySettings({ tfaEnabled: enabled, tfaMethod })
+      if (res && res.success) {
+        setTfaEnabled(enabled)
+        toast.success(`Two-Factor Authentication ${enabled ? 'enabled' : 'disabled'} in live database!`)
+      }
+    } catch (err) {
+      toast.error('Failed to update 2FA settings')
+    } finally {
+      setSecurityLoading(false)
+    }
+  }
+
+  const handleAddBodyChartTemplate = async () => {
+    try {
+      const res = await createBodyChartTemplate({ name: 'New Template', description: 'Custom body chart template' })
+      if (res && res.success) {
+        setBodyChartTemplates(prev => [res.data, ...prev])
+        toast.success('New template created in live database!')
+      }
+    } catch (err) {
+      toast.error('Failed to create template')
+    }
+  }
+
+  const handleDeleteBodyChartTemplate = async (id) => {
+    try {
+      await deleteBodyChartTemplate(id)
+      setBodyChartTemplates(prev => prev.filter(t => t.id !== id))
+      toast.success('Template deleted from live database!')
+    } catch (err) {
+      toast.error('Failed to delete template')
+    }
+  }
 
   // Render content logic
   const renderTabContent = () => {
@@ -432,17 +694,26 @@ export default function PractitionerSettingsPage() {
                       <div className="py-6 space-y-6">
                         <div className="flex justify-between items-center mb-4">
                           <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0">My Body Charts</h3>
-                          <Button icon={<PlusOutlined />} className="rounded-lg font-semibold" onClick={() => toast.success('New template created')}>New Template</Button>
+                          <Button icon={<PlusOutlined />} className="rounded-lg font-semibold" loading={bodyChartLoading} onClick={handleAddBodyChartTemplate}>New Template</Button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                          {[1, 2, 3].map(i => (
-                            <div key={i} className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => toast.info('Opening chart template')}>
+                          {bodyChartLoading && bodyChartTemplates.length === 0 && (
+                            <div className="col-span-3 text-center text-slate-400 py-10">Loading templates from database...</div>
+                          )}
+                          {!bodyChartLoading && bodyChartTemplates.length === 0 && (
+                            <div className="col-span-3 text-center text-slate-400 py-10">No body chart templates found. Click "New Template" to create one.</div>
+                          )}
+                          {bodyChartTemplates.map((tmpl, i) => (
+                            <div key={tmpl.id} className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer" onClick={() => toast.success(`Opening: ${tmpl.name}`)}>
                               <div className="h-40 bg-slate-100 dark:bg-slate-800 flex items-center justify-center relative">
-                                <span className="text-slate-400 font-bold text-xl">Template {i}</span>
+                                <span className="text-slate-400 font-bold text-xl">Template {i + 1}</span>
                               </div>
-                              <div className="p-4 bg-white dark:bg-slate-900">
-                                <h4 className="font-bold text-sm m-0">Physiotherapy Full Body</h4>
-                                <p className="text-xs text-slate-500 m-0 mt-1">Updated 2 days ago</p>
+                              <div className="p-4 bg-white dark:bg-slate-900 flex justify-between items-start">
+                                <div>
+                                  <h4 className="font-bold text-sm m-0">{tmpl.name}</h4>
+                                  <p className="text-xs text-slate-500 m-0 mt-1">{tmpl.description || 'No description'}</p>
+                                </div>
+                                <DeleteOutlined className="text-red-400 hover:text-red-600 cursor-pointer" onClick={(e) => { e.stopPropagation(); handleDeleteBodyChartTemplate(tmpl.id) }} />
                               </div>
                             </div>
                           ))}
@@ -455,18 +726,37 @@ export default function PractitionerSettingsPage() {
                     label: <span className="font-semibold text-slate-500">Integrations</span>, 
                     children: (
                       <div className="py-6 space-y-6">
-                        <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0 mb-4">Connected Apps</h3>
+                        <div className="flex justify-between items-center mb-4">
+                          <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0">Connected Apps (Live DB)</h3>
+                          {store.integrationsLoading && <span className="text-xs text-slate-400 font-semibold">Syncing with database...</span>}
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {['Xero', 'Mailchimp', 'Physitrack', 'Stripe'].map(app => (
-                            <div key={app} className="flex justify-between items-center p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+                          {(store.integrations || []).slice(0, 6).map((item) => (
+                            <div key={item.id} className="flex justify-between items-center p-4 border border-slate-200 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-shadow">
                               <div className="flex items-center gap-4">
-                                <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center font-bold text-slate-400">{app[0]}</div>
+                                <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-lg flex items-center justify-center font-bold text-[#8C4BFF] text-base">
+                                  {item.name ? item.name[0] : 'A'}
+                                </div>
                                 <div>
-                                  <h4 className="font-bold text-sm m-0">{app}</h4>
-                                  <p className="text-xs text-slate-500 m-0">Not connected</p>
+                                  <h4 className="font-bold text-sm m-0 text-slate-800 dark:text-slate-200">{item.name}</h4>
+                                  <p className="text-xs text-slate-500 m-0 font-semibold">
+                                    {item.connected ? (
+                                      <span className="text-emerald-600 dark:text-emerald-400 font-bold">● Connected</span>
+                                    ) : (
+                                      <span className="text-slate-400">Not connected</span>
+                                    )}
+                                  </p>
                                 </div>
                               </div>
-                              <Button className="rounded-lg font-semibold" onClick={() => toast.success(`Connected to ${app}`)}>Connect</Button>
+                              <Button 
+                                type={item.connected ? 'default' : 'primary'}
+                                loading={Boolean(integrationActionLoading[item.id])}
+                                onClick={() => handleToggleIntegrationItem(item)}
+                                className="rounded-lg font-semibold text-xs"
+                                style={!item.connected && item.id !== 'myob' ? { backgroundColor: '#8C4BFF', border: 'none' } : {}}
+                              >
+                                {item.connected ? 'Disconnect' : 'Connect'}
+                              </Button>
                             </div>
                           ))}
                         </div>
@@ -478,21 +768,182 @@ export default function PractitionerSettingsPage() {
                     label: <span className="font-semibold text-slate-500">Login history</span>, 
                     children: (
                       <div className="py-6 space-y-6">
-                        <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0 mb-4">Recent Logins</h3>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                          <div>
+                            <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0 flex items-center gap-2">
+                              <span>Recent Logins & Active Sessions</span>
+                              <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-purple-50 text-[#8C4BFF] dark:bg-purple-950/40 dark:text-purple-300">
+                                Live Database
+                              </span>
+                            </h3>
+                            <p className="text-xs text-slate-400 font-semibold m-0 mt-1">
+                              View recent authentication logs, verify active devices, and revoke unauthorized sessions in real-time.
+                            </p>
+                          </div>
+                          <Button
+                            type="primary"
+                            icon={<PlusOutlined />}
+                            onClick={() => setRecordLoginModalOpen(true)}
+                            className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 border-none font-bold rounded-xl h-9 px-4 text-xs"
+                          >
+                            Record Login Log
+                          </Button>
+                        </div>
+
+                        {/* Search & Filter Bar */}
+                        <div className="flex flex-col sm:flex-row gap-3 justify-between items-center bg-slate-50 dark:bg-slate-950/30 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+                          <Input
+                            placeholder="Filter by Device, IP, Location or Date..."
+                            prefix={<SettingOutlined className="text-slate-400 mr-1" />}
+                            value={loginSearch}
+                            onChange={(e) => setLoginSearch(e.target.value)}
+                            allowClear
+                            className="rounded-lg h-9 text-xs max-w-md w-full"
+                          />
+                          <div className="flex items-center gap-2 w-full sm:w-auto">
+                            <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status:</span>
+                            <Select
+                              value={loginStatusFilter}
+                              onChange={(val) => setLoginStatusFilter(val)}
+                              className="w-36 rounded-lg text-xs"
+                            >
+                              <Option value="All">All Status</Option>
+                              <Option value="Active Session">Active Session</Option>
+                              <Option value="Expired">Expired</Option>
+                              <Option value="Revoked">Revoked</Option>
+                            </Select>
+                          </div>
+                        </div>
+
                         <Table 
-                          dataSource={[
-                            { key: '1', date: '2026-07-03 10:00 AM', ip: '192.168.1.1', location: 'Melbourne, VIC', device: 'Chrome / Windows' },
-                            { key: '2', date: '2026-07-02 09:30 AM', ip: '192.168.1.1', location: 'Melbourne, VIC', device: 'Chrome / Windows' },
-                          ]} 
+                          dataSource={filteredLoginLogs} 
+                          loading={loginLoading}
                           columns={[
-                            { title: 'Date & Time', dataIndex: 'date', key: 'date', className: 'font-semibold' },
-                            { title: 'IP Address', dataIndex: 'ip', key: 'ip' },
-                            { title: 'Location', dataIndex: 'location', key: 'location' },
-                            { title: 'Device', dataIndex: 'device', key: 'device' },
+                            { 
+                              title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Date & Time</span>, 
+                              dataIndex: 'date', 
+                              key: 'date', 
+                              className: 'font-semibold text-xs' 
+                            },
+                            { 
+                              title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Device / Client</span>, 
+                              dataIndex: 'device', 
+                              key: 'device',
+                              render: (text) => <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">{text}</span>
+                            },
+                            { 
+                              title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">IP Address</span>, 
+                              dataIndex: 'ip', 
+                              key: 'ip',
+                              render: (text) => <span className="font-mono text-slate-600 dark:text-slate-400 text-xs bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">{text}</span>
+                            },
+                            { 
+                              title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Location</span>, 
+                              dataIndex: 'location', 
+                              key: 'location',
+                              className: 'text-xs text-slate-500 font-semibold'
+                            },
+                            { 
+                              title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Status</span>, 
+                              dataIndex: 'status', 
+                              key: 'status',
+                              render: (text) => {
+                                let color = 'default'
+                                if (text === 'Active Session') color = 'success'
+                                else if (text === 'Expired') color = 'warning'
+                                else if (text === 'Revoked') color = 'error'
+                                return (
+                                  <Tag color={color} className="rounded-full border-none font-bold text-[10px] px-2.5 py-0.5">
+                                    {text || 'Active Session'}
+                                  </Tag>
+                                )
+                              }
+                            },
+                            {
+                              title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Action</span>,
+                              key: 'action',
+                              align: 'right',
+                              render: (_, record) => (
+                                record.status === 'Active Session' ? (
+                                  <Button 
+                                    danger 
+                                    size="small"
+                                    onClick={() => handleRevokeSession(record.id)}
+                                    className="rounded-lg text-xs font-semibold"
+                                  >
+                                    Revoke Session
+                                  </Button>
+                                ) : (
+                                  <span className="text-xs text-slate-400 font-semibold italic">Inactive</span>
+                                )
+                              )
+                            }
                           ]}
-                          pagination={false}
-                          className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden"
+                          pagination={{ pageSize: 5 }}
+                          className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm"
                         />
+
+                        {/* Modal to record/test new login log */}
+                        <Modal
+                          title={<span className="font-extrabold text-base text-slate-800 dark:text-white">Record Login Activity</span>}
+                          open={recordLoginModalOpen}
+                          onCancel={() => { recordLoginForm.resetFields(); setRecordLoginModalOpen(false); }}
+                          footer={null}
+                          destroyOnClose
+                        >
+                          <Form
+                            form={recordLoginForm}
+                            layout="vertical"
+                            onFinish={handleRecordNewLoginSubmit}
+                            className="mt-4 space-y-4"
+                          >
+                            <Form.Item
+                              name="device"
+                              label={<span className="font-bold text-xs text-slate-700 dark:text-slate-300">Device / Browser Name <span className="text-red-500">*</span></span>}
+                              rules={[{ required: true, message: 'Please enter device name' }]}
+                              initialValue="Chrome / Windows 11"
+                            >
+                              <Input placeholder="e.g., Chrome / Windows, iPhone App" className="rounded-xl h-10" />
+                            </Form.Item>
+
+                            <Form.Item
+                              name="ip"
+                              label={<span className="font-bold text-xs text-slate-700 dark:text-slate-300">IP Address</span>}
+                              initialValue="192.168.1.105"
+                            >
+                              <Input placeholder="e.g., 103.88.24.12" className="rounded-xl h-10" />
+                            </Form.Item>
+
+                            <Form.Item
+                              name="location"
+                              label={<span className="font-bold text-xs text-slate-700 dark:text-slate-300">Location</span>}
+                              initialValue="Melbourne, VIC"
+                            >
+                              <Input placeholder="e.g., Melbourne, VIC" className="rounded-xl h-10" />
+                            </Form.Item>
+
+                            <Form.Item
+                              name="status"
+                              label={<span className="font-bold text-xs text-slate-700 dark:text-slate-300">Session Status</span>}
+                              initialValue="Active Session"
+                            >
+                              <Select className="rounded-xl h-10">
+                                <Option value="Active Session">Active Session</Option>
+                                <Option value="Expired">Expired</Option>
+                                <Option value="Revoked">Revoked</Option>
+                              </Select>
+                            </Form.Item>
+
+                            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                              <Button onClick={() => setRecordLoginModalOpen(false)} className="rounded-xl font-semibold">
+                                Cancel
+                              </Button>
+                              <Button type="primary" htmlType="submit" className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 border-none font-bold rounded-xl px-6">
+                                Save to Database
+                              </Button>
+                            </div>
+                          </Form>
+                        </Modal>
                       </div>
                     ) 
                   },
@@ -500,23 +951,104 @@ export default function PractitionerSettingsPage() {
                     key: 'account_security', 
                     label: <span className="font-semibold text-slate-500">Account security</span>, 
                     children: (
-                      <div className="py-6 space-y-8">
+                      <div className="py-6 space-y-8 animate-fade-in">
                         <div>
-                          <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0 mb-4">Change Password</h3>
-                          <div className="max-w-md space-y-4">
-                            <Input.Password placeholder="Current Password" size="large" className="rounded-lg" />
-                            <Input.Password placeholder="New Password" size="large" className="rounded-lg" />
-                            <Input.Password placeholder="Confirm New Password" size="large" className="rounded-lg" />
-                            <Button type="primary" className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 border-none rounded-lg font-semibold" onClick={() => toast.success('Password updated successfully')}>Update Password</Button>
+                          <div className="flex items-center gap-2 mb-4">
+                            <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0">Change Password</h3>
+                            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-[#8C4BFF] dark:bg-purple-950/40 dark:text-purple-300">
+                              Live Database (bcrypt)
+                            </span>
                           </div>
+
+                          <Form
+                            form={passwordForm}
+                            layout="vertical"
+                            onFinish={handlePasswordChangeSubmit}
+                            className="max-w-md space-y-4"
+                          >
+                            <Form.Item
+                              name="currentPassword"
+                              label={<span className="font-bold text-xs text-slate-700 dark:text-slate-300">Current Password <span className="text-red-500">*</span></span>}
+                              rules={[{ required: true, message: 'Please enter current password' }]}
+                              className="mb-3"
+                            >
+                              <Input.Password placeholder="Enter current password" size="large" className="rounded-xl text-xs" />
+                            </Form.Item>
+
+                            <Form.Item
+                              name="newPassword"
+                              label={<span className="font-bold text-xs text-slate-700 dark:text-slate-300">New Password <span className="text-red-500">*</span></span>}
+                              rules={[{ required: true, message: 'Please enter new password' }, { min: 6, message: 'Minimum 6 characters' }]}
+                              className="mb-3"
+                            >
+                              <Input.Password placeholder="Enter new password" size="large" className="rounded-xl text-xs" />
+                            </Form.Item>
+
+                            <Form.Item
+                              name="confirmPassword"
+                              label={<span className="font-bold text-xs text-slate-700 dark:text-slate-300">Confirm New Password <span className="text-red-500">*</span></span>}
+                              rules={[{ required: true, message: 'Please confirm new password' }]}
+                              className="mb-4"
+                            >
+                              <Input.Password placeholder="Confirm new password" size="large" className="rounded-xl text-xs" />
+                            </Form.Item>
+
+                            <Button 
+                              type="primary" 
+                              htmlType="submit"
+                              loading={passwordLoading}
+                              className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 border-none rounded-xl font-bold h-10 px-6 shadow-sm"
+                            >
+                              Update Password
+                            </Button>
+                          </Form>
                         </div>
+
                         <Divider />
-                        <div className="flex justify-between items-center">
-                          <div>
-                            <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0">Two-Factor Authentication</h3>
-                            <p className="text-slate-500 text-sm mt-1">Add an extra layer of security to your account.</p>
+
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0">Two-Factor Authentication (2FA)</h3>
+                              <p className="text-slate-500 text-xs mt-1 font-semibold">
+                                Add an extra layer of security to your account saved in the live database.
+                              </p>
+                            </div>
+                            <Button 
+                              type={tfaEnabled ? 'default' : 'primary'}
+                              loading={securityLoading}
+                              onClick={() => handleTfaToggleChange(!tfaEnabled)}
+                              className="rounded-xl font-bold text-xs h-9 px-4"
+                              style={!tfaEnabled ? { backgroundColor: '#8C4BFF', border: 'none' } : {}}
+                            >
+                              {tfaEnabled ? 'Disable 2FA' : 'Enable 2FA'}
+                            </Button>
                           </div>
-                          <Button className="rounded-lg font-semibold" onClick={() => toast.success('2FA Setup initiated')}>Enable 2FA</Button>
+
+                          {tfaEnabled && (
+                            <div className="bg-slate-50 dark:bg-slate-950/30 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3 max-w-lg">
+                              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Select Primary 2FA Method:</span>
+                              <Radio.Group 
+                                value={tfaMethod} 
+                                onChange={(e) => {
+                                  setTfaMethod(e.target.value)
+                                  updatePractitionerSecuritySettings({ tfaEnabled: true, tfaMethod: e.target.value })
+                                  toast.success(`2FA method updated to ${e.target.value.toUpperCase()} in live database!`)
+                                }}
+                                className="flex flex-col gap-2"
+                              >
+                                <Radio value="app" className="text-xs font-semibold">
+                                  <span>Authenticator App (TOTP - Google Authenticator / Authy)</span>
+                                </Radio>
+                                <Radio value="sms" className="text-xs font-semibold">
+                                  <span>SMS Verification Code</span>
+                                </Radio>
+                                <Radio value="email" className="text-xs font-semibold">
+                                  <span>Email Security Code</span>
+                                </Radio>
+                              </Radio.Group>
+                            </div>
+                          )}
                         </div>
                       </div>
                     ) 
@@ -560,6 +1092,111 @@ export default function PractitionerSettingsPage() {
             </div>
           </Form>
         )
+      case 'security':
+        return (
+          <div className="space-y-8 animate-fade-in max-w-4xl pb-10">
+            <h2 className="text-[22px] font-bold text-slate-800 dark:text-white m-0 mb-6">Security Settings</h2>
+            
+            <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0">Change Password</h3>
+                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-purple-50 text-[#8C4BFF] dark:bg-purple-950/40 dark:text-purple-300">
+                  Live Database (bcrypt)
+                </span>
+              </div>
+
+              <Form
+                form={passwordForm}
+                layout="vertical"
+                onFinish={handlePasswordChangeSubmit}
+                className="max-w-md space-y-4"
+              >
+                <Form.Item
+                  name="currentPassword"
+                  label={<span className="font-bold text-xs text-slate-700 dark:text-slate-300">Current Password <span className="text-red-500">*</span></span>}
+                  rules={[{ required: true, message: 'Please enter current password' }]}
+                  className="mb-3"
+                >
+                  <Input.Password placeholder="Enter current password" size="large" className="rounded-xl text-xs" />
+                </Form.Item>
+
+                <Form.Item
+                  name="newPassword"
+                  label={<span className="font-bold text-xs text-slate-700 dark:text-slate-300">New Password <span className="text-red-500">*</span></span>}
+                  rules={[{ required: true, message: 'Please enter new password' }, { min: 6, message: 'Minimum 6 characters' }]}
+                  className="mb-3"
+                >
+                  <Input.Password placeholder="Enter new password" size="large" className="rounded-xl text-xs" />
+                </Form.Item>
+
+                <Form.Item
+                  name="confirmPassword"
+                  label={<span className="font-bold text-xs text-slate-700 dark:text-slate-300">Confirm New Password <span className="text-red-500">*</span></span>}
+                  rules={[{ required: true, message: 'Please confirm new password' }]}
+                  className="mb-4"
+                >
+                  <Input.Password placeholder="Confirm new password" size="large" className="rounded-xl text-xs" />
+                </Form.Item>
+
+                <Button 
+                  type="primary" 
+                  htmlType="submit"
+                  loading={passwordLoading}
+                  className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 border-none rounded-xl font-bold h-10 px-6 shadow-sm"
+                >
+                  Update Password
+                </Button>
+              </Form>
+
+              <Divider />
+
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0">Two-Factor Authentication (2FA)</h3>
+                    <p className="text-slate-500 text-xs mt-1 font-semibold">
+                      Add an extra layer of security to your account saved in the live database.
+                    </p>
+                  </div>
+                  <Button 
+                    type={tfaEnabled ? 'default' : 'primary'}
+                    loading={securityLoading}
+                    onClick={() => handleTfaToggleChange(!tfaEnabled)}
+                    className="rounded-xl font-bold text-xs h-9 px-4"
+                    style={!tfaEnabled ? { backgroundColor: '#8C4BFF', border: 'none' } : {}}
+                  >
+                    {tfaEnabled ? 'Disable 2FA' : 'Enable 2FA'}
+                  </Button>
+                </div>
+
+                {tfaEnabled && (
+                  <div className="bg-slate-50 dark:bg-slate-950/30 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3 max-w-lg">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">Select Primary 2FA Method:</span>
+                    <Radio.Group 
+                      value={tfaMethod} 
+                      onChange={(e) => {
+                        setTfaMethod(e.target.value)
+                        updatePractitionerSecuritySettings({ tfaEnabled: true, tfaMethod: e.target.value })
+                        toast.success(`2FA method updated to ${e.target.value.toUpperCase()} in live database!`)
+                      }}
+                      className="flex flex-col gap-2"
+                    >
+                      <Radio value="app" className="text-xs font-semibold">
+                        <span>Authenticator App (TOTP - Google Authenticator / Authy)</span>
+                      </Radio>
+                      <Radio value="sms" className="text-xs font-semibold">
+                        <span>SMS Verification Code</span>
+                      </Radio>
+                      <Radio value="email" className="text-xs font-semibold">
+                        <span>Email Security Code</span>
+                      </Radio>
+                    </Radio.Group>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+        )
       case 'clinic_details':
         return <ClinicDetailsTab />
       case 'roles_permissions':
@@ -592,96 +1229,264 @@ export default function PractitionerSettingsPage() {
         )
       case 'integrations':
         return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Integrations</h2>
-              <p className="text-slate-400 text-xs mt-1 font-semibold">
-                Manage your connections to third-party software tools for accounting, exercise, payments, and video consults.
-              </p>
+          <div className="space-y-6 animate-fade-in pb-10">
+            {/* Header Section */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0 flex items-center gap-2">
+                  <span>Integrations & Connected Apps</span>
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-purple-50 text-[#8C4BFF] dark:bg-purple-950/40 dark:text-purple-300">
+                    Live Database
+                  </span>
+                </h2>
+                <p className="text-slate-400 text-xs mt-1 font-semibold m-0">
+                  Manage live connections to third-party tools. Connect, sync, filter, or add custom integrations persisted in your database.
+                </p>
+              </div>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setAddIntegrationModalOpen(true)}
+                className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 border-none font-bold rounded-xl h-10 px-5 shadow-sm text-xs"
+              >
+                Add Custom Integration
+              </Button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {store.integrations.map((item) => (
-                <Card
-                  key={item.id}
-                  className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden"
-                  bodyStyle={{ padding: '20px' }}
+            {/* Filter Controls */}
+            <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+              <div className="flex-1 w-full max-w-md">
+                <Input
+                  placeholder="Search by name, type, or keyword..."
+                  prefix={<SettingOutlined className="text-slate-400 mr-1" />}
+                  value={integrationSearch}
+                  onChange={(e) => setIntegrationSearch(e.target.value)}
+                  allowClear
+                  className="rounded-xl h-10 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center gap-3 w-full md:w-auto flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Category:</span>
+                  <Select
+                    value={integrationCategory}
+                    onChange={(val) => setIntegrationCategory(val)}
+                    className="w-44 rounded-xl text-xs"
+                  >
+                    <Option value="All">All Categories</Option>
+                    <Option value="Accounting">Accounting</Option>
+                    <Option value="Exercise Prescription">Exercise Prescription</Option>
+                    <Option value="Payments">Payments</Option>
+                    <Option value="Video Consultations">Video Consultations</Option>
+                    <Option value="Health Claiming">Health Claiming</Option>
+                    <Option value="Custom Integration">Custom Integration</Option>
+                  </Select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Status:</span>
+                  <Select
+                    value={integrationStatusFilter}
+                    onChange={(val) => setIntegrationStatusFilter(val)}
+                    className="w-36 rounded-xl text-xs"
+                  >
+                    <Option value="All">All Status</Option>
+                    <Option value="Connected">Connected</Option>
+                    <Option value="Disconnected">Disconnected</Option>
+                  </Select>
+                </div>
+
+                {(integrationSearch || integrationCategory !== 'All' || integrationStatusFilter !== 'All') && (
+                  <Button
+                    onClick={() => {
+                      setIntegrationSearch('')
+                      setIntegrationCategory('All')
+                      setIntegrationStatusFilter('All')
+                    }}
+                    className="rounded-xl text-xs font-semibold"
+                  >
+                    Reset Filters
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Integrations Grid */}
+            {store.integrationsLoading && store.integrations.length === 0 ? (
+              <div className="p-12 text-center text-slate-400 font-semibold bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
+                Loading integrations from live database...
+              </div>
+            ) : filteredIntegrations.length === 0 ? (
+              <div className="p-12 text-center text-slate-400 font-semibold bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
+                <ApiOutlined className="text-4xl text-slate-300" />
+                <p className="m-0 text-sm font-bold text-slate-600 dark:text-slate-400">No integrations found matching your criteria.</p>
+                <Button 
+                  type="link" 
+                  onClick={() => { setIntegrationSearch(''); setIntegrationCategory('All'); setIntegrationStatusFilter('All'); }} 
+                  className="text-xs text-[#8C4BFF] font-bold"
                 >
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
-                        {item.type}
-                      </span>
-                      <h4 className="text-base font-extrabold text-slate-800 dark:text-slate-200 m-0 mt-0.5">{item.name}</h4>
-                    </div>
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${item.connected
-                          ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400'
-                          : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'
-                        }`}
-                    >
-                      <span
-                        className={`w-1.5 h-1.5 rounded-full ${item.connected ? 'bg-emerald-500' : 'bg-slate-400'
-                          }`}
-                      />
-                      {item.connected ? 'Connected' : 'Disconnected'}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-500 mb-4 font-semibold leading-relaxed">
-                    {item.name === 'Xero' && 'Sync clinical invoicing automatically to your accountancy accounts.'}
-                    {item.name === 'MYOB' && 'Alternative corporate accountancy sync. (Development planned next stage)'}
-                    {item.name === 'Physitrack' && 'Assign clinical home exercises and monitor participant adherence.'}
-                    {item.name === 'VALD HUB' && 'Integrate VALD HUB to assign exercises and track participant rehabilitation progress.'}
-                    {item.name === 'Stripe' && 'Accept direct client credit card payments inside practitioner portals.'}
-                    {item.name === 'Zoom' && 'Integrate secure clinical video rooms directly inside appointments.'}
-                    {item.name === 'Google Meet' && 'Connect calendar appointments automatically with Meet links.'}
-                    {item.name === 'HICAPS' && 'Medicare claiming and instant private health insurer rebates.'}
-                    {item.name === 'Tyro Health' && 'Integrated Tyro claiming terminal connection and rebates.'}
-                  </p>
-
-                  <div className="border-t border-slate-50 pt-4 flex flex-col gap-2">
-                    {item.connected && (
-                      <div className="flex justify-between items-center text-[11px] text-slate-400 mb-2">
-                        <span>Last Synced:</span>
-                        <span className="font-bold text-slate-600">{item.lastSync || 'Never'}</span>
+                  Clear search and filters
+                </Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredIntegrations.map((item) => (
+                  <Card
+                    key={item.id}
+                    className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden hover:shadow-md transition-shadow relative"
+                    bodyStyle={{ padding: '20px' }}
+                  >
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                            {item.type || 'Integration'}
+                          </span>
+                          {item.isCustom && (
+                            <Tag color="purple" className="rounded-full text-[9px] font-bold border-none px-2">Custom</Tag>
+                          )}
+                        </div>
+                        <h4 className="text-base font-extrabold text-slate-800 dark:text-slate-200 m-0 mt-0.5">{item.name}</h4>
                       </div>
-                    )}
-                    <div className="flex gap-2">
-                      <Button
-                        type={item.connected ? 'default' : 'primary'}
-                        onClick={() => {
-                          if (item.id === 'myob') {
-                            toast.error('MYOB integration is coming soon in a future update!')
-                            return
-                          }
-                          store.toggleIntegration(item.id)
-                          toast.success(`${item.name} status updated successfully!`)
-                        }}
-                        className="flex-1 rounded-xl text-xs font-bold h-9"
-                        style={!item.connected && item.id !== 'myob' ? { backgroundColor: '#8C4BFF', border: 'none' } : {}}
+                      <span
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${item.connected
+                            ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20 dark:text-emerald-400'
+                            : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'
+                          }`}
                       >
-                        {item.connected ? 'Disconnect' : 'Connect'}
-                      </Button>
-                      {item.connected && (
-                        <Button
-                          icon={<SyncOutlined />}
-                          onClick={() => {
-                            useClinicStore.setState((state) => ({
-                              integrations: state.integrations.map((i) =>
-                                i.id === item.id ? { ...i, lastSync: new Date().toLocaleString() } : i
-                              ),
-                            }))
-                            toast.success(`Synced details from ${item.name}!`)
-                          }}
-                          className="rounded-xl border border-slate-200 h-9 w-9 flex items-center justify-center p-0"
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${item.connected ? 'bg-emerald-500' : 'bg-slate-400'}`}
                         />
-                      )}
+                        {item.connected ? 'Connected' : 'Disconnected'}
+                      </span>
                     </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
+
+                    <p className="text-xs text-slate-500 mb-4 font-semibold leading-relaxed min-h-[36px]">
+                      {item.description || (
+                        item.name === 'Xero' ? 'Sync clinical invoicing automatically to your accountancy accounts.' :
+                        item.name === 'MYOB' ? 'Alternative corporate accountancy sync.' :
+                        item.name === 'Physitrack' ? 'Assign clinical home exercises and monitor participant adherence.' :
+                        item.name === 'VALD HUB' ? 'Integrate VALD HUB to assign exercises and track participant progress.' :
+                        item.name === 'Stripe' ? 'Accept direct client credit card payments inside practitioner portals.' :
+                        item.name === 'Zoom' ? 'Integrate secure clinical video rooms directly inside appointments.' :
+                        item.name === 'Google Meet' ? 'Connect calendar appointments automatically with Meet links.' :
+                        item.name === 'HICAPS' ? 'Medicare claiming and instant private health insurer rebates.' :
+                        item.name === 'Tyro Health' ? 'Integrated Tyro claiming terminal connection and rebates.' :
+                        'Connected integration service for clinic operations.'
+                      )}
+                    </p>
+
+                    <div className="border-t border-slate-100 dark:border-slate-800/80 pt-4 flex flex-col gap-2">
+                      {item.connected && (
+                        <div className="flex justify-between items-center text-[11px] text-slate-400 mb-1">
+                          <span>Last Synced:</span>
+                          <span className="font-bold text-slate-600 dark:text-slate-300">{item.lastSync || 'Never'}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type={item.connected ? 'default' : 'primary'}
+                          loading={Boolean(integrationActionLoading[item.id])}
+                          onClick={() => handleToggleIntegrationItem(item)}
+                          className="flex-1 rounded-xl text-xs font-bold h-9"
+                          style={!item.connected && item.id !== 'myob' ? { backgroundColor: '#8C4BFF', border: 'none' } : {}}
+                        >
+                          {item.connected ? 'Disconnect' : 'Connect'}
+                        </Button>
+
+                        {item.connected && (
+                          <Button
+                            icon={<SyncOutlined />}
+                            loading={Boolean(integrationActionLoading[`sync_${item.id}`])}
+                            onClick={() => handleSyncIntegrationItem(item)}
+                            title="Sync live data now"
+                            className="rounded-xl border border-slate-200 h-9 w-9 flex items-center justify-center p-0"
+                          />
+                        )}
+
+                        {item.isCustom && (
+                          <Button
+                            danger
+                            type="text"
+                            icon={<DeleteOutlined />}
+                            onClick={() => handleDeleteIntegrationItem(item.id, item.name)}
+                            title="Delete custom integration from live database"
+                            className="h-9 w-9 p-0 flex items-center justify-center"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* Custom Integration Modal */}
+            <Modal
+              title={<span className="font-extrabold text-base text-slate-800 dark:text-white">Add Custom Integration</span>}
+              open={addIntegrationModalOpen}
+              onCancel={() => { addIntegrationForm.resetFields(); setAddIntegrationModalOpen(false); }}
+              footer={null}
+              destroyOnClose
+            >
+              <Form
+                form={addIntegrationForm}
+                layout="vertical"
+                onFinish={handleCreateCustomIntegrationSubmit}
+                className="mt-4 space-y-4"
+              >
+                <Form.Item
+                  name="name"
+                  label={<span className="font-bold text-xs text-slate-700 dark:text-slate-300">Integration Name <span className="text-red-500">*</span></span>}
+                  rules={[{ required: true, message: 'Please enter integration name' }]}
+                >
+                  <Input placeholder="e.g., Slack, Cliniko, Mailchimp, Zapier" className="rounded-xl h-10" />
+                </Form.Item>
+
+                <Form.Item
+                  name="type"
+                  label={<span className="font-bold text-xs text-slate-700 dark:text-slate-300">Category / Type</span>}
+                  initialValue="Custom Integration"
+                >
+                  <Select className="rounded-xl h-10">
+                    <Option value="Accounting">Accounting</Option>
+                    <Option value="Exercise Prescription">Exercise Prescription</Option>
+                    <Option value="Payments">Payments</Option>
+                    <Option value="Video Consultations">Video Consultations</Option>
+                    <Option value="Health Claiming">Health Claiming</Option>
+                    <Option value="Messaging / CRM">Messaging / CRM</Option>
+                    <Option value="Custom Integration">Custom Integration</Option>
+                  </Select>
+                </Form.Item>
+
+                <Form.Item
+                  name="description"
+                  label={<span className="font-bold text-xs text-slate-700 dark:text-slate-300">Description</span>}
+                >
+                  <Input.TextArea placeholder="Brief description of how this integration connects to your clinic..." rows={3} className="rounded-xl" />
+                </Form.Item>
+
+                <Form.Item
+                  name="connected"
+                  valuePropName="checked"
+                  initialValue={false}
+                >
+                  <Checkbox className="font-semibold text-xs text-slate-700 dark:text-slate-300">
+                    Connect immediately upon saving to database
+                  </Checkbox>
+                </Form.Item>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <Button onClick={() => setAddIntegrationModalOpen(false)} className="rounded-xl font-semibold">
+                    Cancel
+                  </Button>
+                  <Button type="primary" htmlType="submit" className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 border-none font-bold rounded-xl px-6">
+                    Add to Database
+                  </Button>
+                </div>
+              </Form>
+            </Modal>
           </div>
         )
 
@@ -918,13 +1723,9 @@ export default function PractitionerSettingsPage() {
                     render: (_, record) => (
                       <Space size="middle">
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             const archivedVal = record.status === 'active' ? 'archived' : 'active'
-                            useClinicStore.setState((state) => ({
-                              letterTemplates: state.letterTemplates.map((l) =>
-                                l.id === record.id ? { ...l, status: archivedVal } : l
-                              ),
-                            }))
+                            await store.updateSettingsTemplate('letters', record.id, { status: archivedVal })
                             toast.success(`Letter marked as ${archivedVal}!`)
                           }}
                           className="bg-transparent border-none text-slate-400 hover:text-amber-500 cursor-pointer"
@@ -933,16 +1734,13 @@ export default function PractitionerSettingsPage() {
                           <CloseCircleOutlined />
                         </button>
                         <button
-                          onClick={() => {
+                          onClick={async () => {
                             const duplicated = {
-                              id: `l_${Date.now()}`,
                               name: `${record.name} (Copy)`,
                               category: record.category,
                               status: 'active',
                             }
-                            useClinicStore.setState((state) => ({
-                              letterTemplates: [...state.letterTemplates, duplicated],
-                            }))
+                            await store.addSettingsTemplate('letters', duplicated)
                             toast.success(`Duplicated Letter: ${record.name}`)
                           }}
                           className="bg-transparent border-none text-slate-400 hover:text-[#8C4BFF] cursor-pointer"
@@ -980,24 +1778,16 @@ export default function PractitionerSettingsPage() {
               <Form
                 layout="vertical"
                 form={letterEdit}
-                onFinish={(values) => {
+                onFinish={async (values) => {
                   if (editingLetter) {
-                    useClinicStore.setState((state) => ({
-                      letterTemplates: state.letterTemplates.map((l) =>
-                        l.id === editingLetter.id ? { ...l, ...values } : l
-                      ),
-                    }))
+                    await store.updateSettingsTemplate('letters', editingLetter.id, values)
                     toast.success('Letter template updated!')
                   } else {
-                    const newLetter = {
-                      id: `l_${Date.now()}`,
+                    await store.addSettingsTemplate('letters', {
                       name: values.name,
                       category: values.category || 'General',
                       status: 'active',
-                    }
-                    useClinicStore.setState((state) => ({
-                      letterTemplates: [...state.letterTemplates, newLetter],
-                    }))
+                    })
                     toast.success('Letter template created!')
                   }
                   setLetterModalOpen(false)
@@ -1059,16 +1849,15 @@ export default function PractitionerSettingsPage() {
                       {t.name}
                     </button>
                     <button
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation()
                         if (store.noteTemplates.length <= 1) {
                           toast.error('At least one note template must be kept!')
                           return
                         }
-                        const updated = store.noteTemplates.filter((n) => n.id !== t.id)
-                        useClinicStore.setState({ noteTemplates: updated })
+                        await store.removeSettingsTemplate('notes', t.id)
                         if (selectedNote?.id === t.id) {
-                          setSelectedNote(updated[0])
+                          setSelectedNote(store.noteTemplates.filter((n) => n.id !== t.id)[0])
                         }
                         toast.success('Note template deleted!')
                       }}
@@ -1143,7 +1932,10 @@ export default function PractitionerSettingsPage() {
                     <div className="flex justify-end gap-2 pt-2 border-t border-slate-50 dark:border-slate-800">
                       <Button
                         type="primary"
-                        onClick={() => toast.success('Note templates settings auto-saved to cloud database ledger!')}
+                        onClick={async () => {
+                          await store.updateSettingsTemplate('notes', selectedNote.id, { name: selectedNote.name, content: selectedNote.content })
+                          toast.success('Note templates settings auto-saved to cloud database ledger!')
+                        }}
                         style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
                         className="rounded-xl font-bold h-10 text-xs px-5 border-none"
                       >
@@ -1170,16 +1962,11 @@ export default function PractitionerSettingsPage() {
             >
               <Form
                 layout="vertical"
-                onFinish={(values) => {
-                  const newTpl = {
-                    id: `n_${Date.now()}`,
+                onFinish={async (values) => {
+                  await store.addSettingsTemplate('notes', {
                     name: values.name,
                     content: 'Write notes structure details here...',
-                  }
-                  useClinicStore.setState((state) => ({
-                    noteTemplates: [...state.noteTemplates, newTpl],
-                  }))
-                  setSelectedNote(newTpl)
+                  })
                   toast.success('Note template created!')
                   setNoteModalOpen(false)
                 }}

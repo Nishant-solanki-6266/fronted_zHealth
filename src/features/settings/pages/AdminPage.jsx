@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Table, Input, Select, Space, Modal, Form, Checkbox, Tag, Tooltip, Divider, Avatar } from 'antd'
 import {
   SearchOutlined,
@@ -14,6 +14,7 @@ import {
 import { toast } from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useClinicStore } from '../../../store/clinicStore'
+import { getAdmins, createAdmin, updateAdmin, deleteAdmin, getBranches } from '../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 
@@ -98,8 +99,15 @@ const ROLE_COLORS = {
 }
 
 export default function AdminPage() {
-  const { admins, branches, addAdmin, editAdmin, deleteAdmin, darkMode } = useClinicStore()
+  const store = useClinicStore()
+  const { darkMode } = store
   const navigate = useNavigate()
+
+  const [adminList, setAdminList] = useState([])
+  const admins = adminList
+  const [branchList, setBranchList] = useState(store.branches || [])
+  const branches = branchList
+  const [loading, setLoading] = useState(false)
 
   const [searchText, setSearchText] = useState('')
   const [statusFilter, setStatusFilter] = useState(undefined)
@@ -110,6 +118,41 @@ export default function AdminPage() {
   const [permissions, setPermissions] = useState({ ...ROLE_PRESETS.Manager })
   const [form] = Form.useForm()
   const avatarUrl = Form.useWatch('avatar', form)
+
+  const loadAdmins = async () => {
+    setLoading(true)
+    try {
+      const res = await getAdmins()
+      if (res && res.success && res.data) {
+        setAdminList(res.data)
+      } else if (store.admins && store.admins.length > 0) {
+        setAdminList(store.admins)
+      }
+    } catch (err) {
+      console.error("Failed to load admins from database:", err)
+      if (store.admins && store.admins.length > 0) {
+        setAdminList(store.admins)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadBranches = async () => {
+    try {
+      const res = await getBranches()
+      if (res && res.success && res.data) {
+        setBranchList(res.data)
+      }
+    } catch (err) {
+      console.error("Failed to load branches:", err)
+    }
+  }
+
+  useEffect(() => {
+    loadAdmins()
+    loadBranches()
+  }, [])
 
   const openAdd = () => {
     setCurrentAdmin(null)
@@ -159,14 +202,31 @@ export default function AdminPage() {
     setPermissions((prev) => ({ ...prev, [key]: checked }))
   }
 
-  const handleSubmit = (values) => {
+  const handleSubmit = async (values) => {
     const adminData = { ...values, permissions }
-    if (modalMode === 'add') {
-      addAdmin(adminData)
-      toast.success('Administrator added successfully!')
-    } else if (modalMode === 'edit') {
-      editAdmin({ ...currentAdmin, ...adminData })
-      toast.success('Administrator updated successfully!')
+    try {
+      if (modalMode === 'add') {
+        const res = await createAdmin(adminData)
+        if (res && res.success) {
+          toast.success('Administrator added to live database!')
+          if (store.addAdmin) store.addAdmin(res.data)
+          await loadAdmins()
+        } else {
+          toast.error(res?.message || 'Failed to add administrator')
+        }
+      } else if (modalMode === 'edit') {
+        const res = await updateAdmin(currentAdmin.id, adminData)
+        if (res && res.success) {
+          toast.success('Administrator updated in live database!')
+          if (store.editAdmin) store.editAdmin({ ...currentAdmin, ...adminData })
+          await loadAdmins()
+        } else {
+          toast.error(res?.message || 'Failed to update administrator')
+        }
+      }
+    } catch (err) {
+      console.error("Error saving admin:", err)
+      toast.error('Error saving administrator to live database')
     }
     closeModal()
   }
@@ -178,17 +238,28 @@ export default function AdminPage() {
       okText: 'Delete',
       okButtonProps: { danger: true },
       cancelText: 'Cancel',
-      onOk: () => {
-        deleteAdmin(record.id)
-        toast.success(`Removed admin: ${record.name}`)
+      onOk: async () => {
+        try {
+          const res = await deleteAdmin(record.id)
+          if (res && res.success) {
+            toast.success(`Removed admin: ${record.name}`)
+            if (store.deleteAdmin) store.deleteAdmin(record.id)
+            await loadAdmins()
+          } else {
+            toast.error(res?.message || 'Failed to delete admin')
+          }
+        } catch (err) {
+          console.error("Failed to delete admin:", err)
+          toast.error('Failed to delete admin from database')
+        }
       },
     })
   }
 
-  const filtered = admins.filter((admin) => {
+  const filtered = adminList.filter((admin) => {
     const matchesSearch =
       (admin.name || '').toLowerCase().includes(searchText.toLowerCase()) ||
-      (admin.adminId || '').includes(searchText) ||
+      (admin.adminId || '').toLowerCase().includes(searchText.toLowerCase()) ||
       (admin.role || '').toLowerCase().includes(searchText.toLowerCase()) ||
       (admin.email || '').toLowerCase().includes(searchText.toLowerCase())
     const matchesStatus = statusFilter ? admin.status === statusFilter : true
@@ -265,7 +336,7 @@ export default function AdminPage() {
         if (!branchIds || branchIds.length === 0)
           return <span className="text-slate-300 text-xs">No branches</span>
         const names = branchIds
-          .map((bid) => branches.find((b) => b.id === bid)?.name)
+          .map((bid) => branchList.find((b) => b.id === bid)?.name)
           .filter(Boolean)
         const visible = names.slice(0, 2)
         const extra = names.length - 2
@@ -415,7 +486,7 @@ export default function AdminPage() {
                   optionFilterProp="children"
                   className="rounded-xl flex items-center min-h-[40px] dark:bg-slate-900 border-slate-200 dark:border-slate-850"
                 >
-                  {branches.map((b) => (
+                  {branchList.map((b) => (
                     <Option key={b.id} value={b.id}>{b.name}</Option>
                   ))}
                 </Select>
@@ -634,7 +705,7 @@ export default function AdminPage() {
                       <span className="text-slate-300 text-xs">No branches assigned</span>
                     ) : (
                       (currentAdmin.assignedBranches || []).map((bid) => {
-                        const br = branches.find((b) => b.id === bid)
+                        const br = branchList.find((b) => b.id === bid)
                         return (
                           <span
                             key={bid}
@@ -742,10 +813,10 @@ export default function AdminPage() {
       {/* Stats Row */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Total Admins', value: admins.length, icon: <UserOutlined />, color: '#8C4BFF' },
-          { label: 'Active', value: admins.filter((a) => a.status === 'Active').length, icon: <SafetyCertificateOutlined />, color: '#10B981' },
-          { label: 'Inactive', value: admins.filter((a) => a.status === 'Inactive').length, icon: <SettingOutlined />, color: '#64748B' },
-          { label: 'Branches', value: branches.length, icon: <BankOutlined />, color: '#0E1B33' },
+          { label: 'Total Admins', value: adminList.length, icon: <UserOutlined />, color: '#8C4BFF' },
+          { label: 'Active', value: adminList.filter((a) => a.status === 'Active').length, icon: <SafetyCertificateOutlined />, color: '#10B981' },
+          { label: 'Inactive', value: adminList.filter((a) => a.status === 'Inactive').length, icon: <SettingOutlined />, color: '#64748B' },
+          { label: 'Branches', value: branchList.length, icon: <BankOutlined />, color: '#0E1B33' },
         ].map((stat) => (
           <div
             key={stat.label}

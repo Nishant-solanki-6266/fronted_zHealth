@@ -1,8 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Tabs, Form, Input, Select, Button, Upload, Checkbox, Table, Space, Row, Col, Divider } from 'antd'
 import { PlusOutlined, DeleteOutlined, CloseOutlined, UserOutlined } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
 import { useClinicStore } from '../../../store/clinicStore'
+import { getPractitionerProfile, updatePractitionerProfile } from '../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 
@@ -10,6 +11,31 @@ export default function PractitionerProfilePage() {
   const [form] = Form.useForm()
   const store = useClinicStore()
   
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const res = await getPractitionerProfile()
+        if (res && res.success && res.data) {
+          const d = res.data
+          form.setFieldsValue({
+            title: d.title || 'Mr',
+            firstName: d.firstName || 'Colin',
+            lastName: d.lastName || 'Edegbe',
+            gender: d.gender || 'Male',
+            email: d.email || 'colin.edegbe@ceotherapy.com',
+            phone: d.phone || '+61 412 345 678',
+            profTitle: d.profTitle || 'Physiotherapist',
+            locations: d.locations || ['NDIS', 'CEO Therapy Mobile'],
+            services: d.services || []
+          })
+        }
+      } catch (err) {
+        console.error('Failed to load profile from live DB:', err)
+      }
+    }
+    loadProfile()
+  }, [form])
+
   // State for provider numbers
   const [providers, setProviders] = useState([
     { id: 1, type: 'AHPRA', number: 'PHY000278016', location: 'NDIS' },
@@ -17,8 +43,13 @@ export default function PractitionerProfilePage() {
     { id: 3, type: 'Medicare', number: '6683896B', location: 'CEO Therapy Mobile' }
   ])
 
-  const handleSave = (values) => {
-    toast.success('Practitioner profile settings saved successfully!')
+  const handleSave = async (values) => {
+    try {
+      await updatePractitionerProfile(values)
+      toast.success('Practitioner profile settings saved successfully in live database!')
+    } catch (err) {
+      toast.error('Failed to save profile settings in live database')
+    }
   }
 
   const addProvider = () => {

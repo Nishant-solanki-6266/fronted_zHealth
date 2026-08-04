@@ -72,6 +72,7 @@ import ClinicAdminProducts from '../components/clinic/ClinicAdminProducts'
 import ClinicAdminReports from '../components/clinic/ClinicAdminReports'
 import ClinicAdminDocuments from '../components/clinic/ClinicAdminDocuments'
 import ClinicAdminDetails from '../components/clinic/ClinicAdminDetails'
+import ClinicAdminSettingsPage from '../../settings/pages/ClinicAdminSettingsPage'
 
 const { Option } = Select
 
@@ -82,14 +83,7 @@ function renderSectionContent(section, role, store, navigate, modalContextProps)
   }
   // Check combination of role and active subpage section to render custom modular views
 
-
-
-
-
-
-
-
-  if (role === 'clinic' || role === 'clinic-admin') {
+  if (role === 'clinic' || role === 'clinic-admin' || role === 'clinic_admin') {
     switch (section) {
       case 'consultations':
         return <PractitionerConsultation />
@@ -111,6 +105,8 @@ function renderSectionContent(section, role, store, navigate, modalContextProps)
         return <ClinicAdminDocuments />
       case 'details':
         return <ClinicAdminDetails />
+      case 'settings':
+        return <ClinicAdminSettingsPage />
       default:
         break
     }

@@ -7,6 +7,10 @@ const { Option } = Select
 
 export default function SalesPipeline({ store, modalContext }) {
   const { leads } = store
+
+  React.useEffect(() => {
+    store.fetchLeads()
+  }, [])
   
   const stages = [
     'New Lead',
@@ -149,7 +153,7 @@ export default function SalesPipeline({ store, modalContext }) {
                       {/* Quick click fallback selector */}
                       <Select
                         size="small"
-                        bordered={false}
+                        variant="borderless"
                         popupMatchSelectWidth={false}
                         value={item.stage}
                         className="text-[9px] font-bold text-slate-400 m-0"

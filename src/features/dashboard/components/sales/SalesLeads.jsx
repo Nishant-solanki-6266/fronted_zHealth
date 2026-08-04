@@ -13,11 +13,18 @@ export default function SalesLeads({ store, modalContext }) {
 
   const { leads } = store
 
+  React.useEffect(() => {
+    store.fetchLeads()
+  }, [])
+
   // Filters
-  const filteredLeads = leads.filter(l => {
-    const matchesSearch = l.name.toLowerCase().includes(searchText.toLowerCase()) ||
-                          l.contactPerson.toLowerCase().includes(searchText.toLowerCase()) ||
-                          (l.location && l.location.toLowerCase().includes(searchText.toLowerCase()))
+  const filteredLeads = (leads || []).filter(l => {
+    const nameStr = l.name || l.companyName || ''
+    const contactStr = l.contactPerson || ''
+    const locStr = l.location || l.territory || ''
+    const matchesSearch = nameStr.toLowerCase().includes(searchText.toLowerCase()) ||
+                          contactStr.toLowerCase().includes(searchText.toLowerCase()) ||
+                          locStr.toLowerCase().includes(searchText.toLowerCase())
     
     const matchesStage = selectedStage === 'All' || l.stage === selectedStage
     return matchesSearch && matchesStage

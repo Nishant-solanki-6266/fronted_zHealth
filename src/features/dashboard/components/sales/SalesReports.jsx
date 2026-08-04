@@ -1,63 +1,130 @@
 import React, { useState } from 'react'
-import { Card, Tag, Select } from 'antd'
-import { RiseOutlined, TeamOutlined, CheckCircleOutlined, DollarOutlined, PercentageOutlined, ApartmentOutlined, ArrowRightOutlined } from '@ant-design/icons'
+import { Card, Select } from 'antd'
+import { RiseOutlined, TeamOutlined, CheckCircleOutlined, DollarOutlined, PercentageOutlined, ApartmentOutlined } from '@ant-design/icons'
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, PieChart, Pie, Cell, Legend
+  BarChart, Bar, PieChart, Pie, Cell
 } from 'recharts'
 import { useClinicStore } from '../../../../store/clinicStore'
 
 const { Option } = Select
 
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function getMonthsWindow(count) {
+  const now = new Date()
+  const months = []
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    months.push({ label: MONTHS_SHORT[d.getMonth()], year: d.getFullYear(), month: d.getMonth() })
+  }
+  return months
+}
+
 export default function SalesReports({ store: propStore }) {
   const localStore = useClinicStore()
   const store = propStore || localStore
-  const { leads, clinics } = store
+  const { leads, clinics, salesTasks } = store
   const [dateRange, setDateRange] = useState('6m')
 
-  const colinClinics = clinics.filter(c => c.salesperson === 'Colin Edegbe')
+  React.useEffect(() => {
+    if (store.fetchLeads) store.fetchLeads()
+    if (store.fetchSalesClinics) store.fetchSalesClinics()
+    if (store.fetchSalesTasks) store.fetchSalesTasks()
+  }, [])
 
-  // MRR & Commission monthly data
-  const monthlyData = [
-    { name: 'Jan', revenue: 0, commissions: 0, leads: 2, demos: 0 },
-    { name: 'Feb', revenue: 0, commissions: 0, leads: 3, demos: 1 },
-    { name: 'Mar', revenue: 0, commissions: 0, leads: 5, demos: 2 },
-    { name: 'Apr', revenue: 247500, commissions: 29700, leads: 8, demos: 4 },
-    { name: 'May', revenue: 0, commissions: 0, leads: 6, demos: 3 },
-    { name: 'Jun', revenue: 116500, commissions: 13980, leads: 9, demos: 5 },
-  ]
+  const monthCount = dateRange === '3m' ? 3 : dateRange === '1y' ? 12 : 6
+  const monthsWindow = getMonthsWindow(monthCount)
 
-  // Add dynamic conversions
-  const dynamicJuneRevenue = colinClinics
-    .filter(c => c.signupDate?.includes('-06-'))
-    .reduce((sum, c) => sum + (parseFloat(c.revenue) || 0), 0)
-  monthlyData[5].revenue += dynamicJuneRevenue
-  monthlyData[5].commissions += dynamicJuneRevenue * 0.12
+  // All converted clinics = DB clinics + converted leads
+  const dbClinicsFormatted = (clinics || []).map(c => ({
+    id: c.id,
+    name: c.name,
+    tier: c.tier || 'Basic',
+    revenue: parseFloat(c.revenue) || 100,
+    status: c.status || 'Active',
+    createdAt: c.createdAt,
+    salesperson: c.salesperson || 'Sales Executive',
+  }))
 
-  // Lead funnel
-  const stageData = [
-    { name: 'New Lead', count: leads.filter(l => l.stage === 'New Lead').length },
-    { name: 'Discovery', count: leads.filter(l => l.stage === 'Discovery Call').length },
-    { name: 'Demo', count: leads.filter(l => l.stage === 'Demo Scheduled').length },
-    { name: 'Proposal', count: leads.filter(l => l.stage === 'Proposal Sent').length },
-    { name: 'Negotiation', count: leads.filter(l => l.stage === 'Negotiating').length },
-    { name: 'Trial', count: leads.filter(l => l.stage === 'Trial Started').length },
-    { name: 'Converted', count: leads.filter(l => l.stage === 'Converted').length },
-  ]
+  const convertedLeadsFormatted = (leads || [])
+    .filter(l => l.stage === 'Converted' || l.status === 'Converted')
+    .map(l => ({
+      id: l.id,
+      name: l.name || l.companyName,
+      tier: l.tier || 'Basic',
+      revenue: parseFloat(l.value) || 100,
+      status: 'Active',
+      createdAt: l.createdAt,
+      salesperson: l.assignedTo || 'Sales Executive',
+    }))
 
-  const totalLeads = leads.length
-  const converted = leads.filter(l => l.stage === 'Converted').length
+  const allClinics = [...dbClinicsFormatted, ...convertedLeadsFormatted]
+
+  // Build dynamic monthly data from DB records
+  const monthlyData = monthsWindow.map(({ label, year, month }) => {
+    // Clinics converted/created in this month → MRR
+    const monthClinics = allClinics.filter(c => {
+      if (!c.createdAt) return false
+      const d = new Date(c.createdAt)
+      return d.getFullYear() === year && d.getMonth() === month
+    })
+    const revenue = monthClinics.reduce((s, c) => s + (parseFloat(c.revenue) || 0), 0)
+
+    // Leads created in this month
+    const monthLeads = (leads || []).filter(l => {
+      if (!l.createdAt) return false
+      const d = new Date(l.createdAt)
+      return d.getFullYear() === year && d.getMonth() === month
+    })
+
+    // Demos = leads at 'Demo Scheduled' or 'Trial Started' created this month
+    const demos = (leads || []).filter(l => {
+      if (!l.createdAt) return false
+      const d = new Date(l.createdAt)
+      return d.getFullYear() === year && d.getMonth() === month &&
+        (l.stage === 'Demo Scheduled' || l.stage === 'Trial Started')
+    }).length
+
+    return {
+      name: label,
+      revenue,
+      commissions: revenue * 0.12,
+      leads: monthLeads.length,
+      demos,
+    }
+  })
+
+  // KPI computations — all from live DB data
+  const totalLeads = (leads || []).length
+  const converted = (leads || []).filter(l => l.stage === 'Converted').length
   const conversionRate = totalLeads > 0 ? Math.round((converted / totalLeads) * 100) : 0
-  const demosCompleted = monthlyData.reduce((s, m) => s + m.demos, 0)
+  const demosCompleted = (leads || []).filter(l => l.stage === 'Demo Scheduled' || l.stage === 'Trial Started').length
   const totalRevenue = monthlyData.reduce((s, m) => s + m.revenue, 0)
   const totalCommission = monthlyData.reduce((s, m) => s + m.commissions, 0)
-  const activeClinics = colinClinics.filter(c => c.status === 'Active').length
+  const activeClinics = allClinics.filter(c => c.status === 'Active' || !c.status).length
 
-  // Pie data — clinic tier breakdown
+  // Lead funnel — live from DB
+  const stageData = [
+    { name: 'New Lead', count: (leads || []).filter(l => l.stage === 'New Lead').length },
+    { name: 'Discovery', count: (leads || []).filter(l => l.stage === 'Discovery Call').length },
+    { name: 'Demo', count: (leads || []).filter(l => l.stage === 'Demo Scheduled').length },
+    { name: 'Proposal', count: (leads || []).filter(l => l.stage === 'Proposal Sent').length },
+    { name: 'Negotiation', count: (leads || []).filter(l => l.stage === 'Negotiating').length },
+    { name: 'Trial', count: (leads || []).filter(l => l.stage === 'Trial Started').length },
+    { name: 'Converted', count: (leads || []).filter(l => l.stage === 'Converted').length },
+  ]
+
+  // Tasks summary — live from DB
+  const totalTasks = (salesTasks || []).length
+  const completedTasks = (salesTasks || []).filter(t => t.status === 'Completed').length
+  const taskCompletionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
+
+  // Tier breakdown — live from all converted clinics
   const tierData = [
-    { name: 'Basic', value: colinClinics.filter(c => c.tier === 'Basic').length, color: '#3B82F6' },
-    { name: 'Pro', value: colinClinics.filter(c => c.tier === 'Pro').length, color: '#F59E0B' },
-    { name: 'Enterprise', value: colinClinics.filter(c => c.tier === 'Enterprise').length, color: '#8C4BFF' },
+    { name: 'Basic', value: allClinics.filter(c => c.tier === 'Basic').length, color: '#3B82F6' },
+    { name: 'Pro', value: allClinics.filter(c => c.tier === 'Pro').length, color: '#F59E0B' },
+    { name: 'Enterprise', value: allClinics.filter(c => c.tier === 'Enterprise').length, color: '#8C4BFF' },
   ].filter(d => d.value > 0)
 
   const summaryStats = [
@@ -174,7 +241,7 @@ export default function SalesReports({ store: propStore }) {
               <BarChart data={stageData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
                 <XAxis dataKey="name" stroke="#94A3B8" fontSize={8} tickLine={false} />
-                <YAxis stroke="#94A3B8" fontSize={9} tickLine={false} />
+                <YAxis stroke="#94A3B8" fontSize={9} tickLine={false} allowDecimals={false} />
                 <Tooltip formatter={(value) => [value, 'Deals']} />
                 <Bar dataKey="count" fill="#F59E0B" radius={[4, 4, 0, 0]} barSize={22} />
               </BarChart>
@@ -195,7 +262,7 @@ export default function SalesReports({ store: propStore }) {
               <BarChart data={monthlyData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
                 <XAxis dataKey="name" stroke="#94A3B8" fontSize={9} tickLine={false} />
-                <YAxis stroke="#94A3B8" fontSize={9} tickLine={false} />
+                <YAxis stroke="#94A3B8" fontSize={9} tickLine={false} allowDecimals={false} />
                 <Tooltip formatter={(value) => [value, 'Leads']} />
                 <Bar dataKey="leads" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={22} />
               </BarChart>
@@ -203,6 +270,24 @@ export default function SalesReports({ store: propStore }) {
           </div>
         </Card>
       </div>
+
+      {/* Tasks Performance */}
+      {totalTasks > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 shadow-sm">
+            <span className="text-slate-400 dark:text-slate-500 text-[9px] uppercase font-black tracking-wider block mb-2">Total Tasks</span>
+            <h3 className="text-2xl font-black text-slate-800 dark:text-white m-0">{totalTasks}</h3>
+          </div>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 shadow-sm">
+            <span className="text-slate-400 dark:text-slate-500 text-[9px] uppercase font-black tracking-wider block mb-2">Completed Tasks</span>
+            <h3 className="text-2xl font-black text-slate-800 dark:text-white m-0">{completedTasks}</h3>
+          </div>
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-5 shadow-sm">
+            <span className="text-slate-400 dark:text-slate-500 text-[9px] uppercase font-black tracking-wider block mb-2">Task Completion Rate</span>
+            <h3 className="text-2xl font-black text-slate-800 dark:text-white m-0">{taskCompletionRate}%</h3>
+          </div>
+        </div>
+      )}
 
       {/* Tier Breakdown (only if clinics exist) */}
       {tierData.length > 0 && (

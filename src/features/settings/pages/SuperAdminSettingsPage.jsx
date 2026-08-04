@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Form, Input, Select, Checkbox, Space, Card, Radio, Table, Modal, Button, Tag, Divider, Tabs } from 'antd'
+import { Form, Input, Select, Checkbox, Space, Card, Radio, Table, Modal, Button, Tag, Divider, Tabs, InputNumber } from 'antd'
 import {
   ApiOutlined,
   FileTextOutlined,
@@ -32,7 +32,8 @@ import {
   FireOutlined,
   AlertOutlined,
   SettingOutlined,
-  MobileOutlined
+  MobileOutlined,
+  SearchOutlined
 } from '@ant-design/icons'
 
 export const tagIconsMap = {
@@ -86,7 +87,9 @@ import {
   getDataLogs,
   changeSuperAdminPassword,
   getLoginHistoryLogs,
-  revokeDeviceSession
+  revokeDeviceSession,
+  getIntegrations as getIntegrationsApi,
+  updateIntegration as updateIntegrationApi
 } from '../api/settingsApi'
 
 const { Option } = Select
@@ -165,6 +168,8 @@ export default function SuperAdminSettingsPage() {
   const [selectedServices, setSelectedServices] = useState([])
   const [cancellationReasonsList, setCancellationReasonsList] = useState([])
   const [clientTagsList, setClientTagsList] = useState([])
+  const [tagsSearch, setTagsSearch] = useState('')
+  const [loadingTags, setLoadingTags] = useState(false)
 
   // Profile Tab State
   const [providerNumbers, setProviderNumbers] = useState([
@@ -224,10 +229,18 @@ export default function SuperAdminSettingsPage() {
           const svcData = servicesRes.value
           console.log('[Settings] Services API response:', svcData)
           const list = svcData?.data || (Array.isArray(svcData) ? svcData : [])
-          if (list.length >= 0) setServicesList(list)
+          if (list.length >= 0) {
+            setServicesList(list)
+            store.updateSettings('services', list)
+          }
         }
         if (tagsRes.status === 'fulfilled' && tagsRes.value?.success && Array.isArray(tagsRes.value.data)) {
-          setClientTagsList(tagsRes.value.data)
+          const mappedTags = tagsRes.value.data.map(t => ({
+            ...t,
+            icon: t.iconName || t.icon || 'TagOutlined'
+          }))
+          setClientTagsList(mappedTags)
+          useClinicStore.setState({ clientTags: mappedTags })
         }
         if (reasonsRes.status === 'fulfilled' && reasonsRes.value?.success && Array.isArray(reasonsRes.value.data)) {
           setCancellationReasonsList(reasonsRes.value.data)
@@ -243,6 +256,28 @@ export default function SuperAdminSettingsPage() {
     }
     loadAllSettings()
   }, [])
+
+  const fetchTags = async () => {
+    try {
+      const res = await apiGetClientTags()
+      if (res && res.success && Array.isArray(res.data)) {
+        const mappedTags = res.data.map(t => ({
+          ...t,
+          icon: t.iconName || t.icon || 'TagOutlined'
+        }))
+        setClientTagsList(mappedTags)
+        useClinicStore.setState({ clientTags: mappedTags })
+      }
+    } catch (err) {
+      console.error("Error fetching tags in SuperAdminSettingsPage:", err)
+    }
+  }
+
+  React.useEffect(() => {
+    if (activeTab === 'tags') {
+      fetchTags()
+    }
+  }, [activeTab])
 
   const handleSaveProfile = async (values) => {
     try {
@@ -346,6 +381,70 @@ export default function SuperAdminSettingsPage() {
     setBodyChartsList(bodyChartsList.filter(c => c.id !== id))
     await deleteSettingsTemplate('BODY_CHART', id).catch(() => {})
     toast.success('Body chart template deleted from database!')
+  }
+
+  // Integrations DB State & Handlers
+  const [integrationsList, setIntegrationsList] = useState([])
+  const [loadingIntegrations, setLoadingIntegrations] = useState(false)
+  const [integrationsSearch, setIntegrationsSearch] = useState('')
+  const [integrationsCategoryFilter, setIntegrationsCategoryFilter] = useState('All')
+  const [integrationsStatusFilter, setIntegrationsStatusFilter] = useState('All')
+
+  const fetchIntegrations = async () => {
+    setLoadingIntegrations(true)
+    try {
+      const res = await getIntegrationsApi()
+      if (res && res.success && Array.isArray(res.data)) {
+        setIntegrationsList(res.data)
+        useClinicStore.setState({ integrations: res.data })
+      }
+    } catch (err) {
+      console.error("Failed to fetch live database integrations:", err)
+    } finally {
+      setLoadingIntegrations(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'integrations') {
+      fetchIntegrations()
+    }
+  }, [activeTab])
+
+  const handleToggleIntegrationDB = async (item) => {
+    if (item.id === 'myob') {
+      toast.error('MYOB integration is coming soon in a future update!')
+      return
+    }
+    const nextStatus = !item.connected
+    try {
+      const res = await updateIntegrationApi(item.id, { connected: nextStatus })
+      if (res && res.success && Array.isArray(res.data)) {
+        setIntegrationsList(res.data)
+        useClinicStore.setState({ integrations: res.data })
+        toast.success(`${item.name} is now ${nextStatus ? 'Connected' : 'Disconnected'} in live database!`)
+      } else {
+        toast.error('Failed to update integration in database')
+      }
+    } catch (err) {
+      console.error("Error updating integration in database:", err)
+      toast.error('Error updating integration in live database')
+    }
+  }
+
+  const handleSyncIntegrationDB = async (item) => {
+    try {
+      const nowStr = new Date().toLocaleString()
+      const res = await updateIntegrationApi(item.id, { connected: true, lastSync: nowStr })
+      if (res && res.success && Array.isArray(res.data)) {
+        setIntegrationsList(res.data)
+        useClinicStore.setState({ integrations: res.data })
+        toast.success(`Synced details from ${item.name} into live database!`)
+      }
+    } catch (err) {
+      console.error("Error syncing integration:", err)
+      toast.error('Failed to sync integration with live database')
+    }
   }
 
   // Integrations State
@@ -539,6 +638,68 @@ export default function SuperAdminSettingsPage() {
   const [errorModalOpen, setErrorModalOpen] = useState(false)
   const [selectedErrors, setSelectedErrors] = useState([])
   const [selectedLogFileName, setSelectedLogFileName] = useState('')
+
+  // Data Management Live Database States & Filters
+  const [dataLogsList, setDataLogsList] = useState([])
+  const [loadingDataLogs, setLoadingDataLogs] = useState(false)
+  const [logTypeFilter, setLogTypeFilter] = useState('all')
+  const [logStatusFilter, setLogStatusFilter] = useState('all')
+  const [logTargetFilter, setLogTargetFilter] = useState('all')
+  const [logSearchQuery, setLogSearchQuery] = useState('')
+
+  const loadDataLogsFromBackend = async (overrideParams = {}) => {
+    try {
+      setLoadingDataLogs(true)
+      const params = {
+        type: overrideParams.type !== undefined ? overrideParams.type : logTypeFilter,
+        status: overrideParams.status !== undefined ? overrideParams.status : logStatusFilter,
+        target: overrideParams.target !== undefined ? overrideParams.target : logTargetFilter,
+        search: overrideParams.search !== undefined ? overrideParams.search : logSearchQuery
+      }
+      const res = await getDataLogs(params)
+      if (res?.success && Array.isArray(res.data)) {
+        setDataLogsList(res.data)
+      }
+    } catch (err) {
+      console.error('Failed to load data logs from database:', err)
+    } finally {
+      setLoadingDataLogs(false)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'import_export') {
+      loadDataLogsFromBackend()
+    } else if (activeTab === 'security') {
+      loadSecurityLogsFromBackend()
+    }
+  }, [activeTab])
+
+  // Security Live Database States & Filters
+  const [securitySearchQuery, setSecuritySearchQuery] = useState('')
+  const [securityStatusFilter, setSecurityStatusFilter] = useState('all')
+  const [loadingSecurityLogs, setLoadingSecurityLogs] = useState(false)
+
+  const loadSecurityLogsFromBackend = async (overrideParams = {}) => {
+    try {
+      setLoadingSecurityLogs(true)
+      const params = {
+        status: overrideParams.status !== undefined ? overrideParams.status : securityStatusFilter,
+        search: overrideParams.search !== undefined ? overrideParams.search : securitySearchQuery
+      }
+      const res = await getLoginHistoryLogs(params)
+      if (res?.success && Array.isArray(res.data)) {
+        setLoginHistoryList(res.data)
+        setTrustedDevices(res.data)
+      }
+    } catch (err) {
+      console.error('Failed to load security logs from database:', err)
+    } finally {
+      setLoadingSecurityLogs(false)
+    }
+  }
+
+
 
   // Render content logic
   const renderTabContent = () => {
@@ -1144,17 +1305,71 @@ export default function SuperAdminSettingsPage() {
           </div>
         )
       case 'integrations':
+        const currentList = integrationsList.length > 0 ? integrationsList : store.integrations
+        const displayIntegrations = currentList.filter(item => {
+          const matchesSearch = !integrationsSearch.trim() ||
+            item.name.toLowerCase().includes(integrationsSearch.toLowerCase()) ||
+            (item.type && item.type.toLowerCase().includes(integrationsSearch.toLowerCase()))
+          const matchesCategory = integrationsCategoryFilter === 'All' || item.type === integrationsCategoryFilter
+          const matchesStatus = integrationsStatusFilter === 'All' ||
+            (integrationsStatusFilter === 'Connected' && item.connected) ||
+            (integrationsStatusFilter === 'Disconnected' && !item.connected)
+          return matchesSearch && matchesCategory && matchesStatus
+        })
+
         return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Integrations</h2>
-              <p className="text-slate-400 text-xs mt-1 font-semibold">
-                Manage your connections to third-party software tools for accounting, exercise, payments, and video consults.
-              </p>
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Integrations</h2>
+                <p className="text-slate-400 text-xs mt-1 font-semibold">
+                  Manage your connections to third-party software tools with live database backend synchronization.
+                </p>
+              </div>
+              <Button
+                icon={<SyncOutlined spinning={loadingIntegrations} />}
+                onClick={fetchIntegrations}
+                className="rounded-xl font-semibold border-slate-200 h-9"
+              >
+                Refresh DB Data
+              </Button>
+            </div>
+
+            {/* Filter & Search Toolbar */}
+            <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-150 dark:border-slate-800 shadow-sm">
+              <Input
+                placeholder="Search integrations..."
+                prefix={<SearchOutlined className="text-slate-400" />}
+                value={integrationsSearch}
+                onChange={(e) => setIntegrationsSearch(e.target.value)}
+                className="w-full md:w-64 rounded-xl border-slate-200 h-9"
+                allowClear
+              />
+              <Select
+                value={integrationsCategoryFilter}
+                onChange={setIntegrationsCategoryFilter}
+                className="w-48 rounded-xl h-9"
+              >
+                <Option value="All">All Categories</Option>
+                <Option value="Accounting">Accounting</Option>
+                <Option value="Exercise Prescription">Exercise Prescription</Option>
+                <Option value="Payments">Payments</Option>
+                <Option value="Video Consultations">Video Consultations</Option>
+                <Option value="Health Claiming">Health Claiming</Option>
+              </Select>
+              <Select
+                value={integrationsStatusFilter}
+                onChange={setIntegrationsStatusFilter}
+                className="w-40 rounded-xl h-9"
+              >
+                <Option value="All">All Statuses</Option>
+                <Option value="Connected">Connected</Option>
+                <Option value="Disconnected">Disconnected</Option>
+              </Select>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {store.integrations.map((item) => (
+              {displayIntegrations.map((item) => (
                 <Card
                   key={item.id}
                   className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden"
@@ -1203,14 +1418,7 @@ export default function SuperAdminSettingsPage() {
                     <div className="flex gap-2">
                       <Button
                         type={item.connected ? 'default' : 'primary'}
-                        onClick={() => {
-                          if (item.id === 'myob') {
-                            toast.error('MYOB integration is coming soon in a future update!')
-                            return
-                          }
-                          store.toggleIntegration(item.id)
-                          toast.success(`${item.name} status updated successfully!`)
-                        }}
+                        onClick={() => handleToggleIntegrationDB(item)}
                         className="flex-1 rounded-xl text-xs font-bold h-9"
                         style={!item.connected && item.id !== 'myob' ? { backgroundColor: '#8C4BFF', border: 'none' } : {}}
                       >
@@ -1219,14 +1427,7 @@ export default function SuperAdminSettingsPage() {
                       {item.connected && (
                         <Button
                           icon={<SyncOutlined />}
-                          onClick={() => {
-                            useClinicStore.setState((state) => ({
-                              integrations: state.integrations.map((i) =>
-                                i.id === item.id ? { ...i, lastSync: new Date().toLocaleString() } : i
-                              ),
-                            }))
-                            toast.success(`Synced details from ${item.name}!`)
-                          }}
+                          onClick={() => handleSyncIntegrationDB(item)}
                           className="rounded-xl border border-slate-200 h-9 w-9 flex items-center justify-center p-0"
                         />
                       )}
@@ -1267,31 +1468,30 @@ export default function SuperAdminSettingsPage() {
             </div>
 
             {currentTemplateTab === 'forms' && (
-              
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Forms Templates</h2>
-                <p className="text-slate-400 text-xs mt-1 font-semibold">
-                  Manage Intake, Assessment, and Consent forms filled by clients prior to consultations.
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setEditingForm(null)
-                  formEdit.resetFields()
-                  setFormModalOpen(true)
-                }}
-                className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 text-white font-bold h-9 px-4 rounded-xl flex items-center gap-2 cursor-pointer border-none shadow-sm text-xs transition-colors"
-              >
-                <PlusOutlined />
-                <span>Create Form</span>
-              </button>
-            </div>
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Forms Templates</h2>
+                    <p className="text-slate-400 text-xs mt-1 font-semibold">
+                      Manage Intake, Assessment, and Consent forms filled by clients prior to consultations.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditingForm(null)
+                      formEdit.resetFields()
+                      setFormModalOpen(true)
+                    }}
+                    className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 text-white font-bold h-9 px-4 rounded-xl flex items-center gap-2 cursor-pointer border-none shadow-sm text-xs transition-colors"
+                  >
+                    <PlusOutlined />
+                    <span>Create Form</span>
+                  </button>
+                </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-              <Table
-                dataSource={store.formTemplates}
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+                  <Table
+                dataSource={store.clientTags}
                 pagination={false}
                 rowKey="id"
                 columns={[
@@ -1908,7 +2108,11 @@ export default function SuperAdminSettingsPage() {
           </div>
         )
 
-      case 'services':
+      case 'services': {
+        const displayServices = servicesList.length
+          ? servicesList.filter((s) => !s.archived)
+          : store.services.filter((s) => !s.archived)
+
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -1933,7 +2137,7 @@ export default function SuperAdminSettingsPage() {
 
             <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
               <Table
-                dataSource={store.services.filter((s) => !s.archived)}
+                dataSource={displayServices}
                 pagination={false}
                 rowKey="id"
                 columns={[
@@ -1973,6 +2177,8 @@ export default function SuperAdminSettingsPage() {
                             setEditingService(record)
                             serviceForm.setFieldsValue({
                               ...record,
+                              invoiceDescription: record.description || '',
+                              gst: record.taxable !== undefined ? record.taxable : false,
                             })
                             setServiceModalOpen(true)
                           }}
@@ -1982,9 +2188,15 @@ export default function SuperAdminSettingsPage() {
                           <EditOutlined />
                         </button>
                         <button
-                          onClick={() => {
-                            store.archiveService(record.id)
-                            toast.success(`Service "${record.name}" archived!`)
+                          onClick={async () => {
+                            try {
+                              await apiUpdateService(record.id, { archived: true })
+                              store.archiveService(record.id)
+                              toast.success(`Service "${record.name}" archived!`)
+                            } catch (err) {
+                              console.error('Error archiving service:', err)
+                              toast.error('Failed to archive service')
+                            }
                           }}
                           className="bg-transparent border-none text-slate-400 hover:text-amber-500 cursor-pointer"
                           title="Archive"
@@ -1992,9 +2204,15 @@ export default function SuperAdminSettingsPage() {
                           <CloseCircleOutlined />
                         </button>
                         <button
-                          onClick={() => {
-                            store.removeService(record.id)
-                            toast.success(`Removed service: ${record.name}`)
+                          onClick={async () => {
+                            try {
+                              await apiDeleteService(record.id)
+                              store.removeService(record.id)
+                              toast.success(`Removed service: ${record.name}`)
+                            } catch (err) {
+                              console.error('Error deleting service:', err)
+                              toast.error('Failed to delete service')
+                            }
                           }}
                           className="bg-transparent border-none text-slate-400 hover:text-red-500 cursor-pointer"
                           title="Remove"
@@ -2020,20 +2238,36 @@ export default function SuperAdminSettingsPage() {
               <Form
                 layout="vertical"
                 form={serviceForm}
-                onFinish={(values) => {
-                  if (editingService) {
-                    store.editService({
-                      ...editingService,
-                      ...values,
-                    })
-                    toast.success('Service details updated successfully!')
-                  } else {
-                    store.addService(values)
-                    toast.success('New service added!')
+                onFinish={async (values) => {
+                  try {
+                    const payload = {
+                      name: values.name,
+                      duration: values.duration,
+                      price: values.price,
+                      ndisCode: values.ndisCode || '',
+                      color: values.color || '#8C4BFF',
+                      description: values.invoiceDescription || values.description || '',
+                      taxable: Boolean(values.gst),
+                    }
+                    if (editingService) {
+                      const res = await apiUpdateService(editingService.id, payload)
+                      const updatedSvc = res?.data || { ...editingService, ...payload, id: editingService.id }
+                      store.editService(updatedSvc)
+                      setServicesList(prev => prev.map(s => s.id === editingService.id ? updatedSvc : s))
+                      toast.success('Service details updated successfully in database!')
+                    } else {
+                      const res = await apiCreateService(payload)
+                      const newSvc = res?.data || { ...payload, id: `s_${Date.now()}` }
+                      store.addService(newSvc)
+                      setServicesList(prev => [newSvc, ...prev])
+                      toast.success('New service added to database!')
+                    }
+                    setServiceModalOpen(false)
+                  } catch (err) {
+                    console.error('Error saving service:', err)
+                    toast.error(err.response?.data?.message || 'Failed to save service')
                   }
-                  setServiceModalOpen(false)
                 }}
-                className="mt-4"
               >
                 <Form.Item name="name" label="Service name" rules={[{ required: true }]}>
                   <Input placeholder="e.g. Hydrotherapy Treatment" />
@@ -2088,6 +2322,7 @@ export default function SuperAdminSettingsPage() {
             </Modal>
           </div>
         )
+      }
 
       case 'cancellation':
         return (
@@ -2251,7 +2486,7 @@ export default function SuperAdminSettingsPage() {
 
             <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
               <Table
-                dataSource={store.clientTags}
+                dataSource={clientTagsList.length ? clientTagsList : store.clientTags}
                 pagination={false}
                 rowKey="id"
                 columns={[
@@ -2304,9 +2539,15 @@ export default function SuperAdminSettingsPage() {
                           <EditOutlined />
                         </button>
                         <button
-                          onClick={() => {
-                            store.deleteClientTag(record.id)
-                            toast.success(`Removed tag: ${record.name}`)
+                          onClick={async () => {
+                            try {
+                              await apiDeleteClientTag(record.id)
+                              setClientTagsList(prev => prev.filter(t => t.id !== record.id))
+                              store.deleteClientTag(record.id)
+                              toast.success(`Removed tag: ${record.name}`)
+                            } catch (err) {
+                              toast.error('Failed to delete tag')
+                            }
                           }}
                           className="bg-transparent border-none text-slate-400 hover:text-red-500 cursor-pointer"
                           title="Delete"
@@ -2401,193 +2642,89 @@ export default function SuperAdminSettingsPage() {
                 Import or export clinic directories including client registers, practitioner timetables, and billing details.
               </p>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Import Card */}
-              <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
-                <div className="flex items-center gap-3 mb-4">
-                  <UploadOutlined className="text-[#8C4BFF]" style={{ fontSize: 20 }} />
-                  <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-200 m-0">Import Clinic Data</h3>
-                </div>
-                <p className="text-xs text-slate-500 mb-5 leading-relaxed font-semibold">
-                  Upload CSV spreadsheets. Make sure column headers align with fields (name, email, phone, etc.).
-                </p>
+            <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
+              <div className="flex items-center gap-3 mb-4">
+                <DatabaseOutlined className="text-[#8C4BFF]" style={{ fontSize: 20 }} />
+                <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-200 m-0">Import Clinic Data</h3>
+              </div>
+              <p className="text-xs text-slate-500 mb-5 leading-relaxed font-semibold">
+                Upload CSV spreadsheets. Make sure column headers align with fields (name, email, phone, etc.).
+              </p>
 
-                <Form
-                  layout="vertical"
-                  onFinish={() => {
-                    if (!importFile) {
-                      toast.error('Please select a CSV file first!')
-                      return
-                    }
-                    const reader = new FileReader()
-                    reader.onload = (e) => {
-                      try {
-                        const text = e.target.result
-                        const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-                        if (lines.length <= 1) {
-                          toast.error('The selected CSV file has no records!')
-                          return
-                        }
-                        const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''))
-
-                        // Header check: require a 'name' column case-insensitively
-                        const nameColIdx = headers.findIndex(h => h.toLowerCase() === 'name')
-                        if (nameColIdx === -1) {
-                          const errorsList = [{ row: 1, field: 'headers', message: "CSV is missing the required 'name' column header." }]
-                          store.addImportExportLog({
-                            type: 'Import',
-                            fileName: importFile.name,
-                            target: importTarget === 'clients' ? 'Clients Register' : 'Contacts Directory',
-                            status: 'Failed',
-                            recordsProcessed: 0,
-                            errors: errorsList,
-                          })
-                          setSelectedErrors(errorsList)
-                          setSelectedLogFileName(importFile.name)
-                          setErrorModalOpen(true)
-                          toast.error('Import failed: Missing name column header.')
-                          setImportFile(null)
-                          return
-                        }
-
-                        const errorsList = []
-                        const parsedRecords = []
-
-                        for (let i = 1; i < lines.length; i++) {
-                          const rowValues = lines[i].split(',').map(v => v.trim().replace(/^["']|["']$/g, ''))
-                          const record = {}
-                          headers.forEach((h, idx) => {
-                            record[h.toLowerCase()] = rowValues[idx] || ''
-                          })
-
-                          const rowNum = i + 1
-                          const rowName = record['name'] ? record['name'].trim() : ''
-
-                          // Validate Name
-                          if (!rowName) {
-                            errorsList.push({
-                              row: rowNum,
-                              field: 'name',
-                              message: 'Name is required'
-                            })
-                          }
-
-                          // Validate Email
-                          const emailVal = record['email'] ? record['email'].trim() : ''
-                          if (emailVal && !emailVal.includes('@')) {
-                            errorsList.push({
-                              row: rowNum,
-                              field: 'email',
-                              message: 'Email address format is invalid: missing @ symbol'
-                            })
-                          }
-
-                          parsedRecords.push(record)
-                        }
-
-                        if (errorsList.length > 0) {
-                          store.addImportExportLog({
-                            type: 'Import',
-                            fileName: importFile.name,
-                            target: importTarget === 'clients' ? 'Clients Register' : 'Contacts Directory',
-                            status: 'Failed',
-                            recordsProcessed: 0,
-                            errors: errorsList,
-                          })
-                          setSelectedErrors(errorsList)
-                          setSelectedLogFileName(importFile.name)
-                          setErrorModalOpen(true)
-                          toast.error('Import failed with validation errors. Please check the error report.')
-                          setImportFile(null)
-                          return
-                        }
-
-                        // Process import records
-                        parsedRecords.forEach((record) => {
-                          if (importTarget === 'clients') {
-                            store.addPatient({
-                              name: record.name,
-                              dob: record.dob || '1990-01-01',
-                              gender: record.gender || 'Other',
-                              email: record.email || '',
-                              phone: record.phone || '',
-                              primaryPractitioner: record.primarypractitioner || record.practitioner || 'Dr. Sarah Jenkins',
-                              status: record.status || 'active'
-                            })
-                          } else if (importTarget === 'contacts') {
-                            store.addContact({
-                              name: record.name,
-                              type: record.type || 'Other',
-                              company: record.company || '',
-                              email: record.email || '',
-                              mobileNumber: record.mobilenumber || record.phone || ''
-                            })
-                          } else if (importTarget === 'appointments') {
-                            store.addAppointment({
-                              id: `a_${Date.now()}_${Math.random()}`,
-                              patientName: record.patientname || record.patient || 'Unknown Client',
-                              patientId: 'N/A',
-                              practitionerName: record.practitionername || record.practitioner || 'Dr. Sarah Jenkins',
-                              practitionerId: '1',
-                              date: record.date || dayjs().format('YYYY-MM-DD'),
-                              time: record.time || '10:00',
-                              status: record.status || 'Active',
-                              appointmentType: record.appointmenttype || record.type || 'Consultation'
-                            })
-                          } else if (importTarget === 'invoices') {
-                            store.addInvoice({
-                              id: `INV-${Date.now()}`,
-                              patientName: record.patientname || record.clientname || 'Unknown Client',
-                              practitioner: record.practitioner || 'Dr. Sarah Jenkins',
-                              issueDate: record.issuedate || dayjs().format('YYYY-MM-DD'),
-                              dueDate: record.duedate || dayjs().add(14, 'day').format('YYYY-MM-DD'),
-                              amount: parseFloat(record.amount) || 150,
-                              due: parseFloat(record.due) || 150,
-                              status: record.status || 'Draft',
-                              sentStatus: record.sentstatus || 'Not Sent'
-                            })
-                          } else if (importTarget === 'services') {
-                            store.addService({
-                              id: `s_${Date.now()}_${Math.random()}`,
-                              name: record.name || 'New Service',
-                              duration: parseInt(record.duration) || 60,
-                              price: parseFloat(record.price) || 150,
-                              ndisCode: record.ndiscode || record.ndis || '',
-                              color: record.color || '#8C4BFF',
-                              archived: false,
-                              gst: record.gst === 'true' || record.gst === '1'
-                            })
-                          }
-                        })
-
-                        store.addImportExportLog({
-                          type: 'Import',
-                          fileName: importFile.name,
-                          target: importTarget === 'clients'
-                            ? 'Clients Register'
-                            : importTarget === 'contacts'
-                              ? 'Contacts Directory'
-                              : importTarget === 'appointments'
-                                ? 'Appointments Log'
-                                : importTarget === 'invoices'
-                                  ? 'Invoice Ledgers'
-                                  : 'Services Directory',
-                          status: 'Success',
-                          recordsProcessed: parsedRecords.length,
-                          errors: [],
-                        })
-                        toast.success(`Successfully imported ${parsedRecords.length} records into the Zustand store!`)
-                        setImportFile(null)
-                      } catch (err) {
-                        toast.error('Failed to parse CSV file. Check formatting!')
-                        console.error(err)
+              <Form
+                layout="vertical"
+                onFinish={() => {
+                  if (!importFile) {
+                    toast.error('Please select a CSV file first!')
+                    return
+                  }
+                  const reader = new FileReader()
+                  reader.onload = async (e) => {
+                    try {
+                      const text = e.target.result
+                      const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+                      if (lines.length <= 1) {
+                        toast.error('The selected CSV file has no records!')
+                        return
                       }
+                      const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g, ''))
+                      const nameColIdx = headers.findIndex(h => h.toLowerCase() === 'name')
+                      if (nameColIdx === -1) {
+                        const errorsList = [{ row: 1, field: 'headers', message: "CSV is missing the required 'name' column header." }]
+                        try { await processDataImport({ target: importTarget, fileName: importFile.name, records: [], errors: errorsList }) } catch (apiErr) {}
+                        store.addImportExportLog({ type: 'Import', fileName: importFile.name, target: importTarget === 'clients' ? 'Clients Register' : 'Contacts Directory', status: 'Failed', recordsProcessed: 0, errors: errorsList })
+                        setSelectedErrors(errorsList)
+                        setSelectedLogFileName(importFile.name)
+                        setErrorModalOpen(true)
+                        toast.error('Import failed: Missing name column header.')
+                        setImportFile(null)
+                        loadDataLogsFromBackend()
+                        return
+                      }
+                      const errorsList = []
+                      const parsedRecords = []
+                      for (let i = 1; i < lines.length; i++) {
+                        const rowValues = lines[i].split(',').map(v => v.trim().replace(/^["']|["']$/g, ''))
+                        const record = {}
+                        headers.forEach((h, idx) => { record[h.toLowerCase()] = rowValues[idx] || '' })
+                        const rowNum = i + 1
+                        if (!record['name']?.trim()) errorsList.push({ row: rowNum, field: 'name', message: 'Name is required' })
+                        const emailVal = record['email'] ? record['email'].trim() : ''
+                        if (emailVal && !emailVal.includes('@')) errorsList.push({ row: rowNum, field: 'email', message: 'Email address format is invalid: missing @ symbol' })
+                        parsedRecords.push(record)
+                      }
+                      if (errorsList.length > 0) {
+                        try { await processDataImport({ target: importTarget, fileName: importFile.name, records: [], errors: errorsList }) } catch (apiErr) {}
+                        store.addImportExportLog({ type: 'Import', fileName: importFile.name, target: importTarget === 'clients' ? 'Clients Register' : 'Contacts Directory', status: 'Failed', recordsProcessed: 0, errors: errorsList })
+                        setSelectedErrors(errorsList)
+                        setSelectedLogFileName(importFile.name)
+                        setErrorModalOpen(true)
+                        toast.error('Import failed with validation errors. Please check the error report.')
+                        setImportFile(null)
+                        loadDataLogsFromBackend()
+                        return
+                      }
+                      const importRes = await processDataImport({ target: importTarget, fileName: importFile.name, records: parsedRecords, errors: [] })
+                      parsedRecords.forEach((record) => {
+                        if (importTarget === 'clients') store.addPatient({ name: record.name, dob: record.dob || '1990-01-01', gender: record.gender || 'Other', email: record.email || '', phone: record.phone || '', primaryPractitioner: record.primarypractitioner || record.practitioner || 'Dr. Sarah Jenkins', status: record.status || 'active' })
+                        else if (importTarget === 'contacts') store.addContact({ name: record.name, type: record.type || 'Other', company: record.company || '', email: record.email || '', mobileNumber: record.mobilenumber || record.phone || '' })
+                        else if (importTarget === 'appointments') store.addAppointment({ id: `a_${Date.now()}_${Math.random()}`, patientName: record.patientname || record.patient || 'Unknown Client', patientId: 'N/A', practitionerName: record.practitionername || record.practitioner || 'Dr. Sarah Jenkins', practitionerId: '1', date: record.date || dayjs().format('YYYY-MM-DD'), time: record.time || '10:00', status: record.status || 'Active', appointmentType: record.appointmenttype || record.type || 'Consultation' })
+                        else if (importTarget === 'invoices') store.addInvoice({ id: `INV-${Date.now()}`, patientName: record.patientname || record.clientname || 'Unknown Client', practitioner: record.practitioner || 'Dr. Sarah Jenkins', issueDate: record.issuedate || dayjs().format('YYYY-MM-DD'), dueDate: record.duedate || dayjs().add(14, 'day').format('YYYY-MM-DD'), amount: parseFloat(record.amount) || 150, due: parseFloat(record.due) || 150, status: record.status || 'Draft', sentStatus: record.sentstatus || 'Not Sent' })
+                        else if (importTarget === 'services') store.addService({ id: `s_${Date.now()}_${Math.random()}`, name: record.name || 'New Service', duration: parseInt(record.duration) || 60, price: parseFloat(record.price) || 150, ndisCode: record.ndiscode || record.ndis || '', color: record.color || '#8C4BFF', archived: false, gst: record.gst === 'true' || record.gst === '1' })
+                      })
+                      toast.success(importRes?.message || `Successfully imported ${parsedRecords.length} records into the live database!`)
+                      setImportFile(null)
+                      loadDataLogsFromBackend()
+                    } catch (err) {
+                      toast.error(err.response?.data?.message || 'Failed to process CSV import in live database!')
+                      console.error(err)
                     }
-                    reader.readAsText(importFile)
-                  }}
-                >
-                  <Form.Item label={<span className="text-slate-500 font-bold text-[11px] uppercase">Import Target</span>}>
+                  }
+                  reader.readAsText(importFile)
+                }}
+              >
+                <Form.Item label={<span className="text-slate-500 font-bold text-[11px] uppercase">Import Target</span>}>
                     <Select value={importTarget} onChange={setImportTarget} className="w-full flex items-center">
                       <Option value="clients">Clients Register</Option>
                       <Option value="contacts">Contacts Directory</Option>
@@ -2640,79 +2777,53 @@ export default function SuperAdminSettingsPage() {
 
                 <Form
                   layout="vertical"
-                  onFinish={(values) => {
+                  onFinish={async (values) => {
                     const target = values.target || 'clients'
                     const format = values.format || 'csv'
-                    let dataToExport = []
-                    let headers = []
-                    const fileName = `${target}_export_${Date.now()}.csv`
+                    try {
+                      const res = await logDataExport({ target, format })
+                      const dataToExport = res?.data || []
+                      const fileName = res?.fileName || `${target}_export_${Date.now()}.${format}`
 
-                    if (target === 'clients') {
-                      dataToExport = store.patients
-                      headers = ['id', 'name', 'dob', 'gender', 'email', 'phone', 'primaryPractitioner', 'status']
-                    } else if (target === 'contacts') {
-                      dataToExport = store.contacts
-                      headers = ['id', 'name', 'type', 'company', 'email', 'mobileNumber']
-                    } else if (target === 'appointments') {
-                      dataToExport = store.appointments
-                      headers = ['id', 'patientName', 'practitionerName', 'date', 'time', 'status', 'appointmentType']
-                    } else if (target === 'invoices') {
-                      dataToExport = store.invoices
-                      headers = ['id', 'patientName', 'practitioner', 'issueDate', 'dueDate', 'amount', 'status']
-                    } else if (target === 'financial') {
-                      dataToExport = store.invoices
-                      headers = ['id', 'amount', 'due', 'status']
-                    }
+                      let headers = ['id', 'name', 'dob', 'gender', 'email', 'phone', 'status']
+                      if (target === 'appointments') {
+                        headers = ['id', 'patientName', 'practitionerName', 'date', 'startTime', 'status', 'serviceName']
+                      } else if (target === 'invoices' || target === 'financial') {
+                        headers = ['id', 'invoiceNumber', 'patientName', 'issueDate', 'dueDate', 'amount', 'due', 'status']
+                      } else if (target === 'services') {
+                        headers = ['id', 'name', 'duration', 'price', 'ndisCode', 'taxable']
+                      }
 
-                    let targetName = 'Clients Register'
-                    if (target === 'contacts') targetName = 'Contacts Directory'
-                    else if (target === 'appointments') targetName = 'Appointments Log'
-                    else if (target === 'invoices') targetName = 'Invoice Ledgers'
-                    else if (target === 'financial') targetName = 'Financial Performance Overview'
-
-                    if (format === 'csv') {
-                      const csvRows = []
-                      csvRows.push(headers.join(','))
-                      dataToExport.forEach(item => {
-                        const row = headers.map(header => {
-                          const val = item[header] !== undefined ? item[header] : ''
-                          const stringVal = typeof val === 'string' ? val : String(val)
-                          const cleanVal = stringVal.replace(/"/g, '""')
-                          return cleanVal.includes(',') || cleanVal.includes('"') ? `"${cleanVal}"` : cleanVal
+                      if (format === 'csv') {
+                        const csvRows = []
+                        csvRows.push(headers.join(','))
+                        dataToExport.forEach(item => {
+                          const row = headers.map(header => {
+                            const val = item[header] !== undefined ? item[header] : ''
+                            const stringVal = typeof val === 'string' ? val : String(val)
+                            const cleanVal = stringVal.replace(/"/g, '""')
+                            return cleanVal.includes(',') || cleanVal.includes('"') ? `"${cleanVal}"` : cleanVal
+                          })
+                          csvRows.push(row.join(','))
                         })
-                        csvRows.push(row.join(','))
-                      })
-                      const csvString = csvRows.join('\n')
+                        const csvString = csvRows.join('\n')
 
-                      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' })
-                      const link = document.createElement('a')
-                      link.href = URL.createObjectURL(blob)
-                      link.setAttribute('download', fileName)
-                      document.body.appendChild(link)
-                      link.click()
-                      document.body.removeChild(link)
+                        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' })
+                        const link = document.createElement('a')
+                        link.href = URL.createObjectURL(blob)
+                        link.setAttribute('download', fileName)
+                        document.body.appendChild(link)
+                        link.click()
+                        document.body.removeChild(link)
+                        toast.success(`Successfully exported ${dataToExport.length} live records to ${fileName}!`)
+                      } else {
+                        toast.success(`Exporting ${target} details as ${format.toUpperCase()} (${dataToExport.length} records)!`)
+                      }
 
-                      store.addImportExportLog({
-                        type: 'Export',
-                        fileName,
-                        target: targetName,
-                        status: 'Success',
-                        recordsProcessed: dataToExport.length,
-                        errors: []
-                      })
-                      toast.success(`Successfully exported ${dataToExport.length} records to ${fileName}!`)
-                    } else {
-                      const ext = format === 'xlsx' ? 'xlsx' : 'pdf'
-                      const otherFileName = `${target}_export_${Date.now()}.${ext}`
-                      store.addImportExportLog({
-                        type: 'Export',
-                        fileName: otherFileName,
-                        target: targetName,
-                        status: 'Success',
-                        recordsProcessed: dataToExport.length,
-                        errors: []
-                      })
-                      toast.success(`Exporting ${target} details as ${format.toUpperCase()}!`)
+                      loadDataLogsFromBackend()
+                    } catch (err) {
+                      toast.error('Failed to generate export from live database!')
+                      console.error(err)
                     }
                   }}
                 >
@@ -2746,17 +2857,74 @@ export default function SuperAdminSettingsPage() {
 
             {/* Activity History Logs */}
             <div className="mt-8 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden p-6">
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
                 <div>
                   <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-200 m-0">Activity History Logs</h3>
                   <p className="text-slate-400 text-xs mt-1 font-semibold">
                     Complete registry of database import and export actions executed on the platform.
                   </p>
                 </div>
+
+                {/* Filter controls */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Input
+                    placeholder="Search logs..."
+                    prefix={<SearchOutlined className="text-slate-400" />}
+                    value={logSearchQuery}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setLogSearchQuery(val)
+                      loadDataLogsFromBackend({ search: val })
+                    }}
+                    style={{ width: 180 }}
+                    allowClear
+                  />
+                  <Select
+                    value={logTypeFilter}
+                    onChange={(val) => {
+                      setLogTypeFilter(val)
+                      loadDataLogsFromBackend({ type: val })
+                    }}
+                    style={{ width: 120 }}
+                  >
+                    <Option value="all">All Types</Option>
+                    <Option value="Import">Import</Option>
+                    <Option value="Export">Export</Option>
+                  </Select>
+
+                  <Select
+                    value={logStatusFilter}
+                    onChange={(val) => {
+                      setLogStatusFilter(val)
+                      loadDataLogsFromBackend({ status: val })
+                    }}
+                    style={{ width: 120 }}
+                  >
+                    <Option value="all">All Status</Option>
+                    <Option value="Success">Success</Option>
+                    <Option value="Failed">Failed</Option>
+                  </Select>
+
+                  {(logTypeFilter !== 'all' || logStatusFilter !== 'all' || logSearchQuery) && (
+                    <Button
+                      type="text"
+                      className="text-xs font-bold text-slate-500 hover:text-purple-600"
+                      onClick={() => {
+                        setLogTypeFilter('all')
+                        setLogStatusFilter('all')
+                        setLogSearchQuery('')
+                        loadDataLogsFromBackend({ type: 'all', status: 'all', search: '' })
+                      }}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
               </div>
 
               <Table
-                dataSource={store.importExportLogs}
+                dataSource={dataLogsList.length > 0 ? dataLogsList : store.importExportLogs}
+                loading={loadingDataLogs}
                 rowKey="id"
                 pagination={{ pageSize: 5 }}
                 columns={[
@@ -2825,9 +2993,7 @@ export default function SuperAdminSettingsPage() {
                           </Button>
                         )
                       }
-                      return (
-                        <span className="text-slate-300 text-xs font-semibold">—</span>
-                      )
+                      return <span className="text-slate-400 text-xs font-semibold">—</span>
                     },
                   },
                 ]}
@@ -2872,7 +3038,27 @@ export default function SuperAdminSettingsPage() {
                     <span className="text-xs font-bold text-slate-600 block mb-2">Select Method</span>
                     <Radio.Group
                       value={tfaMethod}
-                      onChange={(e) => setTfaMethod(e.target.value)}
+                      onChange={async (e) => {
+                        const newMethod = e.target.value
+                        setTfaMethod(newMethod)
+                        try {
+                          const currentFormValues = form.getFieldsValue()
+                          await updateSuperAdminProfile({
+                            profileData: {
+                              ...currentFormValues,
+                              twoFactorEnabled: tfaEnabled,
+                              tfaMethod: newMethod,
+                              signature: signatureText,
+                              providerNumbers,
+                              services: selectedServices,
+                              integrations
+                            }
+                          })
+                          toast.success(`2FA verification method updated to ${newMethod.toUpperCase()} & saved to database!`)
+                        } catch (err) {
+                          toast.error('Failed to update 2FA verification method')
+                        }
+                      }}
                       className="w-full flex flex-col gap-2"
                     >
                       <Radio value="app" className="text-xs text-slate-700 dark:text-slate-300 font-semibold">
@@ -2889,9 +3075,26 @@ export default function SuperAdminSettingsPage() {
 
                   <div className="pt-3 flex gap-2">
                     <Button
-                      onClick={() => {
-                        setTfaEnabled(!tfaEnabled)
-                        toast.success(`2FA turned ${!tfaEnabled ? 'ON' : 'OFF'} successfully!`)
+                      onClick={async () => {
+                        const nextVal = !tfaEnabled
+                        setTfaEnabled(nextVal)
+                        try {
+                          const currentFormValues = form.getFieldsValue()
+                          await updateSuperAdminProfile({
+                            profileData: {
+                              ...currentFormValues,
+                              twoFactorEnabled: nextVal,
+                              tfaMethod,
+                              signature: signatureText,
+                              providerNumbers,
+                              services: selectedServices,
+                              integrations
+                            }
+                          })
+                          toast.success(`2FA turned ${nextVal ? 'ON' : 'OFF'} & saved to live database!`)
+                        } catch (err) {
+                          toast.error('Failed to update 2FA status in database')
+                        }
                       }}
                       type={tfaEnabled ? 'default' : 'primary'}
                       className="rounded-xl font-bold h-9"
@@ -2936,15 +3139,28 @@ export default function SuperAdminSettingsPage() {
                 </div>
                 <Form
                   layout="vertical"
-                  onFinish={(values) => {
-                    toast.success('Your secure password updated!')
+                  onFinish={async (values) => {
+                    const curPass = values.oldPass || values.currentPassword
+                    const newPass = values.newPass || values.newPassword
+                    if (!curPass || !newPass) {
+                      return toast.error('Current password and new password are required')
+                    }
+                    if (newPass.length < 6) {
+                      return toast.error('New password must be at least 6 characters long')
+                    }
+                    try {
+                      await changeSuperAdminPassword({ currentPassword: curPass, newPassword: newPass })
+                      toast.success('Your secure password updated & saved to live database!')
+                    } catch (err) {
+                      toast.error(err.response?.data?.message || 'Failed to update password in live database')
+                    }
                   }}
                   className="space-y-3"
                 >
-                  <Form.Item name="oldPass" label="Current Password" required>
+                  <Form.Item name="oldPass" label="Current Password" rules={[{ required: true, message: 'Please enter current password' }]}>
                     <Input.Password className="rounded-xl h-9 text-xs" />
                   </Form.Item>
-                  <Form.Item name="newPass" label="New Secure Password" required>
+                  <Form.Item name="newPass" label="New Secure Password" rules={[{ required: true, message: 'Please enter new secure password' }]}>
                     <Input.Password className="rounded-xl h-9 text-xs" />
                   </Form.Item>
 
@@ -2960,12 +3176,66 @@ export default function SuperAdminSettingsPage() {
 
             {/* Trusted Devices and Log */}
             <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-              <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-200 px-6 py-4 border-b border-slate-50 m-0">
-                Login History & Connected Devices
-              </h3>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center p-6 border-b border-slate-50 dark:border-slate-800 gap-4">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-200 m-0">
+                    Login History & Connected Devices
+                  </h3>
+                  <p className="text-slate-400 text-xs mt-1 font-semibold">
+                    Real-time database session logs and active login locations on the platform.
+                  </p>
+                </div>
+
+                {/* Filter controls */}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Input
+                    placeholder="Search devices / IP..."
+                    prefix={<SearchOutlined className="text-slate-400" />}
+                    value={securitySearchQuery}
+                    onChange={(e) => {
+                      const val = e.target.value
+                      setSecuritySearchQuery(val)
+                      loadSecurityLogsFromBackend({ search: val })
+                    }}
+                    style={{ width: 190 }}
+                    allowClear
+                  />
+
+                  <Select
+                    value={securityStatusFilter}
+                    onChange={(val) => {
+                      setSecurityStatusFilter(val)
+                      loadSecurityLogsFromBackend({ status: val })
+                    }}
+                    style={{ width: 140 }}
+                  >
+                    <Option value="all">All Status</Option>
+                    <Option value="Active Session">Active Session</Option>
+                    <Option value="Expired">Expired</Option>
+                    <Option value="Revoked">Revoked</Option>
+                  </Select>
+
+                  {(securityStatusFilter !== 'all' || securitySearchQuery) && (
+                    <Button
+                      type="text"
+                      className="text-xs font-bold text-slate-500 hover:text-purple-600"
+                      onClick={() => {
+                        setSecurityStatusFilter('all')
+                        setSecuritySearchQuery('')
+                        loadSecurityLogsFromBackend({ status: 'all', search: '' })
+                      }}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                </div>
+              </div>
+
               <Table
-                dataSource={trustedDevices}
-                pagination={false}
+                dataSource={trustedDevices.length > 0 ? trustedDevices : loginHistoryList}
+                loading={loadingSecurityLogs}
+                rowKey={(r) => r.key || r.id}
+                pagination={{ pageSize: 5 }}
                 columns={[
                   {
                     title: <span className="text-[10px] uppercase font-bold text-slate-400">Connected Device</span>,
@@ -2979,17 +3249,19 @@ export default function SuperAdminSettingsPage() {
                   },
                   {
                     title: <span className="text-[10px] uppercase font-bold text-slate-400">Timestamp</span>,
-                    dataIndex: 'time',
+                    dataIndex: 'date',
+                    render: (text, record) => <span className="text-xs text-slate-500">{text || record.time}</span>,
                   },
                   {
                     title: <span className="text-[10px] uppercase font-bold text-slate-400">Location</span>,
                     dataIndex: 'location',
+                    render: (text) => <span className="text-xs text-slate-500 font-medium">{text}</span>,
                   },
                   {
                     title: <span className="text-[10px] uppercase font-bold text-slate-400">Status</span>,
                     dataIndex: 'status',
                     render: (status) => (
-                      <Tag color={status.includes('Active') ? 'purple' : 'default'} className="rounded-full border-none font-bold text-[9px] uppercase px-2.5">
+                      <Tag color={status?.includes('Active') ? 'purple' : status === 'Revoked' ? 'error' : 'default'} className="rounded-full border-none font-bold text-[9px] uppercase px-2.5">
                         {status}
                       </Tag>
                     ),
@@ -2998,25 +3270,29 @@ export default function SuperAdminSettingsPage() {
                     title: '',
                     key: 'actions',
                     align: 'right',
-                    render: (_, record) => (
-                      <Button
-                        size="small"
-                        danger
-                        onClick={async () => {
-                          try {
-                            await revokeDeviceSession(record.key || record.id)
-                            setLoginHistoryList(prev => prev.filter(d => (d.key !== record.key && d.id !== record.id)))
-                            setTrustedDevices(prev => prev.filter(d => d.key !== record.key))
-                            toast.success('Device session revoked & deleted from database!')
-                          } catch (err) {
-                            toast.error('Failed to revoke device session')
-                          }
-                        }}
-                        className="rounded-lg text-[10px] font-bold"
-                      >
-                        Revoke
-                      </Button>
-                    ),
+                    render: (_, record) => {
+                      if (record.status === 'Revoked') {
+                        return <span className="text-slate-400 text-xs font-semibold">Revoked</span>
+                      }
+                      return (
+                        <Button
+                          size="small"
+                          danger
+                          onClick={async () => {
+                            try {
+                              await revokeDeviceSession(record.key || record.id)
+                              toast.success('Device session revoked in live database!')
+                              loadSecurityLogsFromBackend()
+                            } catch (err) {
+                              toast.error('Failed to revoke device session')
+                            }
+                          }}
+                          className="rounded-lg text-[10px] font-bold"
+                        >
+                          Revoke
+                        </Button>
+                      )
+                    },
                   },
                 ]}
               />

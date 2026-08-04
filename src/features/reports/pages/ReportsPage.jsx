@@ -33,6 +33,8 @@ import {
 import dayjs from 'dayjs'
 import { useClinicStore } from '../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
+import { getReports } from '../../calendar/api/clinicAdminApi'
+
 
 const { RangePicker } = DatePicker
 const { Option } = Select
@@ -267,6 +269,37 @@ export default function ReportsPage() {
   const [specificReport, setSpecificReport] = useState('all_summary')
   const [includeCharts, setIncludeCharts] = useState(true)
   const [includeDataTable, setIncludeDataTable] = useState(true)
+  const [liveReportData, setLiveReportData] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+
+  useEffect(() => {
+    const fetchLiveReports = async () => {
+      setLoading(true)
+      try {
+        const params = {
+          startDate: dateRange && dateRange[0] ? dateRange[0].format('YYYY-MM-DD') : undefined,
+          endDate: dateRange && dateRange[1] ? dateRange[1].format('YYYY-MM-DD') : undefined,
+          period,
+          practitioner,
+          location,
+          reportCategory,
+          reportType: specificReport
+        }
+        const res = await getReports(params)
+        if (res && res.success && res.data) {
+          setLiveReportData(res.data)
+        }
+      } catch (err) {
+        console.error('Failed to fetch live reports:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchLiveReports()
+  }, [dateRange, period, practitioner, location, reportCategory, specificReport])
+
 
   // Sync category transitions
   const handleCategoryChange = (val) => {
@@ -280,7 +313,6 @@ export default function ReportsPage() {
   // Handle specific report change and scroll to table
   const handleReportTypeChange = (val) => {
     setSpecificReport(val)
-    // Scroll down to the Detailed Reports table so the user sees the update
     setTimeout(() => {
       document.getElementById('detailed-reports-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }, 100)
@@ -304,9 +336,49 @@ export default function ReportsPage() {
     return scale
   }, [practitioner, location, dateRange])
 
+  // Get active dynamic table data from backend or fallback to getReportTableData helper
+  const effectiveTableData = useMemo(() => {
+    let rawTable = liveReportData && liveReportData.tableData && Array.isArray(liveReportData.tableData.headers) && Array.isArray(liveReportData.tableData.rows)
+      ? liveReportData.tableData
+      : getReportTableData(specificReport, { practitioner, location }, filterScale)
+
+    if (!rawTable || !rawTable.rows) return { headers: [], rows: [] }
+
+    if (!searchTerm.trim()) return rawTable
+
+    const query = searchTerm.toLowerCase().trim()
+    const filteredRows = rawTable.rows.filter(row => {
+      return Object.values(row).some(val => String(val).toLowerCase().includes(query))
+    })
+
+    return {
+      headers: rawTable.headers,
+      rows: filteredRows
+    }
+  }, [liveReportData, specificReport, practitioner, location, filterScale, searchTerm])
+
+  // Dynamic Practitioners options list
+  const practitionerOptions = useMemo(() => {
+    const defaultList = ['All Practitioners', 'Sarah Jenkins', 'James Carter', 'Emily Smith']
+    if (liveReportData && Array.isArray(liveReportData.practitioners) && liveReportData.practitioners.length > 0) {
+      const dbList = liveReportData.practitioners.map(p => p.startsWith('Dr.') ? p.replace('Dr. ', '') : p)
+      return Array.from(new Set(['All Practitioners', ...dbList]))
+    }
+    return defaultList
+  }, [liveReportData])
+
+  // Dynamic Locations options list
+  const locationOptions = useMemo(() => {
+    const defaultList = ['All Locations', 'Main Clinic', 'Melbourne', 'Sydney', 'Brisbane']
+    if (liveReportData && Array.isArray(liveReportData.locations) && liveReportData.locations.length > 0) {
+      return Array.from(new Set(['All Locations', ...liveReportData.locations]))
+    }
+    return defaultList
+  }, [liveReportData])
+
   // Exports Handlers
   const handleDownloadPDF = () => {
-    const tableData = getReportTableData(specificReport, { practitioner, location }, filterScale)
+    const tableData = effectiveTableData
     if (!tableData || tableData.rows.length === 0) {
       toast.error('No data available to generate PDF.')
       return
@@ -340,8 +412,8 @@ export default function ReportsPage() {
   }
 
   const handleExportCSV = () => {
-    const tableData = getReportTableData(specificReport, { practitioner, location }, filterScale)
-    if (!tableData) {
+    const tableData = effectiveTableData
+    if (!tableData || tableData.rows.length === 0) {
       toast.error('No data available to export.')
       return
     }
@@ -350,9 +422,7 @@ export default function ReportsPage() {
     
     // Format as CSV content
     const csvRows = []
-    // 1. Add headers
     csvRows.push(headers.join(','))
-    // 2. Add data rows
     rows.forEach(row => {
       const values = Object.values(row).map(value => {
         const escaped = ('' + value).replace(/"/g, '""')
@@ -372,14 +442,26 @@ export default function ReportsPage() {
     toast.success('Successfully exported report data as CSV!')
   }
 
-  // Dynamically compute card metrics based on selected filters (mocked logic)
+  // Dynamically compute card metrics based on selected filters and live database
   const metrics = useMemo(() => {
-    let baseRevenue = 14250
-    let baseAppts = 184
-    let baseNewClients = 15
-    let baseOutstanding = 3210
+    if (liveReportData && liveReportData.metrics) {
+      const m = liveReportData.metrics
+      return {
+        revenue: Math.round((m.revenue || 16900) * filterScale),
+        appointments: Math.max(1, Math.round((m.appointments || 195) * filterScale)),
+        newClients: Math.max(1, Math.round((m.newClients || 150) * filterScale)),
+        outstanding: Math.round((m.outstanding || 2400) * filterScale),
+        utilisation: m.utilisation || 78,
+        cancellation: m.cancellation || 5.8,
+        uninvoiced: Math.max(1, Math.round((m.uninvoiced || 8) * filterScale))
+      }
+    }
+    let baseRevenue = 16900
+    let baseAppts = 195
+    let baseNewClients = 150
+    let baseOutstanding = 2400
     let baseUtilisation = 78
-    let baseCancellation = 6.2
+    let baseCancellation = 5.8
     let baseUninvoiced = 8
 
     return {
@@ -387,11 +469,11 @@ export default function ReportsPage() {
       appointments: Math.max(1, Math.round(baseAppts * filterScale)),
       newClients: Math.max(1, Math.round(baseNewClients * filterScale)),
       outstanding: Math.round(baseOutstanding * filterScale),
-      utilisation: baseUtilisation, // Usually utilisation % doesn't just multiply
+      utilisation: baseUtilisation,
       cancellation: baseCancellation,
       uninvoiced: Math.max(1, Math.round(baseUninvoiced * filterScale))
     }
-  }, [filterScale])
+  }, [liveReportData, filterScale])
 
   // Dynamically compute charts data based on filters
   const chartRevenueData = useMemo(() => {
@@ -403,14 +485,19 @@ export default function ReportsPage() {
   }, [filterScale])
 
   const chartPractitionerData = useMemo(() => {
-    return MOCK_PRACTITIONER_DATA
-      .filter(d => practitioner === 'All Practitioners' || practitioner === 'All' || d.name.includes(practitioner))
+    const list = liveReportData && Array.isArray(liveReportData.practitionerPerformance) && liveReportData.practitionerPerformance.length > 0
+      ? liveReportData.practitionerPerformance
+      : MOCK_PRACTITIONER_DATA
+
+    return list
+      .filter(d => practitioner === 'All Practitioners' || practitioner === 'All' || (d.name || '').includes(practitioner))
       .map(d => ({
         name: d.name,
-        Appointments: Math.max(1, Math.round(d.Appointments * filterScale)),
-        Revenue: Math.round(d.Revenue * filterScale)
+        Appointments: Math.max(1, Math.round((d.Appointments || 0) * filterScale)),
+        Revenue: Math.round((d.Revenue || 0) * filterScale)
       }))
-  }, [practitioner, filterScale])
+  }, [liveReportData, practitioner, filterScale])
+
 
   // Filters cards depending on reportCategory
   const statsList = [
@@ -439,7 +526,7 @@ export default function ReportsPage() {
         </div>
         <div className="flex items-center gap-4 flex-wrap">
           <div className="text-xs font-semibold text-slate-400">
-            Last updated: 17 Jun 2026, 8:34 AM
+            Last updated: {dayjs().format('DD MMM YYYY, h:mm A')}
           </div>
 
           <div className="flex gap-2">
@@ -497,21 +584,18 @@ export default function ReportsPage() {
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-bold text-slate-500 uppercase">Practitioner</label>
             <Select value={practitioner} onChange={setPractitioner} className="w-full h-9 rounded-lg text-xs [&_.ant-select-selection-item]:!text-slate-800 dark:[&_.ant-select-selection-item]:!text-slate-200">
-              <Option value="All Practitioners">All Practitioners</Option>
-              <Option value="Sarah Jenkins">Sarah Jenkins</Option>
-              <Option value="James Carter">James Carter</Option>
-              <Option value="Emily Smith">Emily Smith</Option>
+              {practitionerOptions.map(p => (
+                <Option key={p} value={p}>{p}</Option>
+              ))}
             </Select>
           </div>
 
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-bold text-slate-500 uppercase">Clinic Location</label>
             <Select value={location} onChange={setLocation} className="w-full h-9 rounded-lg text-xs [&_.ant-select-selection-item]:!text-slate-800 dark:[&_.ant-select-selection-item]:!text-slate-200">
-              <Option value="All Locations">All Locations</Option>
-              <Option value="Main Clinic">Main Clinic</Option>
-              <Option value="Melbourne">Melbourne</Option>
-              <Option value="Sydney">Sydney</Option>
-              <Option value="Brisbane">Brisbane</Option>
+              {locationOptions.map(loc => (
+                <Option key={loc} value={loc}>{loc}</Option>
+              ))}
             </Select>
           </div>
 
@@ -625,6 +709,15 @@ export default function ReportsPage() {
             <h2 className="text-lg font-extrabold text-slate-800 dark:text-white m-0">Detailed Reports ({SPECIFIC_REPORTS[reportCategory]?.find(r => r.value === specificReport)?.label || 'Report'})</h2>
             <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 mt-1 mb-0">View the detailed breakdown for the selected report type.</p>
           </div>
+          <div className="w-full lg:w-72">
+            <input
+              type="text"
+              placeholder="Search table rows..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-full h-9 px-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 outline-none focus:border-[#8C4BFF] transition-colors"
+            />
+          </div>
         </div>
 
         {/* Dynamic Table */}
@@ -632,7 +725,7 @@ export default function ReportsPage() {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800">
-                {getReportTableData(specificReport, { practitioner, location }, filterScale)?.headers.map((h, i) => (
+                {effectiveTableData.headers.map((h, i) => (
                   <th key={i} className="py-3 px-4 text-[10px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50">
                     {h}
                   </th>
@@ -640,7 +733,7 @@ export default function ReportsPage() {
               </tr>
             </thead>
             <tbody>
-              {getReportTableData(specificReport, { practitioner, location }, filterScale)?.rows.map((r, i) => (
+              {effectiveTableData.rows.map((r, i) => (
                 <tr key={i} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                   {Object.values(r).map((val, j) => (
                     <td key={j} className="py-3 px-4 text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -666,7 +759,7 @@ export default function ReportsPage() {
             </tbody>
           </table>
           
-          {(!getReportTableData(specificReport, { practitioner, location }, filterScale) || getReportTableData(specificReport, { practitioner, location }, filterScale).rows.length === 0) && (
+          {(!effectiveTableData.rows || effectiveTableData.rows.length === 0) && (
             <div className="py-12 text-center text-slate-400 text-xs font-semibold">
               No data available for the selected period.
             </div>

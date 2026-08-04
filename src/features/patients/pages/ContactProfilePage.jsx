@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons'
 import { useClinicStore } from '../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
+import { getContactById, createContact, updateContact, deleteContact } from '../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 
@@ -22,10 +23,13 @@ export default function ContactProfilePage() {
   const basePath = window.location.pathname.split('/')[1] ? `/${window.location.pathname.split('/')[1]}` : '/clinic'
   const [form] = Form.useForm()
 
+  const [contactData, setContactData] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [newLogText, setNewLogText] = useState('')
   const [logs, setLogs] = useState([])
 
-  // Default empty contact state if isNew, else find contact
+  // Default empty contact state if isNew
   const defaultContact = React.useMemo(() => ({
     name: '',
     type: 'Support Coordinator',
@@ -47,20 +51,48 @@ export default function ContactProfilePage() {
     noteLogs: [],
   }), [])
 
-  const contact = isNew
-    ? defaultContact
-    : store.contacts.find(c => c?.id === id)
-
-  // Set values when contact loaded
+  // Load contact data from live database API if not new
   useEffect(() => {
-    if (contact) {
-      form.setFieldsValue(contact)
-      setLogs(contact.noteLogs || [])
+    if (isNew) {
+      setContactData(defaultContact)
+      form.setFieldsValue(defaultContact)
+      setLogs([])
+    } else {
+      setLoading(true)
+      getContactById(id)
+        .then((res) => {
+          if (res && res.success && res.data) {
+            setContactData(res.data)
+            form.setFieldsValue(res.data)
+            setLogs(res.data.noteLogs || [])
+            store.updateContact(res.data)
+          } else {
+            // fallback to store
+            const storeC = store.contacts.find(c => c?.id === id)
+            if (storeC) {
+              setContactData(storeC)
+              form.setFieldsValue(storeC)
+              setLogs(storeC.noteLogs || [])
+            }
+          }
+        })
+        .catch((err) => {
+          console.error('Error fetching contact details:', err)
+          const storeC = store.contacts.find(c => c?.id === id)
+          if (storeC) {
+            setContactData(storeC)
+            form.setFieldsValue(storeC)
+            setLogs(storeC.noteLogs || [])
+          }
+        })
+        .finally(() => setLoading(false))
     }
-  }, [contact, form])
+  }, [id, isNew, form])
 
-  const handleAddLog = () => {
-    if (!newLogText.trim()) return
+  const contact = contactData || (isNew ? defaultContact : store.contacts.find(c => c?.id === id))
+
+  const handleAddLog = async () => {
+    if (!newLogText.trim() || !contact) return
     const newLog = {
       id: `log_${Date.now()}`,
       text: newLogText,
@@ -71,16 +103,22 @@ export default function ContactProfilePage() {
     setLogs(updatedLogs)
     setNewLogText('')
 
-    // Save automatically
-    const updatedContact = {
-      ...contact,
-      noteLogs: updatedLogs
+    try {
+      if (!isNew && contact.id) {
+        const res = await updateContact(contact.id, { noteLogs: updatedLogs })
+        if (res && res.success && res.data) {
+          setContactData(res.data)
+          store.updateContact(res.data)
+        }
+      }
+      toast.success('Note log entry added!')
+    } catch (err) {
+      console.error('Failed to add note log:', err)
+      toast.error('Error saving note log to database')
     }
-    store.updateContact(updatedContact)
-    toast.success('Note log entry added!')
   }
 
-  if (!contact && !isNew) {
+  if (!contact && !isNew && !loading) {
     return (
       <div className="text-center py-12">
         <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">Contact Not Found</h3>
@@ -91,40 +129,65 @@ export default function ContactProfilePage() {
     )
   }
 
-  const handleSave = (values) => {
+  const handleSave = async (values) => {
+    setSubmitting(true)
     const formattedValues = {
       ...contact,
       ...values,
+      noteLogs: logs,
     }
 
-    if (isNew) {
-      const newId = `c_${Date.now()}`
-      store.addContact({
-        id: newId,
-        ...formattedValues,
-      })
-      toast.success('Contact created successfully!')
-      navigate(`${basePath}/contacts`)
-    } else {
-      store.updateContact(formattedValues)
-      toast.success('Contact details updated successfully!')
+    try {
+      if (isNew) {
+        const res = await createContact(formattedValues)
+        if (res && res.success && res.data) {
+          store.addContact(res.data)
+          toast.success('Contact created successfully in live database!')
+          navigate(`${basePath}/contacts`)
+        } else {
+          toast.error('Failed to create contact')
+        }
+      } else {
+        const res = await updateContact(contact.id, formattedValues)
+        if (res && res.success && res.data) {
+          setContactData(res.data)
+          store.updateContact(res.data)
+          toast.success('Contact details updated successfully!')
+        } else {
+          toast.error('Failed to update contact')
+        }
+      }
+    } catch (err) {
+      console.error('Save contact error:', err)
+      toast.error('Error saving contact to live database')
+    } finally {
+      setSubmitting(false)
     }
   }
 
   const handleDeleteContact = () => {
     Modal.confirm({
       title: 'Delete Contact?',
-      content: `Are you sure you want to permanently delete the contact ${contact.name}?`,
+      content: `Are you sure you want to permanently delete the contact ${contact?.name || ''}?`,
       okText: 'Yes, Delete',
       okType: 'danger',
       cancelText: 'Cancel',
-      onOk: () => {
-        store.deleteContact(contact.id)
-        toast.success('Contact deleted successfully.')
-        navigate(`${basePath}/contacts`)
+      onOk: async () => {
+        try {
+          if (contact && contact.id) {
+            await deleteContact(contact.id)
+            store.deleteContact(contact.id)
+            toast.success('Contact deleted successfully from live database.')
+          }
+          navigate(`${basePath}/contacts`)
+        } catch (err) {
+          console.error('Delete contact error:', err)
+          toast.error('Failed to delete contact from backend database')
+        }
       },
     })
   }
+
 
   return (
     <div className="space-y-6 client-profile-container">

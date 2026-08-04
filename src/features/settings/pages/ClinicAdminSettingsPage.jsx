@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Form, Input, Select, Checkbox, Space, Card, Radio, Table, Modal, Button, Tag, Divider, Tabs } from 'antd'
 import {
   ApiOutlined,
@@ -39,7 +40,8 @@ import {
   UserAddOutlined,
   FolderOutlined,
   DownOutlined,
-  RightOutlined
+  RightOutlined,
+  SearchOutlined
 } from '@ant-design/icons'
 
 export const tagIconsMap = {
@@ -64,7 +66,27 @@ export function renderTagIcon(iconName) {
 }
 import { useClinicStore } from '../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
-import { useNavigate, useLocation } from 'react-router-dom'
+import {
+  getIntegrations as getIntegrationsApi,
+  updateIntegration as updateIntegrationApi,
+  getClinicSettingsTemplates,
+  createClinicSettingsTemplate,
+  updateClinicSettingsTemplate,
+  deleteClinicSettingsTemplate,
+  updateInvoiceTemplates as updateInvoiceTemplatesApi,
+  getClinicServices,
+  createClinicService,
+  updateClinicService,
+  deleteClinicService,
+  getClinicCancellationReasons,
+  createClinicCancellationReason,
+  updateClinicCancellationReason,
+  deleteClinicCancellationReason,
+  getClinicClientTags,
+  createClinicClientTag,
+  updateClinicClientTag,
+  deleteClinicClientTag
+} from '../api/settingsApi'
 import PatientSettings from '../../dashboard/components/patient/PatientSettings'
 import ClinicDetailsTab from '../components/ClinicDetailsTab'
 import SubscriptionPage from './SubscriptionPage'
@@ -104,16 +126,21 @@ export default function ClinicAdminSettingsPage() {
           { key: 'letters', label: 'Letter Templates', icon: <MailOutlined /> }
         ]
       case 'clinic':
+      case 'clinic-admin':
+      case 'clinic_admin':
       case 'head_admin':
       default:
         return [
           { key: 'clinic_details', label: 'Clinic Details', icon: <BankOutlined /> },
           { key: 'branch', label: 'Branch', icon: <ApartmentOutlined /> },
+          { key: 'admin', label: 'Admin', icon: <UserOutlined /> },
           { key: 'practitioners', label: 'Practitioners', icon: <UserAddOutlined /> },
-          { key: 'roles_permissions', label: 'Roles & Permissions', icon: <SafetyCertificateOutlined /> },
-          { key: 'subscription', label: 'Subscription', icon: <CrownOutlined /> },
-          { key: 'templates', label: 'Templates', icon: <FolderOutlined /> },
           { key: 'integrations', label: 'Integrations', icon: <ApiOutlined /> },
+          { key: 'templates', label: 'Templates', icon: <FolderOutlined /> },
+          { key: 'services', label: 'Services', icon: <AppstoreOutlined /> },
+          { key: 'cancellation', label: 'Cancellation Reasons', icon: <CloseCircleOutlined /> },
+          { key: 'tags', label: 'Client Tags', icon: <TagOutlined /> },
+          { key: 'import_export', label: 'Import Export', icon: <DatabaseOutlined /> },
           { key: 'security', label: 'Security', icon: <LockOutlined /> }
         ]
     }
@@ -141,6 +168,573 @@ export default function ClinicAdminSettingsPage() {
       setActiveTab(tabs[0]?.key || 'clinic_details')
     }
   }, [tabs, activeTab])
+
+  // Integrations DB State & Handlers
+  const [integrationsList, setIntegrationsList] = useState([])
+  const [loadingIntegrations, setLoadingIntegrations] = useState(false)
+  const [integrationsSearch, setIntegrationsSearch] = useState('')
+  const [integrationsCategoryFilter, setIntegrationsCategoryFilter] = useState('All')
+  const [integrationsStatusFilter, setIntegrationsStatusFilter] = useState('All')
+
+  const fetchIntegrations = async () => {
+    setLoadingIntegrations(true)
+    try {
+      const res = await getIntegrationsApi()
+      if (res && res.success && Array.isArray(res.data)) {
+        setIntegrationsList(res.data)
+        useClinicStore.setState({ integrations: res.data })
+      }
+    } catch (err) {
+      console.error("Failed to fetch live database integrations:", err)
+    } finally {
+      setLoadingIntegrations(false)
+    }
+  }
+
+  React.useEffect(() => {
+    if (activeTab === 'integrations') {
+      fetchIntegrations()
+    }
+  }, [activeTab])
+
+  const handleToggleIntegration = async (item) => {
+    if (item.id === 'myob') {
+      toast.error('MYOB integration is coming soon in a future update!')
+      return
+    }
+    const nextStatus = !item.connected
+    try {
+      const res = await updateIntegrationApi(item.id, { connected: nextStatus })
+      if (res && res.success && Array.isArray(res.data)) {
+        setIntegrationsList(res.data)
+        useClinicStore.setState({ integrations: res.data })
+        toast.success(`${item.name} is now ${nextStatus ? 'Connected' : 'Disconnected'} in live database!`)
+      } else {
+        toast.error('Failed to update integration in database')
+      }
+    } catch (err) {
+      console.error("Error updating integration in database:", err)
+      toast.error('Error updating integration in live database')
+    }
+  }
+
+  const handleSyncIntegration = async (item) => {
+    try {
+      const nowStr = new Date().toLocaleString()
+      const res = await updateIntegrationApi(item.id, { connected: true, lastSync: nowStr })
+      if (res && res.success && Array.isArray(res.data)) {
+        setIntegrationsList(res.data)
+        useClinicStore.setState({ integrations: res.data })
+        toast.success(`Synced details from ${item.name} into live database!`)
+      }
+    } catch (err) {
+      console.error("Error syncing integration:", err)
+      toast.error('Failed to sync integration with live database')
+    }
+  }
+
+  // Templates Live DB State & Handlers
+  const [loadingTemplates, setLoadingTemplates] = useState(false)
+  const [formsSearch, setFormsSearch] = useState('')
+  const [formsCategoryFilter, setFormsCategoryFilter] = useState('All')
+  const [lettersSearch, setLettersSearch] = useState('')
+  const [lettersStatusFilter, setLettersStatusFilter] = useState('All')
+
+  const fetchTemplates = async () => {
+    setLoadingTemplates(true)
+    try {
+      const res = await getClinicSettingsTemplates()
+      if (res && res.success && res.data) {
+        const { forms, letters, notes, invoiceTemplates } = res.data
+        useClinicStore.setState({
+          ...(forms && { formTemplates: forms }),
+          ...(letters && { letterTemplates: letters }),
+          ...(notes && { noteTemplates: notes }),
+          ...(invoiceTemplates && { invoiceTemplates: invoiceTemplates })
+        })
+        if (notes && notes.length > 0 && !selectedNote) {
+          setSelectedNote(notes[0])
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch live database templates:", err)
+    } finally {
+      setLoadingTemplates(false)
+    }
+  }
+
+  React.useEffect(() => {
+    if (['templates', 'forms', 'letters', 'notes'].includes(activeTab)) {
+      fetchTemplates()
+    }
+  }, [activeTab])
+
+  // Services Live DB State & Handlers
+  const [loadingServices, setLoadingServices] = useState(false)
+  const [servicesSearch, setServicesSearch] = useState('')
+
+  const fetchServices = async () => {
+    setLoadingServices(true)
+    try {
+      const res = await getClinicServices()
+      if (res && res.success && res.data) {
+        useClinicStore.setState({ services: res.data })
+      }
+    } catch (err) {
+      console.error("Failed to fetch live database services:", err)
+    } finally {
+      setLoadingServices(false)
+    }
+  }
+
+  React.useEffect(() => {
+    if (activeTab === 'services') {
+      fetchServices()
+    }
+  }, [activeTab])
+
+  const handleSaveServiceDB = async (values) => {
+    try {
+      if (editingService) {
+        const res = await updateClinicService(editingService.id, values)
+        if (res && res.success && res.data) {
+          useClinicStore.setState((state) => ({
+            services: state.services.map((s) => (s.id === editingService.id ? res.data : s))
+          }))
+          toast.success('Service updated in live database!')
+        }
+      } else {
+        const res = await createClinicService(values)
+        if (res && res.success && res.data) {
+          useClinicStore.setState((state) => ({
+            services: [res.data, ...state.services]
+          }))
+          toast.success('New service added to live database!')
+        }
+      }
+      setServiceModalOpen(false)
+    } catch (err) {
+      console.error("Service save error:", err)
+      toast.error('Failed to save service to live database')
+    }
+  }
+
+  const handleArchiveServiceDB = async (record) => {
+    try {
+      const newArchivedState = !record.archived
+      const res = await updateClinicService(record.id, { archived: newArchivedState })
+      if (res && res.success && res.data) {
+        useClinicStore.setState((state) => ({
+          services: state.services.map((s) => (s.id === record.id ? res.data : s))
+        }))
+        toast.success(`Service "${record.name}" ${newArchivedState ? 'archived' : 'activated'} in live database!`)
+      }
+    } catch (err) {
+      console.error("Service archive error:", err)
+      toast.error('Failed to update service status')
+    }
+  }
+
+  const handleDeleteServiceDB = async (id, name) => {
+    try {
+      const res = await deleteClinicService(id)
+      if (res && res.success) {
+        useClinicStore.setState((state) => ({
+          services: state.services.filter((s) => s.id !== id)
+        }))
+        toast.success(`Removed service "${name}" from live database!`)
+      }
+    } catch (err) {
+      console.error("Service delete error:", err)
+      toast.error('Failed to delete service from live database')
+    }
+  }
+
+  // Cancellation Reasons Live DB State & Handlers
+  const [loadingCancellations, setLoadingCancellations] = useState(false)
+  const [cancellationSearch, setCancellationSearch] = useState('')
+
+  const fetchCancellationReasons = async () => {
+    setLoadingCancellations(true)
+    try {
+      const res = await getClinicCancellationReasons()
+      if (res && res.success && res.data) {
+        useClinicStore.setState({ cancellationReasons: res.data })
+      }
+    } catch (err) {
+      console.error("Failed to fetch live database cancellation reasons:", err)
+    } finally {
+      setLoadingCancellations(false)
+    }
+  }
+
+  React.useEffect(() => {
+    if (activeTab === 'cancellation') {
+      fetchCancellationReasons()
+    }
+  }, [activeTab])
+
+  const handleSaveCancellationReasonDB = async (text) => {
+    try {
+      if (editingCancellation) {
+        const res = await updateClinicCancellationReason(editingCancellation.id, { reason: text })
+        if (res && res.success && res.data) {
+          useClinicStore.setState((state) => ({
+            cancellationReasons: state.cancellationReasons.map((r) =>
+              r.id === editingCancellation.id ? res.data : r
+            )
+          }))
+          toast.success('Cancellation reason updated in live database!')
+        }
+      } else {
+        const res = await createClinicCancellationReason({ reason: text })
+        if (res && res.success && res.data) {
+          useClinicStore.setState((state) => ({
+            cancellationReasons: [res.data, ...state.cancellationReasons]
+          }))
+          toast.success(`New cancellation reason "${text}" added to live database!`)
+        }
+      }
+      setEditingCancellation(null)
+      setCancellationText('')
+    } catch (err) {
+      console.error("Cancellation reason save error:", err)
+      toast.error('Failed to save cancellation reason to live database')
+    }
+  }
+
+  const handleArchiveCancellationReasonDB = async (record) => {
+    try {
+      const newArchived = !record.archived
+      const res = await updateClinicCancellationReason(record.id, { archived: newArchived })
+      if (res && res.success && res.data) {
+        useClinicStore.setState((state) => ({
+          cancellationReasons: state.cancellationReasons.map((r) => (r.id === record.id ? res.data : r))
+        }))
+        toast.success(`Reason "${record.reason}" ${newArchived ? 'archived' : 'activated'} in live database!`)
+      }
+    } catch (err) {
+      console.error("Cancellation reason archive error:", err)
+      toast.error('Failed to update reason status')
+    }
+  }
+
+  const handleDeleteCancellationReasonDB = async (id, reason) => {
+    try {
+      const res = await deleteClinicCancellationReason(id)
+      if (res && res.success) {
+        useClinicStore.setState((state) => ({
+          cancellationReasons: state.cancellationReasons.filter((r) => r.id !== id)
+        }))
+        toast.success(`Removed cancellation reason "${reason}" from live database!`)
+      }
+    } catch (err) {
+      console.error("Cancellation reason delete error:", err)
+      toast.error('Failed to delete cancellation reason from live database')
+    }
+  }
+
+  // Client Tags Live DB State & Handlers
+  const [loadingTags, setLoadingTags] = useState(false)
+  const [tagsSearch, setTagsSearch] = useState('')
+
+  const fetchClientTags = async () => {
+    setLoadingTags(true)
+    try {
+      const res = await getClinicClientTags()
+      if (res && res.success && res.data) {
+        const mappedTags = res.data.map(t => ({
+          ...t,
+          icon: t.iconName || t.icon || 'TagOutlined'
+        }))
+        useClinicStore.setState({ clientTags: mappedTags })
+      }
+    } catch (err) {
+      console.error("Failed to fetch live database client tags:", err)
+    } finally {
+      setLoadingTags(false)
+    }
+  }
+
+  React.useEffect(() => {
+    if (activeTab === 'tags') {
+      fetchClientTags()
+    }
+  }, [activeTab])
+
+  const handleSaveTagDB = async (values) => {
+    try {
+      const payload = {
+        name: values.name,
+        color: values.color || '#8C4BFF',
+        iconName: values.icon || values.iconName || 'TagOutlined'
+      }
+      if (editingTag) {
+        const res = await updateClinicClientTag(editingTag.id, payload)
+        if (res && res.success && res.data) {
+          const updatedTag = {
+            ...res.data,
+            icon: res.data.iconName || res.data.icon || 'TagOutlined'
+          }
+          useClinicStore.setState((state) => ({
+            clientTags: state.clientTags.map((t) => (t.id === editingTag.id ? updatedTag : t))
+          }))
+          toast.success('Client tag updated in live database!')
+        }
+      } else {
+        const res = await createClinicClientTag(payload)
+        if (res && res.success && res.data) {
+          const newTag = {
+            ...res.data,
+            icon: res.data.iconName || res.data.icon || 'TagOutlined'
+          }
+          useClinicStore.setState((state) => ({
+            clientTags: [newTag, ...state.clientTags]
+          }))
+          toast.success(`New tag "${values.name}" created in live database!`)
+        }
+      }
+      setTagModalOpen(false)
+    } catch (err) {
+      console.error("Tag save error:", err)
+      toast.error('Failed to save client tag to live database')
+    }
+  }
+
+  const handleDeleteTagDB = async (id, name) => {
+    try {
+      const res = await deleteClinicClientTag(id)
+      if (res && res.success) {
+        useClinicStore.setState((state) => ({
+          clientTags: state.clientTags.filter((t) => t.id !== id)
+        }))
+        toast.success(`Removed tag "${name}" from live database!`)
+      }
+    } catch (err) {
+      console.error("Tag delete error:", err)
+      toast.error('Failed to delete tag from live database')
+    }
+  }
+
+  // Forms CRUD
+  const handleSaveFormDB = async (values) => {
+    try {
+      if (editingForm) {
+        const res = await updateClinicSettingsTemplate('form', editingForm.id, values)
+        if (res && res.success) {
+          useClinicStore.setState((state) => ({
+            formTemplates: state.formTemplates.map((f) =>
+              f.id === editingForm.id ? { ...f, ...values, lastModified: new Date().toISOString().split('T')[0] } : f
+            ),
+          }))
+          toast.success('Form template updated in live database!')
+        }
+      } else {
+        const res = await createClinicSettingsTemplate({ type: 'form', ...values })
+        if (res && res.success && res.data) {
+          useClinicStore.setState((state) => ({
+            formTemplates: [res.data, ...state.formTemplates],
+          }))
+          toast.success('New form template added to live database!')
+        }
+      }
+      setFormModalOpen(false)
+    } catch (err) {
+      console.error("Form save error:", err)
+      toast.error('Failed to save form template to live database')
+    }
+  }
+
+  const handleDuplicateFormDB = async (record) => {
+    try {
+      const res = await createClinicSettingsTemplate({
+        type: 'form',
+        name: `${record.name} (Copy)`,
+        category: record.category
+      })
+      if (res && res.success && res.data) {
+        useClinicStore.setState((state) => ({
+          formTemplates: [res.data, ...state.formTemplates],
+        }))
+        toast.success(`Duplicated: ${record.name} in live database!`)
+      }
+    } catch (err) {
+      toast.error('Failed to duplicate form template')
+    }
+  }
+
+  const handleDeleteFormDB = async (id, name) => {
+    try {
+      await deleteClinicSettingsTemplate('form', id)
+      useClinicStore.setState((state) => ({
+        formTemplates: state.formTemplates.filter((f) => f.id !== id),
+      }))
+      toast.success(`Deleted: ${name} from live database!`)
+    } catch (err) {
+      toast.error('Failed to delete form template')
+    }
+  }
+
+  // Letters CRUD
+  const handleSaveLetterDB = async (values) => {
+    try {
+      if (editingLetter) {
+        const res = await updateClinicSettingsTemplate('letter', editingLetter.id, values)
+        if (res && res.success) {
+          useClinicStore.setState((state) => ({
+            letterTemplates: state.letterTemplates.map((l) =>
+              l.id === editingLetter.id ? { ...l, ...values } : l
+            ),
+          }))
+          toast.success('Letter template updated in live database!')
+        }
+      } else {
+        const res = await createClinicSettingsTemplate({ type: 'letter', ...values, status: 'active' })
+        if (res && res.success && res.data) {
+          useClinicStore.setState((state) => ({
+            letterTemplates: [res.data, ...state.letterTemplates],
+          }))
+          toast.success('Letter template created in live database!')
+        }
+      }
+      setLetterModalOpen(false)
+    } catch (err) {
+      toast.error('Failed to save letter template')
+    }
+  }
+
+  const handleToggleLetterStatusDB = async (record) => {
+    const nextStatus = record.status === 'active' ? 'archived' : 'active'
+    try {
+      await updateClinicSettingsTemplate('letter', record.id, { status: nextStatus })
+      useClinicStore.setState((state) => ({
+        letterTemplates: state.letterTemplates.map((l) =>
+          l.id === record.id ? { ...l, status: nextStatus } : l
+        ),
+      }))
+      toast.success(`Letter marked as ${nextStatus} in live database!`)
+    } catch (err) {
+      toast.error('Failed to update letter status')
+    }
+  }
+
+  const handleDuplicateLetterDB = async (record) => {
+    try {
+      const res = await createClinicSettingsTemplate({
+        type: 'letter',
+        name: `${record.name} (Copy)`,
+        category: record.category,
+        status: 'active'
+      })
+      if (res && res.success && res.data) {
+        useClinicStore.setState((state) => ({
+          letterTemplates: [res.data, ...state.letterTemplates],
+        }))
+        toast.success(`Duplicated Letter: ${record.name} in live database!`)
+      }
+    } catch (err) {
+      toast.error('Failed to duplicate letter template')
+    }
+  }
+
+  const handleDeleteLetterDB = async (id, name) => {
+    try {
+      await deleteClinicSettingsTemplate('letter', id)
+      useClinicStore.setState((state) => ({
+        letterTemplates: state.letterTemplates.filter((l) => l.id !== id),
+      }))
+      toast.success(`Deleted letter template from live database!`)
+    } catch (err) {
+      toast.error('Failed to delete letter template')
+    }
+  }
+
+  // Notes CRUD
+  const handleSaveNoteDB = async (name) => {
+    try {
+      const res = await createClinicSettingsTemplate({
+        type: 'note',
+        name,
+        content: 'Write notes structure details here...'
+      })
+      if (res && res.success && res.data) {
+        useClinicStore.setState((state) => ({
+          noteTemplates: [...state.noteTemplates, res.data],
+        }))
+        setSelectedNote(res.data)
+        toast.success('Note template created in live database!')
+      }
+      setNoteModalOpen(false)
+    } catch (err) {
+      toast.error('Failed to create note template')
+    }
+  }
+
+  const handleUpdateNoteContentDB = async (noteObj, newContent) => {
+    const updated = { ...noteObj, content: newContent }
+    setSelectedNote(updated)
+    useClinicStore.setState((state) => ({
+      noteTemplates: state.noteTemplates.map((n) => (n.id === noteObj.id ? updated : n)),
+    }))
+    try {
+      await updateClinicSettingsTemplate('note', noteObj.id, { content: newContent })
+    } catch (err) {
+      console.error("Note content sync error:", err)
+    }
+  }
+
+  const handleSaveNotesLayoutDB = async () => {
+    if (!selectedNote) return
+    try {
+      await updateClinicSettingsTemplate('note', selectedNote.id, {
+        name: selectedNote.name,
+        content: selectedNote.content
+      })
+      toast.success('Note templates settings saved to live database!')
+    } catch (err) {
+      toast.error('Failed to save note template layout')
+    }
+  }
+
+  const handleDeleteNoteDB = async (noteObj) => {
+    if (store.noteTemplates.length <= 1) {
+      toast.error('At least one note template must be kept!')
+      return
+    }
+    try {
+      await deleteClinicSettingsTemplate('note', noteObj.id)
+      const updatedList = store.noteTemplates.filter((n) => n.id !== noteObj.id)
+      useClinicStore.setState({ noteTemplates: updatedList })
+      if (selectedNote?.id === noteObj.id) {
+        setSelectedNote(updatedList[0])
+      }
+      toast.success('Note template deleted from live database!')
+    } catch (err) {
+      toast.error('Failed to delete note template')
+    }
+  }
+
+  // Invoice Templates DB
+  const handleSaveInvoiceTemplatesDB = async (values) => {
+    try {
+      const res = await updateInvoiceTemplatesApi({
+        paymentTerms: values.terms,
+        footerText: values.footer
+      })
+      if (res && res.success) {
+        useClinicStore.setState({
+          invoiceTemplates: {
+            logoUrl: res.data?.logoUrl || null,
+            paymentTerms: values.terms,
+            footerText: values.footer,
+          },
+        })
+        toast.success('Invoicing configurations saved to live database!')
+      }
+    } catch (err) {
+      toast.error('Failed to save invoicing configurations')
+    }
+  }
 
   const [form] = Form.useForm()
 
@@ -622,24 +1216,83 @@ export default function ClinicAdminSettingsPage() {
         return (
           <div className="space-y-6 max-w-4xl pb-10">
             <h2 className="text-[22px] font-bold text-[#1a1a1a] dark:text-white mb-6">Legal & Information</h2>
-            <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm mb-4"><h3 className="font-bold">FAQ</h3><p className="text-slate-500 text-sm">Configure frequently asked questions.</p></Card>
             <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm mb-4"><h3 className="font-bold">About Us</h3><p className="text-slate-500 text-sm">Configure clinic description.</p></Card>
             <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm mb-4"><h3 className="font-bold">Terms & Conditions</h3><p className="text-slate-500 text-sm">Clinic terms document.</p></Card>
             <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm"><h3 className="font-bold">Privacy Policy</h3><p className="text-slate-500 text-sm">Clinic privacy policy document.</p></Card>
           </div>
         )
+      case 'clinic_details':
+        return <ClinicDetailsTab />
+      case 'roles_permissions':
+        return <RolesPermissionsTab />
+      case 'subscription':
+        return <SubscriptionPage />
       case 'integrations':
+        const currentList = integrationsList.length > 0 ? integrationsList : store.integrations
+        const displayIntegrations = currentList.filter(item => {
+          const matchesSearch = !integrationsSearch.trim() ||
+            item.name.toLowerCase().includes(integrationsSearch.toLowerCase()) ||
+            (item.type && item.type.toLowerCase().includes(integrationsSearch.toLowerCase()))
+          const matchesCategory = integrationsCategoryFilter === 'All' || item.type === integrationsCategoryFilter
+          const matchesStatus = integrationsStatusFilter === 'All' ||
+            (integrationsStatusFilter === 'Connected' && item.connected) ||
+            (integrationsStatusFilter === 'Disconnected' && !item.connected)
+          return matchesSearch && matchesCategory && matchesStatus
+        })
+
         return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Integrations</h2>
-              <p className="text-slate-400 text-xs mt-1 font-semibold">
-                Manage your connections to third-party software tools for accounting, exercise, payments, and video consults.
-              </p>
+          <div className="space-y-6 animate-fade-in">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Integrations</h2>
+                <p className="text-slate-400 text-xs mt-1 font-semibold">
+                  Manage your connections to third-party software tools with live database backend synchronization.
+                </p>
+              </div>
+              <Button
+                icon={<SyncOutlined spinning={loadingIntegrations} />}
+                onClick={fetchIntegrations}
+                className="rounded-xl font-semibold border-slate-200 h-9"
+              >
+                Refresh DB Data
+              </Button>
+            </div>
+
+            {/* Filter & Search Toolbar */}
+            <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-150 dark:border-slate-800 shadow-sm">
+              <Input
+                placeholder="Search integrations..."
+                prefix={<SearchOutlined className="text-slate-400" />}
+                value={integrationsSearch}
+                onChange={(e) => setIntegrationsSearch(e.target.value)}
+                className="w-full md:w-64 rounded-xl border-slate-200 h-9"
+                allowClear
+              />
+              <Select
+                value={integrationsCategoryFilter}
+                onChange={setIntegrationsCategoryFilter}
+                className="w-48 rounded-xl h-9"
+              >
+                <Option value="All">All Categories</Option>
+                <Option value="Accounting">Accounting</Option>
+                <Option value="Exercise Prescription">Exercise Prescription</Option>
+                <Option value="Payments">Payments</Option>
+                <Option value="Video Consultations">Video Consultations</Option>
+                <Option value="Health Claiming">Health Claiming</Option>
+              </Select>
+              <Select
+                value={integrationsStatusFilter}
+                onChange={setIntegrationsStatusFilter}
+                className="w-40 rounded-xl h-9"
+              >
+                <Option value="All">All Statuses</Option>
+                <Option value="Connected">Connected</Option>
+                <Option value="Disconnected">Disconnected</Option>
+              </Select>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {store.integrations.map((item) => (
+              {displayIntegrations.map((item) => (
                 <Card
                   key={item.id}
                   className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden"
@@ -688,14 +1341,7 @@ export default function ClinicAdminSettingsPage() {
                     <div className="flex gap-2">
                       <Button
                         type={item.connected ? 'default' : 'primary'}
-                        onClick={() => {
-                          if (item.id === 'myob') {
-                            toast.error('MYOB integration is coming soon in a future update!')
-                            return
-                          }
-                          store.toggleIntegration(item.id)
-                          toast.success(`${item.name} status updated successfully!`)
-                        }}
+                        onClick={() => handleToggleIntegration(item)}
                         className="flex-1 rounded-xl text-xs font-bold h-9"
                         style={!item.connected && item.id !== 'myob' ? { backgroundColor: '#8C4BFF', border: 'none' } : {}}
                       >
@@ -704,14 +1350,7 @@ export default function ClinicAdminSettingsPage() {
                       {item.connected && (
                         <Button
                           icon={<SyncOutlined />}
-                          onClick={() => {
-                            useClinicStore.setState((state) => ({
-                              integrations: state.integrations.map((i) =>
-                                i.id === item.id ? { ...i, lastSync: new Date().toLocaleString() } : i
-                              ),
-                            }))
-                            toast.success(`Synced details from ${item.name}!`)
-                          }}
+                          onClick={() => handleSyncIntegration(item)}
                           className="rounded-xl border border-slate-200 h-9 w-9 flex items-center justify-center p-0"
                         />
                       )}
@@ -725,755 +1364,630 @@ export default function ClinicAdminSettingsPage() {
 
       case 'templates':
       case 'notes':
-      case 'letters':
+      case 'letters': {
+        const displayFormTemplates = store.formTemplates.filter((item) => {
+          const matchesSearch = !formsSearch.trim() ||
+            item.name.toLowerCase().includes(formsSearch.toLowerCase()) ||
+            (item.category && item.category.toLowerCase().includes(formsSearch.toLowerCase()))
+          const matchesCategory = formsCategoryFilter === 'All' || item.category === formsCategoryFilter
+          return matchesSearch && matchesCategory
+        })
+
+        const displayLetterTemplates = store.letterTemplates.filter((item) => {
+          const matchesSearch = !lettersSearch.trim() ||
+            item.name.toLowerCase().includes(lettersSearch.toLowerCase()) ||
+            (item.category && item.category.toLowerCase().includes(lettersSearch.toLowerCase()))
+          const matchesStatus = lettersStatusFilter === 'All' || item.status === lettersStatusFilter
+          return matchesSearch && matchesStatus
+        })
+
         return (
           <div className="space-y-6 animate-fade-in">
-            <div className="flex gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/50 rounded-xl w-fit">
-              {[
-                { id: 'forms', label: 'Forms Templates' },
-                { id: 'letters', label: 'Letter Templates' },
-                { id: 'notes', label: 'Note Templates' },
-                { id: 'invoices', label: 'Invoice Templates' },
-              ].map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTemplateTab(tab.id)}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border-none cursor-pointer ${activeTemplateTab === tab.id ? 'bg-white dark:bg-slate-700 shadow-sm text-[#8C4BFF]' : 'bg-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex gap-2 p-1.5 bg-slate-100 dark:bg-slate-800/50 rounded-xl w-fit">
+                {[
+                  { id: 'forms', label: 'Forms Templates' },
+                  { id: 'letters', label: 'Letter Templates' },
+                  { id: 'notes', label: 'Note Templates' },
+                  { id: 'invoices', label: 'Invoice Templates' },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTemplateTab(tab.id)}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border-none cursor-pointer ${activeTemplateTab === tab.id ? 'bg-white dark:bg-slate-700 shadow-sm text-[#8C4BFF]' : 'bg-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+              <Button
+                icon={<SyncOutlined spinning={loadingTemplates} />}
+                onClick={fetchTemplates}
+                className="rounded-xl font-semibold border-slate-200 h-9"
+              >
+                Refresh Templates DB
+              </Button>
             </div>
 
             {activeTemplateTab === 'forms' && (
-              
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Forms Templates</h2>
-                <p className="text-slate-400 text-xs mt-1 font-semibold">
-                  Manage Intake, Assessment, and Consent forms filled by clients prior to consultations.
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setEditingForm(null)
-                  formEdit.resetFields()
-                  setFormModalOpen(true)
-                }}
-                className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 text-white font-bold h-9 px-4 rounded-xl flex items-center gap-2 cursor-pointer border-none shadow-sm text-xs transition-colors"
-              >
-                <PlusOutlined />
-                <span>Create Form</span>
-              </button>
-            </div>
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Forms Templates</h2>
+                    <p className="text-slate-400 text-xs mt-1 font-semibold">
+                      Manage Intake, Assessment, and Consent forms filled by clients prior to consultations.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditingForm(null)
+                      formEdit.resetFields()
+                      setFormModalOpen(true)
+                    }}
+                    className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 text-white font-bold h-9 px-4 rounded-xl flex items-center gap-2 cursor-pointer border-none shadow-sm text-xs transition-colors"
+                  >
+                    <PlusOutlined />
+                    <span>Create Form</span>
+                  </button>
+                </div>
 
-            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-              <Table
-                dataSource={store.formTemplates}
-                pagination={false}
-                rowKey="id"
-                columns={[
-                  {
-                    title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Form Name</span>,
-                    dataIndex: 'name',
-                    render: (text) => <span className="font-bold text-slate-800 dark:text-slate-200">{text}</span>,
-                  },
-                  {
-                    title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Category</span>,
-                    dataIndex: 'category',
-                    render: (text) => <Tag color="blue" className="rounded-full border-none font-bold text-[10px] px-2.5 py-0.5">{text}</Tag>,
-                  },
-                  {
-                    title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Last Modified</span>,
-                    dataIndex: 'lastModified',
-                  },
-                  {
-                    title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Actions</span>,
-                    key: 'actions',
-                    align: 'right',
-                    render: (_, record) => (
-                      <Space size="middle">
-                        <button
-                          onClick={() => {
-                            const duplicated = {
-                              id: `f_${Date.now()}`,
-                              name: `${record.name} (Copy)`,
-                              category: record.category,
-                              lastModified: new Date().toISOString().split('T')[0],
-                            }
-                            useClinicStore.setState((state) => ({
-                              formTemplates: [...state.formTemplates, duplicated],
-                            }))
-                            toast.success(`Duplicated: ${record.name}`)
-                          }}
-                          className="bg-transparent border-none text-slate-400 hover:text-[#8C4BFF] cursor-pointer"
-                          title="Duplicate"
-                        >
-                          <CopyOutlined />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingForm(record)
-                            formEdit.setFieldsValue(record)
-                            setFormModalOpen(true)
-                          }}
-                          className="bg-transparent border-none text-slate-400 hover:text-[#8C4BFF] cursor-pointer"
-                          title="Edit"
-                        >
-                          <EditOutlined />
-                        </button>
-                        <button
-                          onClick={() => {
-                            useClinicStore.setState((state) => ({
-                              formTemplates: state.formTemplates.filter((f) => f.id !== record.id),
-                            }))
-                            toast.success(`Deleted: ${record.name}`)
-                          }}
-                          className="bg-transparent border-none text-slate-400 hover:text-red-500 cursor-pointer"
-                          title="Delete"
-                        >
-                          <DeleteOutlined />
-                        </button>
-                      </Space>
-                    ),
-                  },
-                ]}
-              />
-            </div>
-
-            {/* Form Modal */}
-            <Modal
-              open={formModalOpen}
-              onCancel={() => setFormModalOpen(false)}
-              footer={null}
-              destroyOnHidden
-              width={420}
-              title={<span className="font-bold text-slate-800 dark:text-slate-200">{editingForm ? 'Edit Form' : 'Create Form'}</span>}
-            >
-              <Form
-                layout="vertical"
-                form={formEdit}
-                onFinish={(values) => {
-                  if (editingForm) {
-                    useClinicStore.setState((state) => ({
-                      formTemplates: state.formTemplates.map((f) =>
-                        f.id === editingForm.id ? { ...f, ...values, lastModified: new Date().toISOString().split('T')[0] } : f
-                      ),
-                    }))
-                    toast.success('Form template updated!')
-                  } else {
-                    const newForm = {
-                      id: `f_${Date.now()}`,
-                      name: values.name,
-                      category: values.category || 'General',
-                      lastModified: new Date().toISOString().split('T')[0],
-                    }
-                    useClinicStore.setState((state) => ({
-                      formTemplates: [...state.formTemplates, newForm],
-                    }))
-                    toast.success('New form template added!')
-                  }
-                  setFormModalOpen(false)
-                }}
-                className="mt-4"
-              >
-                <Form.Item name="name" label="Form name" rules={[{ required: true }]}>
-                  <Input placeholder="e.g. Falls Risk Assessment" />
-                </Form.Item>
-                <Form.Item name="category" label="Category" rules={[{ required: true }]}>
-                  <Select placeholder="Select category">
+                {/* Filter Toolbar for Forms */}
+                <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-150 dark:border-slate-800 shadow-sm">
+                  <Input
+                    placeholder="Search form templates..."
+                    prefix={<SearchOutlined className="text-slate-400" />}
+                    value={formsSearch}
+                    onChange={(e) => setFormsSearch(e.target.value)}
+                    className="w-full md:w-64 rounded-xl border-slate-200 h-9"
+                    allowClear
+                  />
+                  <Select
+                    value={formsCategoryFilter}
+                    onChange={setFormsCategoryFilter}
+                    className="w-48 rounded-xl h-9"
+                  >
+                    <Option value="All">All Categories</Option>
                     <Option value="Intake">Intake</Option>
                     <Option value="Assessment">Assessment</Option>
                     <Option value="Consent">Consent</Option>
                     <Option value="Clinical">Clinical</Option>
                     <Option value="Other">Other</Option>
                   </Select>
-                </Form.Item>
-                <div className="flex justify-end gap-2 mt-6">
-                  <Button onClick={() => setFormModalOpen(false)}>Cancel</Button>
-                  <Button type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }}>
-                    Save Form
-                  </Button>
                 </div>
-              </Form>
-            </Modal>
-          </div>
+
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+                  <Table
+                    dataSource={displayFormTemplates}
+                    pagination={false}
+                    rowKey="id"
+                    columns={[
+                      {
+                        title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Form Name</span>,
+                        dataIndex: 'name',
+                        render: (text) => <span className="font-bold text-slate-800 dark:text-slate-200">{text}</span>,
+                      },
+                      {
+                        title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Category</span>,
+                        dataIndex: 'category',
+                        render: (text) => <Tag color="blue" className="rounded-full border-none font-bold text-[10px] px-2.5 py-0.5">{text}</Tag>,
+                      },
+                      {
+                        title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Last Modified</span>,
+                        dataIndex: 'lastModified',
+                      },
+                      {
+                        title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Actions</span>,
+                        key: 'actions',
+                        align: 'right',
+                        render: (_, record) => (
+                          <Space size="middle">
+                            <button
+                              onClick={() => handleDuplicateFormDB(record)}
+                              className="bg-transparent border-none text-slate-400 hover:text-[#8C4BFF] cursor-pointer"
+                              title="Duplicate"
+                            >
+                              <CopyOutlined />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingForm(record)
+                                formEdit.setFieldsValue(record)
+                                setFormModalOpen(true)
+                              }}
+                              className="bg-transparent border-none text-slate-400 hover:text-[#8C4BFF] cursor-pointer"
+                              title="Edit"
+                            >
+                              <EditOutlined />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteFormDB(record.id, record.name)}
+                              className="bg-transparent border-none text-slate-400 hover:text-red-500 cursor-pointer"
+                              title="Delete"
+                            >
+                              <DeleteOutlined />
+                            </button>
+                          </Space>
+                        ),
+                      },
+                    ]}
+                  />
+                </div>
+
+                {/* Form Modal */}
+                <Modal
+                  open={formModalOpen}
+                  onCancel={() => setFormModalOpen(false)}
+                  footer={null}
+                  destroyOnHidden
+                  width={420}
+                  title={<span className="font-bold text-slate-800 dark:text-slate-200">{editingForm ? 'Edit Form' : 'Create Form'}</span>}
+                >
+                  <Form
+                    layout="vertical"
+                    form={formEdit}
+                    onFinish={handleSaveFormDB}
+                    className="mt-4"
+                  >
+                    <Form.Item name="name" label="Form name" rules={[{ required: true }]}>
+                      <Input placeholder="e.g. Falls Risk Assessment" />
+                    </Form.Item>
+                    <Form.Item name="category" label="Category" rules={[{ required: true }]}>
+                      <Select placeholder="Select category">
+                        <Option value="Intake">Intake</Option>
+                        <Option value="Assessment">Assessment</Option>
+                        <Option value="Consent">Consent</Option>
+                        <Option value="Clinical">Clinical</Option>
+                        <Option value="Other">Other</Option>
+                      </Select>
+                    </Form.Item>
+                    <div className="flex justify-end gap-2 mt-6">
+                      <Button onClick={() => setFormModalOpen(false)}>Cancel</Button>
+                      <Button type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }}>
+                        Save Form
+                      </Button>
+                    </div>
+                  </Form>
+                </Modal>
+              </div>
             )}
 
             {activeTemplateTab === 'letters' && (
-              
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Letter Templates</h2>
-                <p className="text-slate-400 text-xs mt-1 font-semibold">
-                  Manage clinical templates for referral letters, discharge plans, and GPs.
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setEditingLetter(null)
-                  letterEdit.resetFields()
-                  setLetterModalOpen(true)
-                }}
-                className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 text-white font-bold h-9 px-4 rounded-xl flex items-center gap-2 cursor-pointer border-none shadow-sm text-xs transition-colors"
-              >
-                <PlusOutlined />
-                <span>Create Letter</span>
-              </button>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-              <Table
-                dataSource={store.letterTemplates}
-                pagination={false}
-                rowKey="id"
-                columns={[
-                  {
-                    title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Letter Title</span>,
-                    dataIndex: 'name',
-                    render: (text) => <span className="font-bold text-slate-800 dark:text-slate-200">{text}</span>,
-                  },
-                  {
-                    title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Category</span>,
-                    dataIndex: 'category',
-                    render: (text) => <Tag color="purple" className="rounded-full border-none font-bold text-[10px] px-2.5 py-0.5">{text}</Tag>,
-                  },
-                  {
-                    title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Status</span>,
-                    dataIndex: 'status',
-                    render: (status) => (
-                      <Tag color={status === 'active' ? 'success' : 'default'} className="rounded-full border-none font-bold uppercase text-[9px] px-2.5">
-                        {status}
-                      </Tag>
-                    ),
-                  },
-                  {
-                    title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Actions</span>,
-                    key: 'actions',
-                    align: 'right',
-                    render: (_, record) => (
-                      <Space size="middle">
-                        <button
-                          onClick={() => {
-                            const archivedVal = record.status === 'active' ? 'archived' : 'active'
-                            useClinicStore.setState((state) => ({
-                              letterTemplates: state.letterTemplates.map((l) =>
-                                l.id === record.id ? { ...l, status: archivedVal } : l
-                              ),
-                            }))
-                            toast.success(`Letter marked as ${archivedVal}!`)
-                          }}
-                          className="bg-transparent border-none text-slate-400 hover:text-amber-500 cursor-pointer"
-                          title="Archive"
-                        >
-                          <CloseCircleOutlined />
-                        </button>
-                        <button
-                          onClick={() => {
-                            const duplicated = {
-                              id: `l_${Date.now()}`,
-                              name: `${record.name} (Copy)`,
-                              category: record.category,
-                              status: 'active',
-                            }
-                            useClinicStore.setState((state) => ({
-                              letterTemplates: [...state.letterTemplates, duplicated],
-                            }))
-                            toast.success(`Duplicated Letter: ${record.name}`)
-                          }}
-                          className="bg-transparent border-none text-slate-400 hover:text-[#8C4BFF] cursor-pointer"
-                          title="Duplicate"
-                        >
-                          <CopyOutlined />
-                        </button>
-                        <button
-                          onClick={() => {
-                            setEditingLetter(record)
-                            letterEdit.setFieldsValue(record)
-                            setLetterModalOpen(true)
-                          }}
-                          className="bg-transparent border-none text-slate-400 hover:text-[#8C4BFF] cursor-pointer"
-                          title="Edit"
-                        >
-                          <EditOutlined />
-                        </button>
-                      </Space>
-                    ),
-                  },
-                ]}
-              />
-            </div>
-
-            {/* Letter Modal */}
-            <Modal
-              open={letterModalOpen}
-              onCancel={() => setLetterModalOpen(false)}
-              footer={null}
-              destroyOnHidden
-              width={420}
-              title={<span className="font-bold text-slate-800 dark:text-slate-200">{editingLetter ? 'Edit Letter' : 'Create Letter'}</span>}
-            >
-              <Form
-                layout="vertical"
-                form={letterEdit}
-                onFinish={(values) => {
-                  if (editingLetter) {
-                    useClinicStore.setState((state) => ({
-                      letterTemplates: state.letterTemplates.map((l) =>
-                        l.id === editingLetter.id ? { ...l, ...values } : l
-                      ),
-                    }))
-                    toast.success('Letter template updated!')
-                  } else {
-                    const newLetter = {
-                      id: `l_${Date.now()}`,
-                      name: values.name,
-                      category: values.category || 'General',
-                      status: 'active',
-                    }
-                    useClinicStore.setState((state) => ({
-                      letterTemplates: [...state.letterTemplates, newLetter],
-                    }))
-                    toast.success('Letter template created!')
-                  }
-                  setLetterModalOpen(false)
-                }}
-                className="mt-4"
-              >
-                <Form.Item name="name" label="Letter template name" rules={[{ required: true }]}>
-                  <Input placeholder="e.g. Discharge Summary Letter" />
-                </Form.Item>
-                <Form.Item name="category" label="Category" rules={[{ required: true }]}>
-                  <Input placeholder="e.g. Referrals, Discharge" />
-                </Form.Item>
-                <div className="flex justify-end gap-2 mt-6">
-                  <Button onClick={() => setLetterModalOpen(false)}>Cancel</Button>
-                  <Button type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }}>
-                    Save Letter
-                  </Button>
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Letter Templates</h2>
+                    <p className="text-slate-400 text-xs mt-1 font-semibold">
+                      Manage clinical templates for referral letters, discharge plans, and GPs.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setEditingLetter(null)
+                      letterEdit.resetFields()
+                      setLetterModalOpen(true)
+                    }}
+                    className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 text-white font-bold h-9 px-4 rounded-xl flex items-center gap-2 cursor-pointer border-none shadow-sm text-xs transition-colors"
+                  >
+                    <PlusOutlined />
+                    <span>Create Letter</span>
+                  </button>
                 </div>
-              </Form>
-            </Modal>
-          </div>
+
+                {/* Filter Toolbar for Letters */}
+                <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-150 dark:border-slate-800 shadow-sm">
+                  <Input
+                    placeholder="Search letter templates..."
+                    prefix={<SearchOutlined className="text-slate-400" />}
+                    value={lettersSearch}
+                    onChange={(e) => setLettersSearch(e.target.value)}
+                    className="w-full md:w-64 rounded-xl border-slate-200 h-9"
+                    allowClear
+                  />
+                  <Select
+                    value={lettersStatusFilter}
+                    onChange={setLettersStatusFilter}
+                    className="w-40 rounded-xl h-9"
+                  >
+                    <Option value="All">All Statuses</Option>
+                    <Option value="active">Active</Option>
+                    <Option value="archived">Archived</Option>
+                  </Select>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+                  <Table
+                    dataSource={displayLetterTemplates}
+                    pagination={false}
+                    rowKey="id"
+                    columns={[
+                      {
+                        title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Letter Title</span>,
+                        dataIndex: 'name',
+                        render: (text) => <span className="font-bold text-slate-800 dark:text-slate-200">{text}</span>,
+                      },
+                      {
+                        title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Category</span>,
+                        dataIndex: 'category',
+                        render: (text) => <Tag color="purple" className="rounded-full border-none font-bold text-[10px] px-2.5 py-0.5">{text}</Tag>,
+                      },
+                      {
+                        title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Status</span>,
+                        dataIndex: 'status',
+                        render: (status) => (
+                          <Tag color={status === 'active' ? 'success' : 'default'} className="rounded-full border-none font-bold uppercase text-[9px] px-2.5">
+                            {status}
+                          </Tag>
+                        ),
+                      },
+                      {
+                        title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Actions</span>,
+                        key: 'actions',
+                        align: 'right',
+                        render: (_, record) => (
+                          <Space size="middle">
+                            <button
+                              onClick={() => handleToggleLetterStatusDB(record)}
+                              className="bg-transparent border-none text-slate-400 hover:text-amber-500 cursor-pointer"
+                              title="Archive / Activate"
+                            >
+                              <CloseCircleOutlined />
+                            </button>
+                            <button
+                              onClick={() => handleDuplicateLetterDB(record)}
+                              className="bg-transparent border-none text-slate-400 hover:text-[#8C4BFF] cursor-pointer"
+                              title="Duplicate"
+                            >
+                              <CopyOutlined />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingLetter(record)
+                                letterEdit.setFieldsValue(record)
+                                setLetterModalOpen(true)
+                              }}
+                              className="bg-transparent border-none text-slate-400 hover:text-[#8C4BFF] cursor-pointer"
+                              title="Edit"
+                            >
+                              <EditOutlined />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteLetterDB(record.id, record.name)}
+                              className="bg-transparent border-none text-slate-400 hover:text-red-500 cursor-pointer"
+                              title="Delete"
+                            >
+                              <DeleteOutlined />
+                            </button>
+                          </Space>
+                        ),
+                      },
+                    ]}
+                  />
+                </div>
+
+                {/* Letter Modal */}
+                <Modal
+                  open={letterModalOpen}
+                  onCancel={() => setLetterModalOpen(false)}
+                  footer={null}
+                  destroyOnHidden
+                  width={420}
+                  title={<span className="font-bold text-slate-800 dark:text-slate-200">{editingLetter ? 'Edit Letter' : 'Create Letter'}</span>}
+                >
+                  <Form
+                    layout="vertical"
+                    form={letterEdit}
+                    onFinish={handleSaveLetterDB}
+                    className="mt-4"
+                  >
+                    <Form.Item name="name" label="Letter template name" rules={[{ required: true }]}>
+                      <Input placeholder="e.g. Discharge Summary Letter" />
+                    </Form.Item>
+                    <Form.Item name="category" label="Category" rules={[{ required: true }]}>
+                      <Input placeholder="e.g. Referrals, Discharge" />
+                    </Form.Item>
+                    <div className="flex justify-end gap-2 mt-6">
+                      <Button onClick={() => setLetterModalOpen(false)}>Cancel</Button>
+                      <Button type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }}>
+                        Save Letter
+                      </Button>
+                    </div>
+                  </Form>
+                </Modal>
+              </div>
             )}
 
             {activeTemplateTab === 'notes' && (
-              
-          <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Note Templates</h2>
-                <p className="text-slate-400 text-xs mt-1 font-semibold">
-                  Configure notes models. Note templates support placeholders that auto-populate active patient metadata.
-                </p>
-              </div>
-              <button
-                onClick={() => setNoteModalOpen(true)}
-                className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 text-white font-bold h-9 px-4 rounded-xl flex items-center gap-2 cursor-pointer border-none shadow-sm text-xs transition-colors"
-              >
-                <PlusOutlined />
-                <span>Create Template</span>
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              <div className="lg:col-span-1 space-y-2">
-                <span className="text-xs uppercase font-extrabold text-slate-400 tracking-wider block mb-2">Note Profiles</span>
-                {store.noteTemplates.map((t) => (
-                  <div
-                    key={t.id}
-                    className={`w-full p-2.5 rounded-xl border text-xs font-bold transition-all flex justify-between items-center ${selectedNote?.id === t.id
-                        ? 'border-[#8C4BFF] bg-[#8C4BFF]/5 text-[#8C4BFF]'
-                        : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900'
-                      }`}
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Note Templates</h2>
+                    <p className="text-slate-400 text-xs mt-1 font-semibold">
+                      Configure notes models. Note templates support placeholders that auto-populate active patient metadata.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setNoteModalOpen(true)}
+                    className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 text-white font-bold h-9 px-4 rounded-xl flex items-center gap-2 cursor-pointer border-none shadow-sm text-xs transition-colors"
                   >
-                    <button
-                      onClick={() => setSelectedNote(t)}
-                      className={`text-left bg-transparent border-none font-bold text-xs cursor-pointer truncate flex-1 ${selectedNote?.id === t.id ? 'text-[#8C4BFF]' : 'text-slate-700 dark:text-slate-300'}`}
-                    >
-                      {t.name}
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (store.noteTemplates.length <= 1) {
-                          toast.error('At least one note template must be kept!')
-                          return
-                        }
-                        const updated = store.noteTemplates.filter((n) => n.id !== t.id)
-                        useClinicStore.setState({ noteTemplates: updated })
-                        if (selectedNote?.id === t.id) {
-                          setSelectedNote(updated[0])
-                        }
-                        toast.success('Note template deleted!')
-                      }}
-                      className="bg-transparent border-none text-slate-400 hover:text-red-500 cursor-pointer p-0.5 ml-1"
-                      title="Delete Template"
-                    >
-                      <DeleteOutlined style={{ fontSize: 12 }} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="lg:col-span-3">
-                {selectedNote ? (
-                  <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900">
-                    <div className="flex justify-between items-center mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">
-                      <div>
-                        <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Template Title</span>
-                        <h3 className="text-base font-extrabold text-slate-800 dark:text-white m-0 mt-0.5">{selectedNote.name}</h3>
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="mb-4">
-                        <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-2">
-                          Placeholders (Click to insert at cursor position)
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                          {['{{Client Name}}', '{{DOB}}', '{{NDIS Number}}', '{{Diagnosis}}', '{{Practitioner Name}}'].map((pl) => (
-                            <button
-                              key={pl}
-                              type="button"
-                              onClick={() => {
-                                const newContent = selectedNote.content + ` ${pl} `
-                                useClinicStore.setState((state) => ({
-                                  noteTemplates: state.noteTemplates.map((n) =>
-                                    n.id === selectedNote.id ? { ...n, content: newContent } : n
-                                  ),
-                                }))
-                                setSelectedNote({ ...selectedNote, content: newContent })
-                                toast.success(`Inserted ${pl}`)
-                              }}
-                              className="bg-slate-100 dark:bg-slate-800 hover:bg-[#8C4BFF]/10 dark:hover:bg-[#8C4BFF]/20 text-slate-600 dark:text-slate-300 hover:text-[#8C4BFF] border-none px-2.5 py-1 text-[11px] font-extrabold rounded-lg cursor-pointer transition-colors"
-                            >
-                              {pl}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="mb-5">
-                        <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-1">
-                          Notes Structure / Text Content
-                        </span>
-                        <Input.TextArea
-                          value={selectedNote.content}
-                          onChange={(e) => {
-                            const val = e.target.value
-                            useClinicStore.setState((state) => ({
-                              noteTemplates: state.noteTemplates.map((n) =>
-                                n.id === selectedNote.id ? { ...n, content: val } : n
-                              ),
-                            }))
-                            setSelectedNote({ ...selectedNote, content: val })
-                          }}
-                          autoSize={{ minRows: 16, maxRows: 30 }}
-                          className="text-slate-700 dark:text-slate-300 text-xs leading-relaxed font-mono rounded-lg"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-50 dark:border-slate-800 mt-2">
-                      <Button
-                        onClick={() => setNotePreviewModalOpen(true)}
-                        className="rounded-xl font-bold h-10 text-xs px-5 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 dark:bg-slate-800"
-                        icon={<EyeOutlined />}
-                      >
-                        Preview Template
-                      </Button>
-                      <Button
-                        type="primary"
-                        onClick={() => toast.success('Note templates settings auto-saved to cloud database ledger!')}
-                        style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
-                        className="rounded-xl font-bold h-10 text-xs px-5 border-none"
-                      >
-                        Save Notes Layout
-                      </Button>
-                    </div>
-                  </Card>
-                ) : (
-                  <div className="text-slate-400 text-xs py-8 text-center bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800 font-semibold">
-                    Select a note template profile from the left list.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Note Template Modal */}
-            <Modal
-              open={noteModalOpen}
-              onCancel={() => setNoteModalOpen(false)}
-              footer={null}
-              destroyOnHidden
-              width={400}
-              title={<span className="font-bold text-slate-800 dark:text-slate-200">Create Note Template</span>}
-            >
-              <Form
-                layout="vertical"
-                onFinish={(values) => {
-                  const newTpl = {
-                    id: `n_${Date.now()}`,
-                    name: values.name,
-                    content: 'Write notes structure details here...',
-                  }
-                  useClinicStore.setState((state) => ({
-                    noteTemplates: [...state.noteTemplates, newTpl],
-                  }))
-                  setSelectedNote(newTpl)
-                  toast.success('Note template created!')
-                  setNoteModalOpen(false)
-                }}
-                className="mt-4"
-              >
-                <Form.Item name="name" label="Template name" rules={[{ required: true, message: 'Please enter template name' }]}>
-                  <Input placeholder="e.g. Daily Check-in Note" />
-                </Form.Item>
-                <div className="flex justify-end gap-2 mt-6">
-                  <Button onClick={() => setNoteModalOpen(false)}>Cancel</Button>
-                  <Button type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }}>
-                    Create
-                  </Button>
+                    <PlusOutlined />
+                    <span>Create Template</span>
+                  </button>
                 </div>
-              </Form>
-            </Modal>
 
-            {/* Note Preview Modal */}
-            <Modal
-              open={notePreviewModalOpen}
-              onCancel={() => setNotePreviewModalOpen(false)}
-              footer={null}
-              destroyOnHidden
-              width={600}
-              title={<span className="font-bold text-slate-800 dark:text-slate-200">Template Preview: {selectedNote?.name}</span>}
-              className="dark:bg-slate-900 rounded-2xl"
-            >
-              <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 p-4 rounded-xl whitespace-pre-wrap text-slate-700 dark:text-slate-300 text-xs font-medium leading-relaxed max-h-[60vh] overflow-y-auto mt-4 shadow-inner">
-                {selectedNote?.content ? selectedNote.content.split(/(\{\{[^}]+\}\})/).map((part, i) => {
-                  if (part.startsWith('{{') && part.endsWith('}}')) {
-                    return <span key={i} className="text-[#8C4BFF] font-bold bg-[#8C4BFF]/10 px-1 rounded">{part}</span>;
-                  }
-                  return part;
-                }) : 'No content...'}
-              </div>
-            </Modal>
-          </div>
-            )}
-
-            {activeTemplateTab === 'invoices' && (
-              
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Invoice Templates</h2>
-              <p className="text-slate-400 text-xs mt-1 font-semibold">
-                Set billing terms, payment rules, custom logos, and different layouts based on funding schemas.
-              </p>
-            </div>
-
-            <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
-              <Form
-                layout="vertical"
-                initialValues={{
-                  terms: store.invoiceTemplates.paymentTerms,
-                  footer: store.invoiceTemplates.footerText,
-                }}
-                onFinish={(values) => {
-                  useClinicStore.setState({
-                    invoiceTemplates: {
-                      logoUrl: null,
-                      paymentTerms: values.terms,
-                      footerText: values.footer,
-                    },
-                  })
-                  toast.success('Invoicing configurations saved successfully!')
-                }}
-              >
-                {/* Upload logo */}
-                <div className="mb-6">
-                  <span className="block text-slate-700 dark:text-slate-300 text-xs font-bold mb-2">Upload Clinic Logo</span>
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 overflow-hidden">
-                      {store.invoiceTemplates.logoUrl ? (
-                        <img src={store.invoiceTemplates.logoUrl} alt="Logo" className="w-full h-full object-cover" />
-                      ) : (
-                        <PictureOutlined style={{ fontSize: 20 }} />
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const input = document.createElement('input')
-                        input.type = 'file'
-                        input.accept = 'image/*'
-                        input.onchange = (e) => {
-                          const file = e.target.files[0]
-                          if (file) {
-                            const reader = new FileReader()
-                            reader.onload = (readerEvent) => {
-                              const base64 = readerEvent.target.result
-                              useClinicStore.setState(state => ({
-                                invoiceTemplates: {
-                                  ...state.invoiceTemplates,
-                                  logoUrl: base64
-                                }
-                              }))
-                              toast.success('Clinic logo uploaded and saved!')
-                            }
-                            reader.readAsDataURL(file)
-                          }
-                        }
-                        input.click()
-                      }}
-                      className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border border-slate-200 text-xs px-4 py-2 rounded-xl cursor-pointer transition-colors"
-                    >
-                      Choose Image...
-                    </button>
-                    {store.invoiceTemplates.logoUrl && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          useClinicStore.setState(state => ({
-                            invoiceTemplates: {
-                              ...state.invoiceTemplates,
-                              logoUrl: null
-                            }
-                          }))
-                          toast.success('Logo removed successfully')
-                        }}
-                        className="bg-transparent border-none text-red-500 hover:text-red-700 text-xs font-semibold cursor-pointer"
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                  <div className="lg:col-span-1 space-y-2">
+                    <span className="text-xs uppercase font-extrabold text-slate-400 tracking-wider block mb-2">Note Profiles</span>
+                    {store.noteTemplates.map((t) => (
+                      <div
+                        key={t.id}
+                        className={`w-full p-2.5 rounded-xl border text-xs font-bold transition-all flex justify-between items-center ${selectedNote?.id === t.id
+                            ? 'border-[#8C4BFF] bg-[#8C4BFF]/5 text-[#8C4BFF]'
+                            : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-900'
+                          }`}
                       >
-                        Remove Logo
-                      </button>
+                        <button
+                          onClick={() => setSelectedNote(t)}
+                          className={`text-left bg-transparent border-none font-bold text-xs cursor-pointer truncate flex-1 ${selectedNote?.id === t.id ? 'text-[#8C4BFF]' : 'text-slate-700 dark:text-slate-300'}`}
+                        >
+                          {t.name}
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleDeleteNoteDB(t)
+                          }}
+                          className="bg-transparent border-none text-slate-400 hover:text-red-500 cursor-pointer p-0.5 ml-1"
+                          title="Delete Template"
+                        >
+                          <DeleteOutlined style={{ fontSize: 12 }} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="lg:col-span-3">
+                    {selectedNote ? (
+                      <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900">
+                        <div className="flex justify-between items-center mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">
+                          <div>
+                            <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Template Title</span>
+                            <h3 className="text-base font-extrabold text-slate-800 dark:text-white m-0 mt-0.5">{selectedNote.name}</h3>
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="mb-4">
+                            <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-2">
+                              Placeholders (Click to insert at cursor position)
+                            </span>
+                            <div className="flex flex-wrap gap-2">
+                              {['{{Client Name}}', '{{DOB}}', '{{NDIS Number}}', '{{Diagnosis}}', '{{Practitioner Name}}'].map((pl) => (
+                                <button
+                                  key={pl}
+                                  type="button"
+                                  onClick={() => {
+                                    const newContent = selectedNote.content + ` ${pl} `
+                                    handleUpdateNoteContentDB(selectedNote, newContent)
+                                    toast.success(`Inserted ${pl}`)
+                                  }}
+                                  className="bg-slate-100 dark:bg-slate-800 hover:bg-[#8C4BFF]/10 dark:hover:bg-[#8C4BFF]/20 text-slate-600 dark:text-slate-300 hover:text-[#8C4BFF] border-none px-2.5 py-1 text-[11px] font-extrabold rounded-lg cursor-pointer transition-colors"
+                                >
+                                  {pl}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="mb-5">
+                            <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-1">
+                              Notes Structure / Text Content
+                            </span>
+                            <Input.TextArea
+                              value={selectedNote.content}
+                              onChange={(e) => {
+                                handleUpdateNoteContentDB(selectedNote, e.target.value)
+                              }}
+                              autoSize={{ minRows: 16, maxRows: 30 }}
+                              className="text-slate-700 dark:text-slate-300 text-xs leading-relaxed font-mono rounded-lg"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex justify-end gap-2 pt-2 border-t border-slate-50 dark:border-slate-800 mt-2">
+                          <Button
+                            onClick={() => setNotePreviewModalOpen(true)}
+                            className="rounded-xl font-bold h-10 text-xs px-5 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 dark:bg-slate-800"
+                            icon={<EyeOutlined />}
+                          >
+                            Preview Template
+                          </Button>
+                          <Button
+                            type="primary"
+                            onClick={handleSaveNotesLayoutDB}
+                            style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
+                            className="rounded-xl font-bold h-10 text-xs px-5 border-none"
+                          >
+                            Save Notes Layout
+                          </Button>
+                        </div>
+                      </Card>
+                    ) : (
+                      <div className="text-slate-400 text-xs py-8 text-center bg-slate-50 dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800 font-semibold">
+                        Select a note template profile from the left list.
+                      </div>
                     )}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Form.Item name="terms" label="Standard Payment Terms" rules={[{ required: true }]}>
-                    <Select className="w-full flex items-center">
-                      <Option value="Due on Receipt">Due on Receipt</Option>
-                      <Option value="7 Days">7 Days</Option>
-                      <Option value="14 Days">14 Days</Option>
-                      <Option value="30 Days">30 Days</Option>
-                    </Select>
-                  </Form.Item>
+                {/* Note Template Modal */}
+                <Modal
+                  open={noteModalOpen}
+                  onCancel={() => setNoteModalOpen(false)}
+                  footer={null}
+                  destroyOnHidden
+                  width={400}
+                  title={<span className="font-bold text-slate-800 dark:text-slate-200">Create Note Template</span>}
+                >
+                  <Form
+                    layout="vertical"
+                    onFinish={(values) => handleSaveNoteDB(values.name)}
+                    className="mt-4"
+                  >
+                    <Form.Item name="name" label="Template name" rules={[{ required: true, message: 'Please enter template name' }]}>
+                      <Input placeholder="e.g. Daily Check-in Note" />
+                    </Form.Item>
+                    <div className="flex justify-end gap-2 mt-6">
+                      <Button onClick={() => setNoteModalOpen(false)}>Cancel</Button>
+                      <Button type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }}>
+                        Create
+                      </Button>
+                    </div>
+                  </Form>
+                </Modal>
+
+                {/* Note Preview Modal */}
+                <Modal
+                  open={notePreviewModalOpen}
+                  onCancel={() => setNotePreviewModalOpen(false)}
+                  footer={null}
+                  destroyOnHidden
+                  width={600}
+                  title={<span className="font-bold text-slate-800 dark:text-slate-200">Template Preview: {selectedNote?.name}</span>}
+                  className="dark:bg-slate-900 rounded-2xl"
+                >
+                  <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 p-4 rounded-xl whitespace-pre-wrap text-slate-700 dark:text-slate-300 text-xs font-medium leading-relaxed max-h-[60vh] overflow-y-auto mt-4 shadow-inner">
+                    {selectedNote?.content ? selectedNote.content.split(/(\{\{[^}]+\}\})/).map((part, i) => {
+                      if (part.startsWith('{{') && part.endsWith('}}')) {
+                        return <span key={i} className="text-[#8C4BFF] font-bold bg-[#8C4BFF]/10 px-1 rounded">{part}</span>;
+                      }
+                      return part;
+                    }) : 'No content...'}
+                  </div>
+                </Modal>
+              </div>
+            )}
+
+            {activeTemplateTab === 'invoices' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Invoice Templates</h2>
+                  <p className="text-slate-400 text-xs mt-1 font-semibold">
+                    Set billing terms, payment rules, custom logos, and different layouts based on funding schemas.
+                  </p>
                 </div>
 
-                <Form.Item name="footer" label="Invoice Footer Information" rules={[{ required: true }]}>
-                  <Input.TextArea rows={3} placeholder="Thank you for choosing our practice." />
-                </Form.Item>
-
-                  <div className="mb-6">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="block text-xs font-bold text-slate-700 dark:text-slate-300">Funding Templates Enabled</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingInvoice(null)
-                          invoiceEdit.resetFields()
-                          setInvoiceModalOpen(true)
-                        }}
-                        className="bg-transparent border-none text-[#8C4BFF] hover:text-[#8C4BFF]/80 text-xs font-bold cursor-pointer flex items-center gap-1"
-                      >
-                        <PlusOutlined /> Add Layout
-                      </button>
-                    </div>
-                    <Table
-                      dataSource={store.invoiceTemplates.layouts}
-                      pagination={false}
-                      rowKey="id"
-                      columns={[
-                        {
-                          title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Layout Name</span>,
-                          dataIndex: 'type',
-                          render: (text) => <span className="font-bold text-slate-800 dark:text-slate-200">{text}</span>,
-                        },
-                        {
-                          title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Description</span>,
-                          dataIndex: 'desc',
-                          render: (text) => <span className="text-xs text-slate-500 dark:text-slate-400">{text}</span>,
-                        },
-                        {
-                          title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Actions</span>,
-                          key: 'actions',
-                          align: 'right',
-                          render: (_, record) => (
-                            <Space size="middle">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const duplicated = {
-                                    id: `inv_${Date.now()}`,
-                                    type: `${record.type} (Copy)`,
-                                    desc: record.desc,
-                                  }
-                                  useClinicStore.setState(state => ({
-                                    invoiceTemplates: {
-                                      ...state.invoiceTemplates,
-                                      layouts: [...(state.invoiceTemplates.layouts || []), duplicated]
-                                    }
-                                  }))
-                                  toast.success(`Duplicated: ${record.type}`)
-                                }}
-                                className="bg-transparent border-none text-slate-400 hover:text-[#8C4BFF] cursor-pointer"
-                                title="Duplicate"
-                              >
-                                <CopyOutlined />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setEditingInvoice(record)
-                                  invoiceEdit.setFieldsValue(record)
-                                  setInvoiceModalOpen(true)
-                                }}
-                                className="bg-transparent border-none text-slate-400 hover:text-[#8C4BFF] cursor-pointer"
-                                title="Edit"
-                              >
-                                <EditOutlined />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  useClinicStore.setState(state => ({
-                                    invoiceTemplates: {
-                                      ...state.invoiceTemplates,
-                                      layouts: state.invoiceTemplates.layouts.filter(l => l.id !== record.id)
-                                    }
-                                  }))
-                                  toast.success(`Deleted: ${record.type}`)
-                                }}
-                                className="bg-transparent border-none text-slate-400 hover:text-red-500 cursor-pointer"
-                                title="Delete"
-                              >
-                                <DeleteOutlined />
-                              </button>
-                            </Space>
-                          ),
-                        },
-                      ]}
-                    />
-                  </div>
-
-                <Form.Item className="mb-0">
-                  <button
-                    type="submit"
-                    className="bg-[#0E1B33] hover:bg-[#1A2E50] text-white border-none font-bold h-10 px-5 rounded-xl cursor-pointer"
+                <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
+                  <Form
+                    layout="vertical"
+                    initialValues={{
+                      terms: store.invoiceTemplates.paymentTerms,
+                      footer: store.invoiceTemplates.footerText,
+                    }}
+                    onFinish={handleSaveInvoiceTemplatesDB}
                   >
-                    Save Invoice Layout
-                  </button>
-                </Form.Item>
-              </Form>
-            </Card>
-          </div>
+                    {/* Upload logo */}
+                    <div className="mb-6">
+                      <span className="block text-slate-700 dark:text-slate-300 text-xs font-bold mb-2">Upload Clinic Logo</span>
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 bg-slate-100 border border-slate-200 rounded-xl flex items-center justify-center text-slate-400 overflow-hidden">
+                          {store.invoiceTemplates.logoUrl ? (
+                            <img src={store.invoiceTemplates.logoUrl} alt="Logo" className="w-full h-full object-cover" />
+                          ) : (
+                            <PictureOutlined style={{ fontSize: 20 }} />
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const input = document.createElement('input')
+                            input.type = 'file'
+                            input.accept = 'image/*'
+                            input.onchange = (e) => {
+                              const file = e.target.files[0]
+                              if (file) {
+                                const reader = new FileReader()
+                                reader.onload = async (readerEvent) => {
+                                  const base64 = readerEvent.target.result
+                                  useClinicStore.setState(state => ({
+                                    invoiceTemplates: {
+                                      ...state.invoiceTemplates,
+                                      logoUrl: base64
+                                    }
+                                  }))
+                                  await updateInvoiceTemplatesApi({ logoUrl: base64 })
+                                  toast.success('Clinic logo uploaded and saved to live database!')
+                                }
+                                reader.readAsDataURL(file)
+                              }
+                            }
+                            input.click()
+                          }}
+                          className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold border border-slate-200 text-xs px-4 py-2 rounded-xl cursor-pointer transition-colors"
+                        >
+                          Choose Image...
+                        </button>
+                        {store.invoiceTemplates.logoUrl && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              useClinicStore.setState(state => ({
+                                invoiceTemplates: {
+                                  ...state.invoiceTemplates,
+                                  logoUrl: null
+                                }
+                              }))
+                              await updateInvoiceTemplatesApi({ logoUrl: null })
+                              toast.success('Logo removed from live database!')
+                            }}
+                            className="bg-transparent border-none text-red-500 hover:text-red-700 text-xs font-semibold cursor-pointer"
+                          >
+                            Remove Logo
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Form.Item name="terms" label="Standard Payment Terms" rules={[{ required: true }]}>
+                        <Select className="w-full flex items-center">
+                          <Option value="Due on Receipt">Due on Receipt</Option>
+                          <Option value="7 Days">7 Days</Option>
+                          <Option value="14 Days">14 Days</Option>
+                          <Option value="30 Days">30 Days</Option>
+                        </Select>
+                      </Form.Item>
+                    </div>
+
+                    <Form.Item name="footer" label="Invoice Footer Information" rules={[{ required: true }]}>
+                      <Input.TextArea rows={3} placeholder="Thank you for choosing our practice." />
+                    </Form.Item>
+
+                    <div className="flex justify-end border-t border-slate-100 dark:border-slate-800 pt-6 mt-6">
+                      <Button type="primary" htmlType="submit" className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 border-none font-bold rounded-xl h-10 px-8 shadow-sm">
+                        Save Invoicing Configurations
+                      </Button>
+                    </div>
+                  </Form>
+                </Card>
+              </div>
             )}
           </div>
         )
+      }
 
-      case 'services':
+      case 'services': {
+        const displayServices = store.services.filter((item) => {
+          if (item.archived) return false
+          if (!servicesSearch.trim()) return true
+          const q = servicesSearch.toLowerCase()
+          return (
+            (item.name && item.name.toLowerCase().includes(q)) ||
+            (item.ndisCode && item.ndisCode.toLowerCase().includes(q)) ||
+            (item.category && item.category.toLowerCase().includes(q)) ||
+            (item.description && item.description.toLowerCase().includes(q))
+          )
+        })
+
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -1483,22 +1997,43 @@ export default function ClinicAdminSettingsPage() {
                   Configure services offered by practitioners. Service entries display within the calendar and invoice selectors.
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setEditingService(null)
-                  serviceForm.resetFields()
-                  setServiceModalOpen(true)
-                }}
-                className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 text-white font-bold h-9 px-4 rounded-xl flex items-center gap-2 cursor-pointer border-none shadow-sm text-xs transition-colors"
-              >
-                <PlusOutlined />
-                <span>Add Service</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <Button
+                  icon={<SyncOutlined spinning={loadingServices} />}
+                  onClick={fetchServices}
+                  className="rounded-xl font-semibold border-slate-200 h-9"
+                >
+                  Refresh Services DB
+                </Button>
+                <button
+                  onClick={() => {
+                    setEditingService(null)
+                    serviceForm.resetFields()
+                    setServiceModalOpen(true)
+                  }}
+                  className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 text-white font-bold h-9 px-4 rounded-xl flex items-center gap-2 cursor-pointer border-none shadow-sm text-xs transition-colors"
+                >
+                  <PlusOutlined />
+                  <span>Add Service</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Toolbar for Services */}
+            <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-150 dark:border-slate-800 shadow-sm">
+              <Input
+                placeholder="Search services by name, NDIS code..."
+                prefix={<SearchOutlined className="text-slate-400" />}
+                value={servicesSearch}
+                onChange={(e) => setServicesSearch(e.target.value)}
+                className="w-full md:w-80 rounded-xl border-slate-200 h-9"
+                allowClear
+              />
             </div>
 
             <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
               <Table
-                dataSource={store.services.filter((s) => !s.archived)}
+                dataSource={displayServices}
                 pagination={false}
                 rowKey="id"
                 columns={[
@@ -1507,7 +2042,7 @@ export default function ClinicAdminSettingsPage() {
                     dataIndex: 'name',
                     render: (text, record) => (
                       <div className="flex items-center gap-2.5">
-                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: record.color }} />
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: record.color || '#8C4BFF' }} />
                         <span className="font-bold text-slate-800 dark:text-slate-200">{text}</span>
                       </div>
                     ),
@@ -1538,6 +2073,7 @@ export default function ClinicAdminSettingsPage() {
                             setEditingService(record)
                             serviceForm.setFieldsValue({
                               ...record,
+                              invoiceDescription: record.description || record.invoiceDescription
                             })
                             setServiceModalOpen(true)
                           }}
@@ -1547,20 +2083,14 @@ export default function ClinicAdminSettingsPage() {
                           <EditOutlined />
                         </button>
                         <button
-                          onClick={() => {
-                            store.archiveService(record.id)
-                            toast.success(`Service "${record.name}" archived!`)
-                          }}
+                          onClick={() => handleArchiveServiceDB(record)}
                           className="bg-transparent border-none text-slate-400 hover:text-amber-500 cursor-pointer"
-                          title="Archive"
+                          title={record.archived ? "Unarchive" : "Archive"}
                         >
                           <CloseCircleOutlined />
                         </button>
                         <button
-                          onClick={() => {
-                            store.removeService(record.id)
-                            toast.success(`Removed service: ${record.name}`)
-                          }}
+                          onClick={() => handleDeleteServiceDB(record.id, record.name)}
                           className="bg-transparent border-none text-slate-400 hover:text-red-500 cursor-pointer"
                           title="Remove"
                         >
@@ -1585,19 +2115,7 @@ export default function ClinicAdminSettingsPage() {
               <Form
                 layout="vertical"
                 form={serviceForm}
-                onFinish={(values) => {
-                  if (editingService) {
-                    store.editService({
-                      ...editingService,
-                      ...values,
-                    })
-                    toast.success('Service details updated successfully!')
-                  } else {
-                    store.addService(values)
-                    toast.success('New service added!')
-                  }
-                  setServiceModalOpen(false)
-                }}
+                onFinish={handleSaveServiceDB}
                 className="mt-4"
               >
                 <Form.Item name="name" label="Service name" rules={[{ required: true }]}>
@@ -1653,15 +2171,31 @@ export default function ClinicAdminSettingsPage() {
             </Modal>
           </div>
         )
+      }
 
-      case 'cancellation':
+      case 'cancellation': {
+        const displayCancellationReasons = store.cancellationReasons.filter((r) => {
+          if (r.archived) return false
+          if (!cancellationSearch.trim()) return true
+          return r.reason && r.reason.toLowerCase().includes(cancellationSearch.toLowerCase())
+        })
+
         return (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Cancellation Reasons</h2>
-              <p className="text-slate-400 text-xs mt-1 font-semibold">
-                Configure reasons selected by practitioners when cancelling booked appointments.
-              </p>
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-200 m-0">Cancellation Reasons</h2>
+                <p className="text-slate-400 text-xs mt-1 font-semibold">
+                  Configure reasons selected by practitioners when cancelling booked appointments.
+                </p>
+              </div>
+              <Button
+                icon={<SyncOutlined spinning={loadingCancellations} />}
+                onClick={fetchCancellationReasons}
+                className="rounded-xl font-semibold border-slate-200 h-9"
+              >
+                Refresh Reasons DB
+              </Button>
             </div>
 
             <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
@@ -1678,15 +2212,7 @@ export default function ClinicAdminSettingsPage() {
                       toast.error('Please enter a reason description.')
                       return
                     }
-                    if (editingCancellation) {
-                      store.editCancellationReason(editingCancellation.id, text)
-                      toast.success('Reason description modified!')
-                      setEditingCancellation(null)
-                    } else {
-                      store.addCancellationReason(text)
-                      toast.success(`New cancellation reason "${text}" added!`)
-                    }
-                    setCancellationText('')
+                    handleSaveCancellationReasonDB(text)
                   }}
                   placeholder="e.g. Weather Issues"
                   className="rounded-xl h-10 flex-1"
@@ -1698,15 +2224,7 @@ export default function ClinicAdminSettingsPage() {
                       toast.error('Please enter a reason description.')
                       return
                     }
-                    if (editingCancellation) {
-                      store.editCancellationReason(editingCancellation.id, text)
-                      toast.success('Reason description modified!')
-                      setEditingCancellation(null)
-                    } else {
-                      store.addCancellationReason(text)
-                      toast.success(`New cancellation reason "${text}" added!`)
-                    }
-                    setCancellationText('')
+                    handleSaveCancellationReasonDB(text)
                   }}
                   type="primary"
                   style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
@@ -1727,9 +2245,21 @@ export default function ClinicAdminSettingsPage() {
                 )}
               </div>
 
+              {/* Filter Toolbar */}
+              <div className="mb-4 max-w-2xl">
+                <Input
+                  placeholder="Search cancellation reasons..."
+                  prefix={<SearchOutlined className="text-slate-400" />}
+                  value={cancellationSearch}
+                  onChange={(e) => setCancellationSearch(e.target.value)}
+                  className="w-full rounded-xl border-slate-200 h-9"
+                  allowClear
+                />
+              </div>
+
               <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden max-w-2xl">
                 <Table
-                  dataSource={store.cancellationReasons.filter((r) => !r.archived)}
+                  dataSource={displayCancellationReasons}
                   pagination={false}
                   rowKey="id"
                   showHeader={false}
@@ -1751,17 +2281,23 @@ export default function ClinicAdminSettingsPage() {
                               setCancellationText(record.reason)
                             }}
                             className="bg-transparent border-none text-slate-400 hover:text-[#8C4BFF] cursor-pointer"
+                            title="Edit"
                           >
                             <EditOutlined style={{ fontSize: 13 }} />
                           </button>
                           <button
-                            onClick={() => {
-                              store.archiveCancellationReason(record.id)
-                              toast.success('Reason archived!')
-                            }}
-                            className="bg-transparent border-none text-slate-400 hover:text-red-500 cursor-pointer"
+                            onClick={() => handleArchiveCancellationReasonDB(record)}
+                            className="bg-transparent border-none text-slate-400 hover:text-amber-500 cursor-pointer"
+                            title={record.archived ? "Unarchive" : "Archive"}
                           >
                             <CloseCircleOutlined style={{ fontSize: 13 }} />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteCancellationReasonDB(record.id, record.reason)}
+                            className="bg-transparent border-none text-slate-400 hover:text-red-500 cursor-pointer"
+                            title="Delete"
+                          >
+                            <DeleteOutlined style={{ fontSize: 13 }} />
                           </button>
                         </Space>
                       ),
@@ -1772,8 +2308,19 @@ export default function ClinicAdminSettingsPage() {
             </Card>
           </div>
         )
+      }
 
-      case 'tags':
+      case 'tags': {
+        const displayTags = store.clientTags.filter((item) => {
+          if (!tagsSearch.trim()) return true
+          const q = tagsSearch.toLowerCase()
+          return (
+            (item.name && item.name.toLowerCase().includes(q)) ||
+            (item.color && item.color.toLowerCase().includes(q)) ||
+            (item.icon && item.icon.toLowerCase().includes(q))
+          )
+        })
+
         return (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
@@ -1783,22 +2330,43 @@ export default function ClinicAdminSettingsPage() {
                   Create and color-code client classification tags used throughout profile sheets.
                 </p>
               </div>
-              <button
-                onClick={() => {
-                  setEditingTag(null)
-                  tagForm.resetFields()
-                  setTagModalOpen(true)
-                }}
-                className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 text-white font-bold h-9 px-4 rounded-xl flex items-center gap-2 cursor-pointer border-none shadow-sm text-xs transition-colors"
-              >
-                <PlusOutlined />
-                <span>Create Tag</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <Button
+                  icon={<SyncOutlined spinning={loadingTags} />}
+                  onClick={fetchClientTags}
+                  className="rounded-xl font-semibold border-slate-200 h-9"
+                >
+                  Refresh Tags DB
+                </Button>
+                <button
+                  onClick={() => {
+                    setEditingTag(null)
+                    tagForm.resetFields()
+                    setTagModalOpen(true)
+                  }}
+                  className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 text-white font-bold h-9 px-4 rounded-xl flex items-center gap-2 cursor-pointer border-none shadow-sm text-xs transition-colors"
+                >
+                  <PlusOutlined />
+                  <span>Create Tag</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Filter Toolbar for Client Tags */}
+            <div className="flex flex-wrap items-center gap-3 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-150 dark:border-slate-800 shadow-sm">
+              <Input
+                placeholder="Search client tags by identifier, color..."
+                prefix={<SearchOutlined className="text-slate-400" />}
+                value={tagsSearch}
+                onChange={(e) => setTagsSearch(e.target.value)}
+                className="w-full md:w-80 rounded-xl border-slate-200 h-9"
+                allowClear
+              />
             </div>
 
             <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
               <Table
-                dataSource={store.clientTags}
+                dataSource={displayTags}
                 pagination={false}
                 rowKey="id"
                 columns={[
@@ -1851,10 +2419,7 @@ export default function ClinicAdminSettingsPage() {
                           <EditOutlined />
                         </button>
                         <button
-                          onClick={() => {
-                            store.deleteClientTag(record.id)
-                            toast.success(`Removed tag: ${record.name}`)
-                          }}
+                          onClick={() => handleDeleteTagDB(record.id, record.name)}
                           className="bg-transparent border-none text-slate-400 hover:text-red-500 cursor-pointer"
                           title="Delete"
                         >
@@ -1879,19 +2444,7 @@ export default function ClinicAdminSettingsPage() {
               <Form
                 layout="vertical"
                 form={tagForm}
-                onFinish={(values) => {
-                  if (editingTag) {
-                    store.editClientTag({
-                      ...editingTag,
-                      ...values,
-                    })
-                    toast.success('Tag details updated successfully!')
-                  } else {
-                    store.addClientTag(values)
-                    toast.success('New client classification tag added!')
-                  }
-                  setTagModalOpen(false)
-                }}
+                onFinish={handleSaveTagDB}
                 className="mt-4"
               >
                 <Form.Item name="name" label="Tag name" rules={[{ required: true }]}>
@@ -1931,6 +2484,7 @@ export default function ClinicAdminSettingsPage() {
             </Modal>
           </div>
         )
+      }
 
       case 'import_export':
         return (
@@ -2581,7 +3135,7 @@ export default function ClinicAdminSettingsPage() {
           {/* Left Vertical Navigation Menu */}
           <div className="w-full md:w-64 flex-shrink-0 border-b md:border-b-0 md:border-r border-slate-100 dark:border-slate-800 p-3.5 bg-slate-50/70 dark:bg-slate-950/40 space-y-1">
             <div className="px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Settings Menu
+              SETTINGS MENU
             </div>
             <div className="space-y-1 overflow-y-auto max-h-[700px]">
               {tabs.map((tab) => {

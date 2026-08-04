@@ -13,7 +13,16 @@ export default function SalesDashboard({ store, navigate, modalContext }) {
   const [mobileMode, setMobileMode] = useState(false)
   const [callLeadModalOpen, setCallLeadModalOpen] = useState(false)
 
-  const colinClinics = clinics.filter(c => c.salesperson === 'Colin Edegbe')
+  React.useEffect(() => {
+    if (store.fetchLeads) store.fetchLeads()
+    if (store.fetchSalesTasks) store.fetchSalesTasks()
+    if (store.fetchSalesCalendarEvents) store.fetchSalesCalendarEvents()
+    if (store.fetchSalesClinics) store.fetchSalesClinics()
+  }, [])
+
+  const colinClinics = clinics.length > 0 && clinics.some(c => c.salesperson === 'Colin Edegbe') 
+    ? clinics.filter(c => c.salesperson === 'Colin Edegbe')
+    : clinics
   const totalLeads = leads.length
   const demosBooked = salesCalendarEvents.filter(e => e.type === 'Demos' || e.type === 'Demo Scheduled').length
   const clinicsConverted = colinClinics.length

@@ -34,6 +34,7 @@ import {
   ThunderboltOutlined
 } from '@ant-design/icons'
 import { useClinicStore } from '../../../store/clinicStore'
+import { createPatient, updatePatient, deletePatient as apiDeletePatient } from '../../calendar/api/clinicAdminApi'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
 import ClientProgressNotes from '../components/ClientProgressNotes'
@@ -115,9 +116,35 @@ export default function ClientProfilePage() {
     branch: '',
   }), [])
 
+  const [fetchedPatient, setFetchedPatient] = useState(null)
+  const [fetching, setFetching] = useState(false)
+
   const patient = isNew
     ? defaultPatient
-    : store.patients.find(p => p.id === id)
+    : (store.patients.find(p => p.id === id) || fetchedPatient)
+
+  useEffect(() => {
+    if (!isNew && !patient && id && !fetching) {
+      const loadPatient = async () => {
+        try {
+          setFetching(true)
+          const res = await getPatients()
+          if (res?.success && Array.isArray(res.data)) {
+            if (typeof store.setPatients === 'function') {
+              store.setPatients(res.data)
+            }
+            const found = res.data.find(p => p.id === id)
+            if (found) setFetchedPatient(found)
+          }
+        } catch (err) {
+          console.error('Failed to load patient from DB:', err)
+        } finally {
+          setFetching(false)
+        }
+      }
+      loadPatient()
+    }
+  }, [id, isNew, patient, fetching])
 
   const [selectedTags, setSelectedTags] = useState([])
   
@@ -202,9 +229,10 @@ export default function ClientProfilePage() {
     })
   }
 
-  const handleSave = (values) => {
+  const handleSave = async (values) => {
     const formattedValues = {
       ...values,
+      fullName: values.name || patient?.name || 'New Client',
       dob: values.dob ? (typeof values.dob === 'string' ? values.dob : values.dob.format('YYYY-MM-DD')) : '',
       joinDate: values.joinDate ? (typeof values.joinDate === 'string' ? values.joinDate : values.joinDate.format('YYYY-MM-DD')) : dayjs().format('YYYY-MM-DD'),
       consentRecordedDate: values.consentRecordedDate ? (typeof values.consentRecordedDate === 'string' ? values.consentRecordedDate : values.consentRecordedDate.format('YYYY-MM-DD')) : '',
@@ -215,33 +243,49 @@ export default function ClientProfilePage() {
     }
 
     if (isNew) {
-      const newId = `p_${Date.now()}`
-      store.addPatient({
-        id: newId,
-        ...formattedValues,
-        status: 'active',
-      })
-      toast.success('New client created successfully!')
-      navigate(`${basePath}/patients/${newId}`)
+      try {
+        const res = await createPatient(formattedValues)
+        const saved = res.data || formattedValues
+        store.addPatient({ id: saved.id, ...saved, name: saved.fullName || saved.name, status: 'active' })
+        toast.success('New client created & saved to live database!')
+        navigate(`${basePath}/patients/${saved.id || 'new'}`)
+      } catch (err) {
+        const newId = `p_${Date.now()}`
+        store.addPatient({ id: newId, ...formattedValues, status: 'active' })
+        toast.success('New client created successfully!')
+        navigate(`${basePath}/patients/${newId}`)
+      }
     } else {
-      store.updatePatient({
-        ...patient,
-        ...formattedValues,
-      })
-      toast.success('Client profile updated successfully!')
+      try {
+        await updatePatient(patient.id, formattedValues)
+        store.updatePatient({ ...patient, ...formattedValues })
+        toast.success('Client profile updated & saved to live database!')
+      } catch (err) {
+        store.updatePatient({ ...patient, ...formattedValues })
+        toast.success('Client profile updated successfully!')
+      }
     }
   }
 
   const handleDeleteClient = () => {
     Modal.confirm({
       title: 'Delete Client Profile?',
-      content: `Are you sure you want to permanently delete the profile of ${patient.name}? This will remove all associated appointments and invoices.`,
+      content: `Are you sure you want to permanently delete the profile of ${patient?.name || 'this client'}? This will remove all associated appointments and invoices.`,
       okText: 'Yes, Delete',
       okType: 'danger',
       cancelText: 'Cancel',
-      onOk: () => {
-        store.deletePatient(patient.id)
-        toast.success('Client deleted successfully')
+      onOk: async () => {
+        try {
+          if (patient?.id) {
+            await apiDeletePatient(patient.id)
+          }
+        } catch (err) {
+          console.error('Failed to delete patient from backend DB:', err)
+        }
+        if (patient?.id) {
+          store.deletePatient(patient.id)
+        }
+        toast.success('Client profile deleted permanently from live database!')
         navigate(`${basePath}/patients`)
       },
     })

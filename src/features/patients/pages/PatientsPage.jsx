@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Modal, Form, Input, Select, Tag, Space } from 'antd'
+import { Button, Modal, Form, Input, Select, Tag, Space, Spin } from 'antd'
 import {
   PlusOutlined,
   SearchOutlined,
@@ -20,6 +20,7 @@ import {
   AlertOutlined
 } from '@ant-design/icons'
 import { useClinicStore } from '../../../store/clinicStore'
+import { getPatients } from '../../calendar/api/clinicAdminApi'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
 
@@ -72,13 +73,70 @@ export default function PatientsPage() {
   const [searchText, setSearchText] = useState('')
   const [selectedTag, setSelectedTag] = useState('')
   const [sortBy, setSortBy] = useState('Clients name')
+  const [patientsList, setPatientsList] = useState([])
+  const [loadingPatients, setLoadingPatients] = useState(false)
 
-  const filteredPatients = store.patients.filter((p) => {
-    const matchesSearch =
-      p.name.toLowerCase().includes(searchText.toLowerCase()) ||
-      (p.email || '').toLowerCase().includes(searchText.toLowerCase()) ||
-      (p.phone || '').includes(searchText)
-    const matchesTag = selectedTag ? (p.tags || []).includes(selectedTag) : true
+  React.useEffect(() => {
+    const loadPatientsFromDB = async () => {
+      try {
+        setLoadingPatients(true)
+        const res = await getPatients({ search: searchText })
+        if (res?.success && Array.isArray(res.data)) {
+          setPatientsList(res.data)
+          if (typeof store.setPatients === 'function') {
+            store.setPatients(res.data)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load patients from live DB:', err)
+      } finally {
+        setLoadingPatients(false)
+      }
+    }
+    loadPatientsFromDB()
+  }, [searchText])
+
+  const allPats = React.useMemo(() => {
+    const map = new Map()
+    if (Array.isArray(store.patients)) {
+      store.patients.forEach(p => {
+        if (p && p.id) {
+          map.set(p.id, {
+            ...p,
+            name: p.fullName || p.name || 'Unknown Client',
+            dob: p.dob || '',
+            phone: p.phone || '',
+            email: p.email || '',
+            tags: Array.isArray(p.tags) ? p.tags : (p.tags ? [p.tags] : [])
+          })
+        }
+      })
+    }
+    if (Array.isArray(patientsList)) {
+      patientsList.forEach(p => {
+        if (p && p.id) {
+          map.set(p.id, {
+            ...p,
+            name: p.fullName || p.name || 'Unknown Client',
+            dob: p.dob || '',
+            phone: p.phone || '',
+            email: p.email || '',
+            tags: Array.isArray(p.tags) ? p.tags : (p.tags ? [p.tags] : [])
+          })
+        }
+      })
+    }
+    return Array.from(map.values())
+  }, [patientsList, store.patients])
+
+  const filteredPatients = allPats.filter((p) => {
+    const search = (searchText || '').trim().toLowerCase()
+    const matchesSearch = !search ||
+      (p.name || '').toLowerCase().includes(search) ||
+      (p.email || '').toLowerCase().includes(search) ||
+      (p.phone || '').toLowerCase().includes(search)
+
+    const matchesTag = !selectedTag || selectedTag === 'All tags' || (Array.isArray(p.tags) && p.tags.includes(selectedTag))
     return matchesSearch && matchesTag
   })
 
@@ -209,12 +267,17 @@ export default function PatientsPage() {
               </div>
             ))}
 
-            {pageData.length === 0 && (
+            {loadingPatients ? (
+              <div className="py-16 text-center text-slate-400">
+                <Spin size="large" />
+                <p className="text-xs text-slate-400 mt-3 font-semibold">Loading clients from live database...</p>
+              </div>
+            ) : pageData.length === 0 ? (
               <div className="py-16 text-center text-slate-300">
                 <p className="text-sm font-semibold text-slate-400">No clients found</p>
                 <p className="text-xs text-slate-300 mt-1">Try adjusting your search or filters</p>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
 

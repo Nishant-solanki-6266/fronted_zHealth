@@ -1,9 +1,10 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Form, Input, Select, Button, Upload, Tooltip, Checkbox, Divider } from 'antd'
 import { QuestionCircleOutlined, SaveOutlined } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
 import { Link } from 'react-router-dom'
 import logoImage from '../../../assets/logo2.png'
+import { getClinicDetails, updateClinicDetails } from '../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 
@@ -12,17 +13,74 @@ export default function ClinicDetailsTab() {
   const [logoPreview, setLogoPreview] = useState(logoImage)
   const [saving, setSaving] = useState(false)
 
-  const handleSave = (values) => {
+  useEffect(() => {
+    let isMounted = true
+    const loadDetails = async () => {
+      try {
+        const res = await getClinicDetails()
+        if (res && res.success && res.data && isMounted) {
+          const clinic = res.data
+          const flags = (clinic.featureFlags && typeof clinic.featureFlags === 'object') ? clinic.featureFlags : {}
+          
+          if (clinic.logoUrl) {
+            setLogoPreview(clinic.logoUrl)
+          }
+
+          form.setFieldsValue({
+            businessName: clinic.name || 'CEO Therapy',
+            workspaceUrl: flags.workspaceUrl || 'ceo-physio.splose.com',
+            website: clinic.website || 'www.ceotherapy.com.au',
+            businessEmail: clinic.email || 'contact@ceotherapy.com.au',
+            patientTerminology: flags.patientTerminology || 'Client',
+            currencyCode: flags.currencyCode || 'AUD',
+            country: clinic.country || 'Australia',
+            currencySymbol: flags.currencySymbol || 'A$',
+            defaultComms: flags.defaultComms || 'SMS & Email',
+            taxLabel: flags.taxLabel || 'ABN',
+            applyToExisting: flags.applyToExisting || false,
+          })
+        }
+      } catch (err) {
+        console.error("Failed to load clinic details from live database:", err)
+      }
+    }
+    loadDetails()
+    return () => { isMounted = false }
+  }, [form])
+
+  const handleSave = async (values) => {
     setSaving(true)
-    setTimeout(() => {
+    try {
+      const payload = {
+        ...values,
+        logoUrl: logoPreview
+      }
+      const res = await updateClinicDetails(payload)
+      if (res && res.success) {
+        toast.success('Clinic details saved to live database successfully!')
+      } else {
+        toast.error(res?.message || 'Failed to update clinic details')
+      }
+    } catch (err) {
+      console.error("Error saving clinic details:", err)
+      toast.error('Error saving clinic details to live database')
+    } finally {
       setSaving(false)
-      toast.success('Clinic details saved successfully!')
-    }, 700)
+    }
   }
 
   const handleLogoUpload = (file) => {
     const reader = new FileReader()
-    reader.onload = (e) => setLogoPreview(e.target.result)
+    reader.onload = async (e) => {
+      const imgUrl = e.target.result
+      setLogoPreview(imgUrl)
+      try {
+        await updateClinicDetails({ logoUrl: imgUrl })
+        toast.success('Clinic logo updated in live database!')
+      } catch (err) {
+        console.error("Failed to update logo:", err)
+      }
+    }
     reader.readAsDataURL(file)
     return false
   }

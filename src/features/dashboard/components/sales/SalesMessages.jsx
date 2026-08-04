@@ -13,6 +13,10 @@ export default function SalesMessages({ store: propStore }) {
   const [textInput, setTextInput] = useState('')
   const scrollRef = useRef(null)
 
+  useEffect(() => {
+    if (store.fetchSalesMessages) store.fetchSalesMessages()
+  }, [])
+
   const channels = [
     { name: 'Head Admin', role: 'Platform Owner', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150' },
     { name: 'Support Team', role: 'Technical Desk', avatar: '' },

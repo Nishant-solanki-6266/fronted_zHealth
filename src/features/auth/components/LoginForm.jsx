@@ -10,8 +10,8 @@ const CREDENTIALS = [
   {
     label: 'Super Admin',
     role: 'head_admin',
-    email: 'superadmin@example.com',
-    password: 'password',
+    email: 'superadmin@gmail.com',
+    password: 'Password123!',
     description: 'Platform Owner Control',
     color: '#0E1B33',
     bg: '#EEF2F6',
@@ -19,8 +19,8 @@ const CREDENTIALS = [
   {
     label: 'Sales Executive',
     role: 'sales',
-    email: 'sales@example.com',
-    password: 'password',
+    email: 'sales@zhealth.com',
+    password: 'Password123!',
     description: 'CRM & Pipeline Leads',
     color: '#F59E0B',
     bg: '#FEF3C7',
@@ -28,8 +28,8 @@ const CREDENTIALS = [
   {
     label: 'Clinic Admin',
     role: 'clinic',
-    email: 'headadmin@example.com',
-    password: 'password',
+    email: 'clinicadmin@zhealth.com',
+    password: 'Password123!',
     description: 'Clinic Operations Manager',
     color: '#8C4BFF',
     bg: '#F3EEFF',
@@ -73,6 +73,11 @@ export default function LoginForm() {
       if (!json || !json.success) {
         toast.error(json?.message || 'Invalid email or password!')
         return
+      }
+
+      if (json.data?.accessToken) {
+        localStorage.setItem('accessToken', json.data.accessToken)
+        localStorage.setItem('token', json.data.accessToken)
       }
 
       const userRoleFromBackend = json.data?.user?.role

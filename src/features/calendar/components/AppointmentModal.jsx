@@ -89,7 +89,7 @@ export default function AppointmentModal({ open, visible, onCancel, defaultTimeS
       open={isOpen}
       onCancel={onCancel}
       footer={null}
-      destroyOnClose
+      destroyOnHidden
       width={700}
       className="rounded-2xl overflow-hidden"
     >

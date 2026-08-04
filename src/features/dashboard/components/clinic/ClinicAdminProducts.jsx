@@ -1,31 +1,40 @@
-import React, { useState } from 'react'
-import { Table, Button, Input, Modal, Form, Select, Dropdown } from 'antd'
+import React, { useState, useEffect } from 'react'
+import { Table, Button, Input, Form, Select, Dropdown, Popconfirm } from 'antd'
 import { EllipsisOutlined } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
 import { useClinicStore } from '../../../../store/clinicStore'
+import { getProducts, createProduct, updateProduct, deleteProduct } from '../../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 
-const initialProducts = [
-  { id: 'PROD-001', name: 'Hand Theraputty', category: 'Core - Consumables', vendor: '', stock: 9, price: 15.00, archived: false },
-]
-
 export default function ClinicAdminProducts() {
-  const { darkMode } = useClinicStore()
-  const [products, setProducts] = useState(initialProducts)
+  const store = useClinicStore()
+  const [products, setProducts] = useState([])
   const [search, setSearch] = useState('')
   const [showArchived, setShowArchived] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [editProduct, setEditProduct] = useState(null)
   const [form] = Form.useForm()
 
-  const filtered = products.filter(p => {
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.vendor.toLowerCase().includes(search.toLowerCase()) ||
-      p.category.toLowerCase().includes(search.toLowerCase())
-    const matchArchived = showArchived ? true : !p.archived
-    return matchSearch && matchArchived
-  })
+  const fetchProductsData = async () => {
+    setLoading(true)
+    try {
+      const res = await getProducts({ search, showArchived })
+      if (res && res.success && Array.isArray(res.data)) {
+        setProducts(res.data)
+      }
+    } catch (err) {
+      console.error('Failed to fetch products:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchProductsData()
+  }, [search, showArchived])
 
   const openAdd = () => {
     setEditProduct(null)
@@ -35,58 +44,116 @@ export default function ClinicAdminProducts() {
 
   const openEdit = (record) => {
     setEditProduct(record)
-    form.setFieldsValue(record)
+    form.setFieldsValue({
+      name: record.name,
+      category: record.category,
+      description: record.description,
+      itemCode: record.itemCode,
+      vendor: record.vendor,
+      tax: record.tax || 'GST Free Income',
+      xeroAccount: record.xeroAccount || '200 - Sales',
+      price: record.price,
+      stock: record.stock
+    })
     setModalOpen(true)
   }
 
-  const handleSave = (values) => {
-    if (editProduct) {
-      setProducts(prev => prev.map(p => p.id === editProduct.id ? { ...p, ...values } : p))
-      toast.success('Product updated!')
-    } else {
-      const newProduct = {
-        id: `PROD-${String(products.length + 1).padStart(3, '0')}`,
-        ...values,
-        stock: parseInt(values.stock) || 0,
-        price: parseFloat(values.price) || 0,
-        archived: false,
+  const handleSave = async (values) => {
+    setSubmitting(true)
+    try {
+      if (editProduct) {
+        const res = await updateProduct(editProduct.id, values)
+        if (res && res.success) {
+          toast.success('Product updated in database!')
+          setModalOpen(false)
+          form.resetFields()
+          fetchProductsData()
+        } else {
+          toast.error('Failed to update product')
+        }
+      } else {
+        const res = await createProduct(values)
+        if (res && res.success) {
+          toast.success('Product added to live database!')
+          setModalOpen(false)
+          form.resetFields()
+          fetchProductsData()
+        } else {
+          toast.error('Failed to create product')
+        }
       }
-      setProducts(prev => [newProduct, ...prev])
-      toast.success('Product added!')
+    } catch (err) {
+      console.error('Save product error:', err)
+      toast.error('Error saving product to database')
+    } finally {
+      setSubmitting(false)
     }
-    setModalOpen(false)
-    form.resetFields()
   }
 
-  const handleArchive = (id) => {
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, archived: !p.archived } : p))
-    toast.success('Product status updated!')
+  const handleArchiveToggle = async (record) => {
+    try {
+      const res = await updateProduct(record.id, { archived: !record.archived })
+      if (res && res.success) {
+        toast.success(record.archived ? 'Product restored!' : 'Product archived!')
+        fetchProductsData()
+      }
+    } catch (err) {
+      toast.error('Failed to update product status')
+    }
   }
+
+  const handleDeleteProduct = async (id) => {
+    try {
+      const res = await deleteProduct(id)
+      if (res && res.success) {
+        toast.success('Product deleted from database!')
+        fetchProductsData()
+      }
+    } catch (err) {
+      toast.error('Failed to delete product')
+    }
+  }
+
+  const filtered = (products || []).filter(p => {
+    if (!p) return false
+    const q = (search || '').toLowerCase()
+    const matchSearch = !search ||
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.vendor || '').toLowerCase().includes(q) ||
+      (p.category || '').toLowerCase().includes(q) ||
+      (p.itemCode || '').toLowerCase().includes(q)
+    const matchArchived = showArchived ? true : !p.archived
+    return matchSearch && matchArchived
+  })
 
   const columns = [
     {
       title: <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200">Name</span>,
-      dataIndex: 'name', 
       key: 'name',
-      render: val => <span className="font-medium text-slate-700 dark:text-slate-300 text-[13px]">{val}</span>,
+      render: (_, record) => (
+        <span className="font-medium text-slate-700 dark:text-slate-300 text-[13px]">
+          {record.name}
+          {record.archived && <span className="ml-2 text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">Archived</span>}
+        </span>
+      ),
     },
     {
       title: <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200">Category</span>,
       dataIndex: 'category', 
       key: 'category',
-      render: val => <span className="font-medium text-slate-700 dark:text-slate-300 text-[13px]">{val}</span>,
+      render: val => <span className="font-medium text-slate-700 dark:text-slate-300 text-[13px]">{val || 'Core - Consumables'}</span>,
     },
     {
       title: <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200">Vendor</span>,
       dataIndex: 'vendor', 
       key: 'vendor',
-      render: val => <span className="font-medium text-slate-700 dark:text-slate-300 text-[13px]">{val}</span>,
+      render: val => <span className="font-medium text-slate-700 dark:text-slate-300 text-[13px]">{val || '-'}</span>,
     },
     {
       title: <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200">Stock</span>,
       dataIndex: 'stock', 
       key: 'stock',
-      render: val => <span className="font-medium text-slate-700 dark:text-slate-300 text-[13px]">{val}</span>,
+      render: val => <span className="font-medium text-slate-700 dark:text-slate-300 text-[13px]">{val ?? 0}</span>,
     },
     {
       title: <span className="text-[13px] font-bold text-slate-800 dark:text-slate-200">Actions</span>,
@@ -97,7 +164,15 @@ export default function ClinicAdminProducts() {
           menu={{
             items: [
               { key: 'edit', label: 'Edit', onClick: () => openEdit(record) },
-              { key: 'archive', label: record.archived ? 'Restore' : 'Archive', onClick: () => handleArchive(record.id) }
+              { key: 'archive', label: record.archived ? 'Restore' : 'Archive', onClick: () => handleArchiveToggle(record) },
+              {
+                key: 'delete',
+                label: (
+                  <Popconfirm title="Delete product?" onConfirm={() => handleDeleteProduct(record.id)} okText="Yes" cancelText="No">
+                    <span className="text-red-600 font-semibold">Delete</span>
+                  </Popconfirm>
+                )
+              }
             ]
           }}
           trigger={['click']}
@@ -121,12 +196,12 @@ export default function ClinicAdminProducts() {
             </h1>
             <div className="flex gap-2">
               <Button onClick={() => { setModalOpen(false); form.resetFields() }} className="rounded-md font-medium text-[13px] h-9 px-6 border-[#d9d9d9] text-[#202020]">Cancel</Button>
-              <Button type="primary" onClick={() => form.submit()} style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }} className="rounded-md font-bold text-white h-9 px-6">Save</Button>
+              <Button type="primary" loading={submitting} onClick={() => form.submit()} style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }} className="rounded-md font-bold text-white h-9 px-6">Save</Button>
             </div>
           </div>
           
           <Form form={form} layout="vertical" onFinish={handleSave} className="max-w-2xl">
-            <Form.Item name="name" label={<span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Name <span className="text-red-500">*</span></span>} rules={[{ required: true, message: '' }]}>
+            <Form.Item name="name" label={<span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Name <span className="text-red-500">*</span></span>} rules={[{ required: true, message: 'Please enter product name' }]}>
               <Input className="rounded-md h-10 border-[#d9d9d9]" placeholder="e.g. Hand Theraputty" />
             </Form.Item>
             
@@ -135,7 +210,7 @@ export default function ClinicAdminProducts() {
             </Form.Item>
             
             <Form.Item name="description" label={<span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Description</span>}>
-              <Input.TextArea className="rounded-md border-[#d9d9d9]" rows={4} placeholder="" />
+              <Input.TextArea className="rounded-md border-[#d9d9d9]" rows={4} placeholder="Product description" />
             </Form.Item>
             
             <Form.Item name="itemCode" label={<span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Item code</span>}>
@@ -143,10 +218,10 @@ export default function ClinicAdminProducts() {
             </Form.Item>
             
             <Form.Item name="vendor" label={<span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Vendor</span>}>
-              <Input className="rounded-md h-10 border-[#d9d9d9]" />
+              <Input className="rounded-md h-10 border-[#d9d9d9]" placeholder="Vendor / Supplier name" />
             </Form.Item>
             
-            <Form.Item name="tax" label={<span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Tax <span className="text-red-500">*</span></span>} rules={[{ required: true, message: '' }]} initialValue="GST Free Income">
+            <Form.Item name="tax" label={<span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Tax <span className="text-red-500">*</span></span>} rules={[{ required: true, message: 'Please select tax' }]} initialValue="GST Free Income">
               <Select className="rounded-md h-10">
                 <Option value="GST Free Income">GST Free Income</Option>
                 <Option value="GST on Income">GST on Income</Option>
@@ -160,12 +235,11 @@ export default function ClinicAdminProducts() {
               </Select>
             </Form.Item>
             
-            {/* Adding these so the app functionality doesn't break but placing them at the bottom */}
             <div className="grid grid-cols-2 gap-4 mt-6">
-              <Form.Item name="price" label={<span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Price <span className="text-red-500">*</span></span>} rules={[{ required: true, message: '' }]}>
-                <Input type="number" className="rounded-md h-10 border-[#d9d9d9]" placeholder="0.00" />
+              <Form.Item name="price" label={<span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Price <span className="text-red-500">*</span></span>} rules={[{ required: true, message: 'Please enter price' }]}>
+                <Input type="number" step="0.01" className="rounded-md h-10 border-[#d9d9d9]" placeholder="0.00" />
               </Form.Item>
-              <Form.Item name="stock" label={<span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Stock Quantity <span className="text-red-500">*</span></span>} rules={[{ required: true, message: '' }]}>
+              <Form.Item name="stock" label={<span className="text-[13px] font-medium text-slate-700 dark:text-slate-300">Stock Quantity <span className="text-red-500">*</span></span>} rules={[{ required: true, message: 'Please enter stock quantity' }]}>
                 <Input type="number" className="rounded-md h-10 border-[#d9d9d9]" placeholder="0" />
               </Form.Item>
             </div>
@@ -196,10 +270,13 @@ export default function ClinicAdminProducts() {
           <div className="flex gap-2 mb-6">
             <Input
               placeholder="Search for product by name"
-              value={search} onChange={e => setSearch(e.target.value)}
+              value={search} 
+              onChange={e => setSearch(e.target.value)}
+              onPressEnter={fetchProductsData}
               className="rounded-md h-[40px] flex-1 border-[#d9d9d9] dark:border-slate-700 dark:bg-slate-800 text-[13px]"
             />
             <Button
+              onClick={fetchProductsData}
               className="rounded-md h-[40px] px-6 font-medium text-[13px] border-[#d9d9d9] text-[#202020] dark:text-slate-200 dark:border-slate-700 hover:border-[#8C4BFF] hover:text-[#8C4BFF] bg-white dark:bg-slate-800"
             >
               Search
@@ -211,40 +288,49 @@ export default function ClinicAdminProducts() {
             <Table
               dataSource={filtered} 
               columns={columns} 
-              rowKey="id"
+              loading={loading}
+              rowKey={record => record.id || record.displayId}
               expandable={{
                 expandedRowRender: record => (
                   <div className="p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl space-y-2 text-xs">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                       <div>
                         <span className="text-slate-400 font-semibold block uppercase text-[10px]">Product Price</span>
-                        <span className="font-bold text-slate-700 dark:text-slate-200">${(record.price || 0).toFixed(2)}</span>
+                        <span className="font-bold text-slate-700 dark:text-slate-200">${(parseFloat(record.price) || 0).toFixed(2)}</span>
                       </div>
                       <div>
                         <span className="text-slate-400 font-semibold block uppercase text-[10px]">Current Stock</span>
-                        <span className={`font-bold ${record.stock < 5 ? 'text-amber-500' : 'text-emerald-500'}`}>{record.stock} units</span>
+                        <span className={`font-bold ${(record.stock || 0) < 5 ? 'text-amber-500' : 'text-emerald-500'}`}>{record.stock ?? 0} units</span>
                       </div>
                       <div>
                         <span className="text-slate-400 font-semibold block uppercase text-[10px]">Vendor / Supplier</span>
                         <span className="font-bold text-slate-700 dark:text-slate-200">{record.vendor || 'Direct Stock'}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400 font-semibold block uppercase text-[10px]">Product ID</span>
-                        <span className="font-bold text-[#8C4BFF] font-mono">{record.id}</span>
+                        <span className="text-slate-400 font-semibold block uppercase text-[10px]">Item Code</span>
+                        <span className="font-bold text-[#8C4BFF] font-mono">{record.itemCode || record.displayId || '-'}</span>
                       </div>
                     </div>
+                    {record.description && (
+                      <div className="pt-2 border-t border-slate-200 dark:border-slate-700">
+                        <span className="text-slate-400 font-semibold block uppercase text-[10px]">Description</span>
+                        <p className="text-slate-600 dark:text-slate-300 m-0 mt-0.5">{record.description}</p>
+                      </div>
+                    )}
                   </div>
                 ),
                 expandIcon: ({ expanded, onExpand, record }) => (
                   <div 
-                    className="text-slate-400 cursor-pointer text-center w-6" 
+                    className="text-[#8C4BFF] font-black cursor-pointer text-center w-6 text-sm hover:scale-125 transition-transform select-none" 
                     onClick={e => onExpand(record, e)}
+                    title={expanded ? 'Hide details (-)' : 'Show details (+)'}
                   >
-                    {expanded ? '-' : '+'}
+                    {expanded ? '−' : '+'}
                   </div>
                 )
               }}
               pagination={{ 
+                total: filtered.length,
                 pageSize: 10, 
                 showSizeChanger: true, 
                 pageSizeOptions: ['10', '20', '50'],
@@ -275,7 +361,6 @@ export default function ClinicAdminProducts() {
               border-bottom: none !important;
             }
             
-            /* Custom Pagination styles matching image */
             .products-table.ant-table-wrapper .ant-table-pagination.ant-pagination {
               padding: 16px !important;
               margin: 0 !important;
@@ -322,5 +407,6 @@ export default function ClinicAdminProducts() {
     </div>
   )
 }
+
 
 
