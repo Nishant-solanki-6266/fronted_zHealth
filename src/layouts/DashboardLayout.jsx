@@ -211,6 +211,7 @@ const getNavItems = (role) => {
         { label: 'Billing', path: '/head-admin/billing' },
         { label: 'Sales', path: '/head-admin/sales-affiliates' },
         { label: 'AI Notes', path: '/head-admin/ai-notes' },
+        { label: 'Global Templates', path: '/head-admin/global-templates' },
         { label: 'Compliance', path: '/head-admin/audit-logs' },
         { label: 'Support', path: '/head-admin/support-centre' },
         { label: 'Reports', path: '/head-admin/platform-analytics' },
@@ -287,7 +288,7 @@ export default function DashboardLayout({ children }) {
       navRef.current.scrollLeft += e.deltaY;
     }
   }
-  
+
   // Practitioner Modals
   const [newConsultationModalOpen, setNewConsultationModalOpen] = useState(false)
   const [newConsultationForm] = Form.useForm()
@@ -304,10 +305,10 @@ export default function DashboardLayout({ children }) {
     const path = location.pathname
     if (path.includes('/notifications')) return 'Notifications'
     if (path.includes('/messages')) return 'Messages'
-    
+
     const activeItem = navItems.find(item => isActive(item))
     if (activeItem) return activeItem.label
-    
+
     // Fallback for settings or specific subpages
     if (path.includes('/branch')) return 'Branch Settings'
     if (path.includes('/admin')) return 'Admin Management'
@@ -319,7 +320,7 @@ export default function DashboardLayout({ children }) {
     if (path.includes('/templates')) return 'Templates'
     if (path.includes('/payments-centre')) return 'Payments'
     if (path.includes('/products')) return 'Products'
-    
+
     return 'Clinic Management'
   }
 
@@ -458,9 +459,9 @@ export default function DashboardLayout({ children }) {
         footer={null}
         destroyOnHidden
       >
-        <Form 
-          form={newConsultationForm} 
-          layout="vertical" 
+        <Form
+          form={newConsultationForm}
+          layout="vertical"
           onFinish={(values) => {
             setNewConsultationModalOpen(false);
             newConsultationForm.resetFields();
@@ -756,15 +757,15 @@ export default function DashboardLayout({ children }) {
               </div>
 
               <div className="space-y-2 mt-6">
-                <Button 
-                  type="primary" 
+                <Button
+                  type="primary"
                   onClick={handleSendProposalSubmit}
                   style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33', width: '100%' }}
                   className="rounded-xl h-10 font-bold text-xs text-white"
                 >
                   Send Pricing Proposal
                 </Button>
-                <Button 
+                <Button
                   style={{ width: '100%' }}
                   onClick={() => toast.success('Pricing Proposal PDF generated!')}
                   className="rounded-xl h-10 font-bold text-xs"
@@ -855,24 +856,24 @@ export default function DashboardLayout({ children }) {
     const items = getNavItems(userRole)
     const hasNavAccess = items.some(item => path.startsWith(item.path))
 
-    const isSettingsPath = path.includes('/settings') || 
-                           path.includes('/branch') || 
-                           path.includes('/admin') || 
-                           path.includes('/practitioners') ||
-                           path.includes('/subscription') ||
-                           path.includes('/ai-notes') ||
-                           path.includes('/tenants') ||
-                           path.includes('/payment-terms') ||
-                           path.includes('/templates') ||
-                           path.includes('/sales-settings')
+    const isSettingsPath = path.includes('/settings') ||
+      path.includes('/branch') ||
+      path.includes('/admin') ||
+      path.includes('/practitioners') ||
+      path.includes('/subscription') ||
+      path.includes('/ai-notes') ||
+      path.includes('/tenants') ||
+      path.includes('/payment-terms') ||
+      path.includes('/templates') ||
+      path.includes('/sales-settings')
 
     const settingsItems = getSettingsDropdownItems(userRole)
     const hasSettingsAccess = settingsItems.some(item => path.startsWith(item.path)) ||
-                              ((userRole === 'head_admin' || userRole === 'clinic') && isSettingsPath)
+      ((userRole === 'head_admin' || userRole === 'clinic') && isSettingsPath)
 
     const headAdminSections = [
-      'clinics-manage', 'admin-management', 'subscriptions', 'billing', 
-      'sales-affiliates', 'ai-settings', 'audit-logs', 'support-centre', 
+      'clinics-manage', 'admin-management', 'subscriptions', 'billing',
+      'sales-affiliates', 'ai-settings', 'audit-logs', 'support-centre',
       'platform-analytics', 'global-templates', 'notifications', 'documents'
     ]
     const isHeadAdminSection = headAdminSections.some(sec => path.includes(`/head-admin/${sec}`))
@@ -881,18 +882,18 @@ export default function DashboardLayout({ children }) {
     const isPatientPath = path.startsWith('/patient/')
     const hasPatientAccess = isPatientPath && (userRole === 'patient' || userRole === 'clinic')
 
-    const isPractitionerPath = path.startsWith('/practitioner/patients') || 
-                               path.startsWith('/practitioner/calendar') || 
-                               path.startsWith('/practitioner/invoices') || 
-                               path.startsWith('/practitioner/reports') ||
-                               path.startsWith('/practitioner/consultations') ||
-                               path.startsWith('/practitioner/notes-reports') ||
-                               path.startsWith('/practitioner/exercises-plans') ||
-                               path.startsWith('/practitioner/referrals') ||
-                               path.startsWith('/practitioner/billing') ||
-                               path.startsWith('/practitioner/messages') ||
-                               path.startsWith('/practitioner/tasks') ||
-                               path.startsWith('/practitioner/settings')
+    const isPractitionerPath = path.startsWith('/practitioner/patients') ||
+      path.startsWith('/practitioner/calendar') ||
+      path.startsWith('/practitioner/invoices') ||
+      path.startsWith('/practitioner/reports') ||
+      path.startsWith('/practitioner/consultations') ||
+      path.startsWith('/practitioner/notes-reports') ||
+      path.startsWith('/practitioner/exercises-plans') ||
+      path.startsWith('/practitioner/referrals') ||
+      path.startsWith('/practitioner/billing') ||
+      path.startsWith('/practitioner/messages') ||
+      path.startsWith('/practitioner/tasks') ||
+      path.startsWith('/practitioner/settings')
     const hasPractitionerAccess = isPractitionerPath && (userRole === 'practitioner' || userRole === 'clinic' || userRole === 'head_admin' || userRole === 'patient')
 
     const hasProfileAccess = path.includes('/profile');
@@ -914,11 +915,32 @@ export default function DashboardLayout({ children }) {
 
   const handleAddSubmit = async (values) => {
     try {
+      // Determine uploader name based on the logged-in user's role
+      const authUserId = localStorage.getItem('userId') || '1'
+      const savedUserName = localStorage.getItem('userName')
+      let uploaderName = savedUserName || 'Clinic Admin'
+
+      if (userRole === 'sales') {
+        uploaderName = savedUserName || 'Colin Edegbe'
+      } else if (userRole === 'practitioner' && store.practitioners) {
+        const p = store.practitioners.find(pr => pr.id === authUserId) || store.practitioners[0]
+        uploaderName = p ? p.name : (savedUserName || 'Dr. APJ Kalam')
+      } else if (userRole === 'patient' && store.patients) {
+        const p = store.patients.find(pt => pt.id === authUserId) || store.patients[0]
+        uploaderName = p ? p.name : (savedUserName || 'Patient')
+      } else if (userRole === 'receptionist') {
+        uploaderName = savedUserName || 'Emily Clark (Receptionist)'
+      } else if (userRole === 'head_admin' || userRole === 'super_admin') {
+        uploaderName = savedUserName || 'Super Admin'
+      } else if (userRole === 'clinic') {
+        uploaderName = savedUserName || 'Clinic Admin'
+      }
+
       const newDoc = await createDocumentApi({
         name: values.name,
         patientName: values.patientName,
         sentTo: 'Client John Miller',
-        uploadBy: 'Doctor Dr.APJ Kalam',
+        uploadBy: uploaderName,
         date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
         type: 'Assessment',
         status: 'Active'
@@ -956,7 +978,7 @@ export default function DashboardLayout({ children }) {
     let displayName = 'Super Admin User'
     let displayRole = 'Super Admin'
     let avatarSrc = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'
-    
+
     if (userRole === 'sales') {
       displayName = 'Colin Edegbe'
       displayRole = 'Sales Executive'
@@ -982,7 +1004,7 @@ export default function DashboardLayout({ children }) {
     }
 
     return (
-      <div 
+      <div
         className="p-4 border-t flex items-center justify-between gap-2 transition-colors duration-300 mt-auto select-none"
         style={{ borderColor: darkMode ? '#1E2E4A' : '#F1F5F9' }}
       >
@@ -1013,21 +1035,19 @@ export default function DashboardLayout({ children }) {
 
   return (
     <div className={`h-screen w-screen overflow-hidden flex transition-colors duration-300 ${bgClass}`}>
-      
+
       {/* ── Mobile Sidebar Drawer ── */}
-      <div 
-        className={`lg:hidden fixed inset-0 z-50 flex transition-opacity duration-300 ${
-          mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
-        }`}
+      <div
+        className={`lg:hidden fixed inset-0 z-50 flex transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
       >
         {/* Backdrop overlay */}
-        <div 
-          className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ${
-            mobileMenuOpen ? 'opacity-100' : 'opacity-0'
-          }`}
+        <div
+          className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-300 ${mobileMenuOpen ? 'opacity-100' : 'opacity-0'
+            }`}
           onClick={() => setMobileMenuOpen(false)}
         />
-        
+
         {/* Sidebar content */}
         <aside
           className="relative flex flex-col w-52 max-w-xs h-full border-r shadow-2xl transition-transform duration-300 ease-out select-none"
@@ -1039,7 +1059,7 @@ export default function DashboardLayout({ children }) {
           {/* Sidebar Header (Logo) */}
           <div className="h-16 flex items-center justify-between px-6 border-b" style={{ borderColor: darkMode ? '#1E2E4A' : '#F1F5F9' }}>
             <img src={logoImg} alt="ZealthOS Logo" className="h-6.5 w-26 object-cover object-left" />
-            <button 
+            <button
               onClick={() => setMobileMenuOpen(false)}
               className="text-slate-400 hover:text-slate-600 dark:hover:text-white border-none bg-transparent cursor-pointer p-1 text-sm font-bold"
             >
@@ -1061,8 +1081,8 @@ export default function DashboardLayout({ children }) {
                     color: active
                       ? '#8C4BFF'
                       : darkMode
-                      ? '#94A3B8'
-                      : '#475569',
+                        ? '#94A3B8'
+                        : '#475569',
                     fontWeight: active ? 700 : 500,
                     backgroundColor: active
                       ? darkMode
@@ -1100,7 +1120,7 @@ export default function DashboardLayout({ children }) {
 
       {/* ── Right Column (Header + Content) ── */}
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-        
+
         {/* ── Top Header ── */}
         <header
           className="border-b px-2 lg:px-3 xl:px-4 h-16 flex items-center justify-between transition-colors duration-300 w-full max-w-full overflow-visible flex-shrink-0"
@@ -1133,7 +1153,7 @@ export default function DashboardLayout({ children }) {
           </div>
 
           {/* Middle: Top Horizontal Navigation */}
-          <nav 
+          <nav
             ref={navRef}
             onWheel={handleWheel}
             className="hidden lg:flex items-center justify-start 2xl:justify-center gap-1 xl:gap-2 2xl:gap-3 h-full flex-1 min-w-0 mx-1 xl:mx-2 overflow-x-auto select-none no-scrollbar"
@@ -1152,8 +1172,8 @@ export default function DashboardLayout({ children }) {
                     color: active
                       ? '#8C4BFF'
                       : darkMode
-                      ? '#94A3B8'
-                      : '#475569',
+                        ? '#94A3B8'
+                        : '#475569',
                   }}
                   onMouseEnter={e => {
                     if (!active) {
@@ -1171,8 +1191,8 @@ export default function DashboardLayout({ children }) {
                     <span>{item.label}</span>
                   </span>
                   {active && (
-                    <div 
-                      className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full" 
+                    <div
+                      className="absolute bottom-0 left-0 right-0 h-0.5 rounded-t-full"
                       style={{ backgroundColor: '#8C4BFF' }}
                     />
                   )}
@@ -1185,12 +1205,12 @@ export default function DashboardLayout({ children }) {
           <div className="flex items-center gap-1 sm:gap-3 xl:gap-4 flex-shrink-0">
 
             {/* Light/Dark Toggle Switch */}
-            <div 
+            <div
               onClick={toggleTheme}
               className="relative flex items-center bg-slate-700 dark:bg-slate-800 p-1 rounded-full cursor-pointer select-none mr-2 w-14 h-7 border border-slate-650 dark:border-slate-700"
             >
               {/* White Sliding Knob */}
-              <div 
+              <div
                 className="absolute w-5 h-5 bg-white dark:bg-slate-900 rounded-full shadow-md transition-all duration-200"
                 style={{
                   left: darkMode ? '31px' : '3px',
@@ -1198,22 +1218,22 @@ export default function DashboardLayout({ children }) {
               />
               {/* Sun Icon (Left) */}
               <div className="w-6 h-5 flex items-center justify-center z-10">
-                <SunOutlined 
-                  style={{ 
-                    fontSize: 11, 
+                <SunOutlined
+                  style={{
+                    fontSize: 11,
                     color: darkMode ? '#94A3B8' : '#1E293B',
                     transition: 'color 0.2s'
-                  }} 
+                  }}
                 />
               </div>
               {/* Moon Icon (Right) */}
               <div className="w-6 h-5 flex items-center justify-center z-10 ml-auto">
-                <MoonOutlined 
-                  style={{ 
-                    fontSize: 11, 
+                <MoonOutlined
+                  style={{
+                    fontSize: 11,
                     color: darkMode ? '#1E293B' : '#94A3B8',
                     transition: 'color 0.2s'
-                  }} 
+                  }}
                 />
               </div>
             </div>
@@ -1263,12 +1283,12 @@ export default function DashboardLayout({ children }) {
 
               {notificationDropdownOpen && (
                 <>
-                  <div 
-                    className="fixed inset-0 z-40 bg-transparent" 
+                  <div
+                    className="fixed inset-0 z-40 bg-transparent"
                     onClick={() => setNotificationDropdownOpen(false)}
                   />
-                  
-                  <div 
+
+                  <div
                     className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg py-2 z-50 animate-fade-in"
                     style={{
                       boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
@@ -1276,7 +1296,7 @@ export default function DashboardLayout({ children }) {
                   >
                     <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
                       <span className="text-sm font-bold text-slate-800 dark:text-white">Notifications</span>
-                      <button 
+                      <button
                         onClick={() => {
                           setNotificationDropdownOpen(false)
                           navigate(`/${rolePrefix}/notifications`)
@@ -1334,12 +1354,12 @@ export default function DashboardLayout({ children }) {
               {profileDropdownOpen && (
                 <>
                   {/* Backdrop overlay to close dropdown */}
-                  <div 
-                    className="fixed inset-0 z-40 bg-transparent" 
+                  <div
+                    className="fixed inset-0 z-40 bg-transparent"
                     onClick={() => setProfileDropdownOpen(false)}
                   />
-                  
-                  <div 
+
+                  <div
                     className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg py-2 z-50 animate-fade-in"
                     style={{
                       boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
@@ -1438,8 +1458,8 @@ export default function DashboardLayout({ children }) {
         className="documents-modal"
         width={650}
         style={{ top: '30px' }}
-        styles={{ 
-          content: { 
+        styles={{
+          content: {
             backgroundColor: '#1E1E28',
             border: '1px solid #333344',
             padding: '24px'
@@ -1456,17 +1476,17 @@ export default function DashboardLayout({ children }) {
 
         <Form layout="vertical" form={addForm} onFinish={handleAddSubmit}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-0">
-            <Form.Item 
-              name="name" 
-              label={<span className="text-slate-300 font-semibold text-xs">Document name</span>} 
+            <Form.Item
+              name="name"
+              label={<span className="text-slate-300 font-semibold text-xs">Document name</span>}
               rules={[{ required: true, message: 'Please enter document name' }]}
               style={{ marginBottom: '16px' }}
             >
               <Input placeholder="e.g. Docname.doc" className="w-full bg-[#2A2A36] text-white placeholder-slate-500 border-none rounded-lg h-10 hover:bg-[#323240] focus:bg-[#323240] transition-colors" />
             </Form.Item>
-            <Form.Item 
-              name="patientName" 
-              label={<span className="text-slate-300 font-semibold text-xs">Patient name</span>} 
+            <Form.Item
+              name="patientName"
+              label={<span className="text-slate-300 font-semibold text-xs">Patient name</span>}
               rules={[{ required: true, message: 'Please enter patient name' }]}
               style={{ marginBottom: '16px' }}
             >
@@ -1474,8 +1494,8 @@ export default function DashboardLayout({ children }) {
             </Form.Item>
           </div>
 
-          <Form.Item 
-            label={<span className="text-slate-300 font-semibold text-xs">Document Upload</span>} 
+          <Form.Item
+            label={<span className="text-slate-300 font-semibold text-xs">Document Upload</span>}
             style={{ marginBottom: '24px' }}
           >
             <Dragger

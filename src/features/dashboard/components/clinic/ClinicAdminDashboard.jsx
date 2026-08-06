@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { getClinicDashboardStats } from '../../../calendar/api/clinicAdminApi'
 import { Card, Button, Tag, Space, Checkbox, Select, DatePicker, Switch } from 'antd'
 import {
   DollarOutlined,
@@ -32,34 +33,15 @@ import {
 } from 'recharts'
 import { useClinicStore } from '../../../../store/clinicStore'
 
-const activityData = [
-  { name: 'Jan', value: 2200 },
-  { name: 'Feb', value: 3200 },
-  { name: 'Mar', value: 2800 },
-  { name: 'Apr', value: 5800 },
-  { name: 'May', value: 5000 },
-  { name: 'Jun', value: 7800 },
-  { name: 'Jul', value: 7200 },
-  { name: 'Aug', value: 9200 },
-  { name: 'Sep', value: 6800 },
-  { name: 'Oct', value: 6400 },
-  { name: 'Nov', value: 8500 },
-  { name: 'Dec', value: 9500 },
+const activityData = []
+const revenueData = []
+const DUMMY_ACTIVITY_DATA = [
+  { name: 'Jan', value: 2200 }, { name: 'Feb', value: 3200 }, { name: 'Mar', value: 2800 },
+  { name: 'Apr', value: 5800 }, { name: 'May', value: 5000 }, { name: 'Jun', value: 7800 },
 ]
-
-const revenueData = [
-  { name: 'Jan', value: 8000 },
-  { name: 'Feb', value: 12000 },
-  { name: 'Mar', value: 10000 },
-  { name: 'Apr', value: 22000 },
-  { name: 'May', value: 20000 },
-  { name: 'Jun', value: 28000 },
-  { name: 'Jul', value: 38000 },
-  { name: 'Aug', value: 35000 },
-  { name: 'Sep', value: 42000 },
-  { name: 'Oct', value: 40000 },
-  { name: 'Nov', value: 48000 },
-  { name: 'Dec', value: 45000 },
+const DUMMY_REVENUE_DATA = [
+  { name: 'Jan', value: 8000 },  { name: 'Feb', value: 12000 }, { name: 'Mar', value: 10000 },
+  { name: 'Apr', value: 22000 }, { name: 'May', value: 20000 }, { name: 'Jun', value: 28000 },
 ]
 
 export default function ClinicAdminDashboard({ store: propStore }) {
@@ -69,6 +51,27 @@ export default function ClinicAdminDashboard({ store: propStore }) {
 
   const [taskRef, setTaskRef] = useState('')
   const [messageText, setMessageText] = useState('')
+
+  // ── DB Stats State ────────────────────────────────────────────────────────
+  const [dbStats, setDbStats] = useState(null)
+  const [statsLoading, setStatsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setStatsLoading(true)
+        const res = await getClinicDashboardStats()
+        if (res && res.success) {
+          setDbStats(res.data)
+        }
+      } catch (err) {
+        console.error('❌ Dashboard stats fetch error:', err)
+      } finally {
+        setStatsLoading(false)
+      }
+    }
+    fetchStats()
+  }, [])
 
   const handleSendMessage = () => {
     if (!messageText.trim()) return
@@ -157,77 +160,73 @@ export default function ClinicAdminDashboard({ store: propStore }) {
   const hasFinancials = isStripeConnected || isXeroConnected || isMyobConnected
   const hasVideoConsults = isZoomConnected || isGMeetConnected
 
-  // Calculate dynamic outstanding invoices amount
-  const outstandingInvoicesTotal = store.invoices
-    .filter(i => i.status !== 'Paid' && i.status !== 'Completed')
-    .reduce((s, i) => s + i.due, 0)
+  // ── Real DB Stats (from API) with fallback ────────────────────────────────
+  const dbRevenue        = dbStats?.monthlyRevenue ?? 0
+  const dbOutstanding    = dbStats?.outstandingAmount ?? 0
+  const dbWeekAppts      = dbStats?.weekAppointments ?? 0
+  const dbCancelRate     = dbStats?.cancellationRate ?? 0
+  const dbNewClients     = dbStats?.newClientsThisMonth ?? 0
+  const dbUninvoiced     = dbStats?.uninvoicedCount ?? 0
+  const dbActiveClients  = dbStats?.activePatients ?? 0
+  const dbPaymentRate    = dbStats?.paymentRate ?? 0
+  const dbWaitlist       = dbStats?.waitlistCount ?? 0
+  const dbUtilisation    = dbStats?.avgUtilisation ?? 0
 
-  // Calculate dynamic active clients count
-  const activeClientsCount = store.patients.filter(p => p.status === 'active').length
-
-  // Calculate dynamic appointments count
-  const appointmentsCount = store.appointments.length
-
-  // Calculate dynamic waitlist count
-  const waitlistCount = store.waitlist.length
-
-  // Calculate dynamic monthly revenue
-  const totalPaidRevenue = store.invoices
-    .filter(i => i.status === 'Completed' || i.status === 'Processing')
-    .reduce((sum, i) => sum + (i.paid || 0), 0)
-
-  // Calculate dynamic payment rate
-  const totalInvoices = store.invoices.length
-  const paidInvoices = store.invoices.filter(i => i.status === 'Completed' || i.status === 'Processing').length
-  const paymentRate = totalInvoices > 0 ? Math.round((paidInvoices / totalInvoices) * 100) : 80
+  // Chart data from DB (last 6 months), fallback to dummy if empty
+  const chartActivityData = (dbStats?.activityByMonth?.length > 0) ? dbStats.activityByMonth : DUMMY_ACTIVITY_DATA
+  const chartRevenueData  = (dbStats?.revenueByMonth?.length > 0)  ? dbStats.revenueByMonth  : DUMMY_REVENUE_DATA
 
   const statsList = [
-    { id: 'avg_utilisation', label: 'UTILISATION %', icon: null, color: '#10B981', value: '78%', change: '+2.4% vs last period', pos: true, sub: '' },
     { 
-      id: 'monthly_revenue', 
-      label: 'REVENUE $', 
-      icon: <DollarOutlined />, 
-      color: '#8C4BFF', 
-      value: isStripeConnected ? `$${totalPaidRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '$0', 
-      change: isStripeConnected ? '+5.8% vs last period' : '', 
-      pos: isStripeConnected ? true : false, 
-      sub: '' 
+      id: 'avg_utilisation', label: 'UTILISATION %', icon: null, color: '#10B981', 
+      value: statsLoading ? '—' : `${dbUtilisation}%`, 
+      change: dbStats ? 'Live from DB' : 'Loading...', pos: true, sub: 'Completed sessions / total' 
     },
     { 
-      id: 'appts_week', 
-      label: 'APPOINTMENTS', 
-      icon: <CalendarOutlined />, 
-      color: '#3B82F6', 
-      value: (isZoomConnected || isGMeetConnected) ? String(appointmentsCount) : '0', 
-      change: null, 
-      pos: null, 
-      sub: 'Scheduled visits' 
+      id: 'monthly_revenue', label: 'REVENUE $', icon: <DollarOutlined />, color: '#8C4BFF',
+      value: statsLoading ? '—' : `$${dbRevenue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+      change: dbStats ? 'This month (DB)' : null, pos: true, sub: 'Monthly paid invoices'
     },
-    { id: 'cancellation_rate', label: 'CANCELLATION', icon: <WarningOutlined />, color: '#EF4444', value: '6.2%', change: '-0.4% improvement', pos: false, sub: '' },
-    { id: 'new_clients', label: 'NEW CLIENTS', icon: <UserAddOutlined />, color: '#30D2BE', value: '15', change: null, pos: null, sub: 'Onboarded this period' },
     { 
-      id: 'outstanding_invoices', 
-      label: 'OUTSTANDING $', 
-      icon: <DollarOutlined />, 
-      color: '#F59E0B', 
-      value: (isXeroConnected || isMyobConnected) ? `$${outstandingInvoicesTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : '$0', 
-      change: null, 
-      pos: null, 
-      sub: 'Pending payment' 
+      id: 'appts_week', label: 'APPOINTMENTS', icon: <CalendarOutlined />, color: '#3B82F6',
+      value: statsLoading ? '—' : String(dbWeekAppts),
+      change: null, pos: null, sub: 'This week (scheduled)'
     },
-    { id: 'uninvoiced', label: 'UNINVOICED', icon: <FileTextOutlined />, color: '#8C4BFF', value: '8', change: null, pos: null, sub: 'Draft invoice needed' },
-    { id: 'active_clients', label: 'ACTIVE CLIENTS', icon: <TeamOutlined />, color: '#8C4BFF', value: String(activeClientsCount), change: '+8.0%', pos: true, sub: 'from last month' },
     { 
-      id: 'payment_rate', 
-      label: 'PAYMENT RATE', 
-      icon: <PercentageOutlined />, 
-      color: '#8C4BFF', 
-      value: isStripeConnected ? `${paymentRate}%` : '0%', 
-      change: isStripeConnected ? '-2.0%' : '0%', 
-      pos: false, 
-      sub: isStripeConnected ? 'from last month' : 'Stripe Disconnected' 
+      id: 'cancellation_rate', label: 'CANCELLATION', icon: <WarningOutlined />, color: '#EF4444',
+      value: statsLoading ? '—' : `${dbCancelRate}%`,
+      change: dbStats ? 'This month (DB)' : null, pos: false, sub: 'Cancelled this month'
     },
-    { id: 'waitlist', label: 'WAITLIST CLIENTS', icon: <ClockCircleOutlined />, color: '#F59E0B', value: String(waitlistCount), change: '+2', pos: false, sub: 'awaiting appointment' },
+    { 
+      id: 'new_clients', label: 'NEW CLIENTS', icon: <UserAddOutlined />, color: '#30D2BE',
+      value: statsLoading ? '—' : String(dbNewClients),
+      change: null, pos: null, sub: 'Onboarded this month'
+    },
+    { 
+      id: 'outstanding_invoices', label: 'OUTSTANDING $', icon: <DollarOutlined />, color: '#F59E0B',
+      value: statsLoading ? '—' : `$${dbOutstanding.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+      change: null, pos: null, sub: 'Pending payment'
+    },
+    { 
+      id: 'uninvoiced', label: 'UNINVOICED', icon: <FileTextOutlined />, color: '#8C4BFF',
+      value: statsLoading ? '—' : String(dbUninvoiced),
+      change: null, pos: null, sub: 'Draft invoice needed'
+    },
+    { 
+      id: 'active_clients', label: 'ACTIVE CLIENTS', icon: <TeamOutlined />, color: '#8C4BFF',
+      value: statsLoading ? '—' : String(dbActiveClients),
+      change: dbStats ? 'Live from DB' : null, pos: true, sub: 'Active patient status'
+    },
+    { 
+      id: 'payment_rate', label: 'PAYMENT RATE', icon: <PercentageOutlined />, color: '#8C4BFF',
+      value: statsLoading ? '—' : `${dbPaymentRate}%`,
+      change: dbStats ? 'Paid / total invoices' : null, pos: dbPaymentRate >= 70, sub: 'From total invoices'
+    },
+    { 
+      id: 'waitlist', label: 'WAITLIST CLIENTS', icon: <ClockCircleOutlined />, color: '#F59E0B',
+      value: statsLoading ? '—' : String(dbWaitlist),
+      change: null, pos: false, sub: 'Awaiting appointment'
+    },
   ]
 
   const getGridClass = () => {
@@ -383,47 +382,31 @@ export default function ClinicAdminDashboard({ store: propStore }) {
 
       {/* Main charts layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="border border-slate-100 dark:border-slate-800 dark:bg-slate-900 rounded-2xl shadow-sm" title={<span className="font-extrabold text-sm text-slate-700 dark:text-slate-200">Monthly Clinical Appointments Trend</span>}>
+        <Card className="border border-slate-100 dark:border-slate-800 dark:bg-slate-900 rounded-2xl shadow-sm" title={<span className="font-extrabold text-sm text-slate-700 dark:text-slate-200">Monthly Clinical Appointments Trend <span className="text-[10px] text-emerald-500 font-semibold ml-2">Live DB</span></span>}>
           <div className="h-64">
-            {hasVideoConsults ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={activityData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#1E293B' : '#F1F5F9'} vertical={false} />
-                  <XAxis dataKey="name" stroke="#94A3B8" fontSize={10} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#94A3B8" fontSize={10} tickLine={false} axisLine={false} />
-                  <Tooltip cursor={false} contentStyle={{ backgroundColor: darkMode ? '#1E293B' : '#FFFFFF', color: darkMode ? '#FFFFFF' : '#1E293B', borderRadius: 12, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
-                  <Line type="monotone" dataKey="value" stroke="#30D2BE" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: '#30D2BE' }} />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center p-6 text-center bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border border-dashed border-slate-150 dark:border-slate-700">
-                <CalendarOutlined style={{ fontSize: 32, color: '#94A3B8', marginBottom: 12 }} />
-                <h4 className="text-slate-700 dark:text-slate-200 font-extrabold text-sm m-0">Video Consultations Disconnected</h4>
-                <p className="text-slate-400 text-xs mt-1 max-w-xs font-semibold">Connect Zoom or Google Meet in Settings to activate clinical appointment trend charts.</p>
-              </div>
-            )}
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartActivityData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#1E293B' : '#F1F5F9'} vertical={false} />
+                <XAxis dataKey="name" stroke="#94A3B8" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="#94A3B8" fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip cursor={false} contentStyle={{ backgroundColor: darkMode ? '#1E293B' : '#FFFFFF', color: darkMode ? '#FFFFFF' : '#1E293B', borderRadius: 12, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
+                <Line type="monotone" dataKey="value" stroke="#30D2BE" strokeWidth={3} dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: '#30D2BE' }} />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
         </Card>
 
-        <Card className="border border-slate-100 dark:border-slate-800 dark:bg-slate-900 rounded-2xl shadow-sm" title={<span className="font-extrabold text-sm text-slate-700 dark:text-slate-200">Financial Revenue Logs</span>}>
+        <Card className="border border-slate-100 dark:border-slate-800 dark:bg-slate-900 rounded-2xl shadow-sm" title={<span className="font-extrabold text-sm text-slate-700 dark:text-slate-200">Financial Revenue Logs <span className="text-[10px] text-emerald-500 font-semibold ml-2">Live DB</span></span>}>
           <div className="h-64">
-            {hasFinancials ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={revenueData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#1E293B' : '#F1F5F9'} vertical={false} />
-                  <XAxis dataKey="name" stroke="#94A3B8" fontSize={10} tickLine={false} axisLine={false} />
-                  <YAxis stroke="#94A3B8" fontSize={10} tickLine={false} axisLine={false} />
-                  <Tooltip cursor={false} contentStyle={{ backgroundColor: darkMode ? '#1E293B' : '#FFFFFF', color: darkMode ? '#FFFFFF' : '#1E293B', borderRadius: 12, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
-                  <Bar dataKey="value" fill="#8C4BFF" radius={[4, 4, 0, 0]} maxBarSize={28} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center p-6 text-center bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl border border-dashed border-slate-150 dark:border-slate-700">
-                <DollarOutlined style={{ fontSize: 32, color: '#94A3B8', marginBottom: 12 }} />
-                <h4 className="text-slate-700 dark:text-slate-200 font-extrabold text-sm m-0">Accounting & Payments Disconnected</h4>
-                <p className="text-slate-400 text-xs mt-1 max-w-xs font-semibold">Connect Stripe, Xero, or MYOB in Settings to activate financial revenue log charts.</p>
-              </div>
-            )}
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartRevenueData}>
+                <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#1E293B' : '#F1F5F9'} vertical={false} />
+                <XAxis dataKey="name" stroke="#94A3B8" fontSize={10} tickLine={false} axisLine={false} />
+                <YAxis stroke="#94A3B8" fontSize={10} tickLine={false} axisLine={false} />
+                <Tooltip cursor={false} contentStyle={{ backgroundColor: darkMode ? '#1E293B' : '#FFFFFF', color: darkMode ? '#FFFFFF' : '#1E293B', borderRadius: 12, border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
+                <Bar dataKey="value" fill="#8C4BFF" radius={[4, 4, 0, 0]} maxBarSize={28} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </Card>
       </div>

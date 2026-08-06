@@ -475,17 +475,23 @@ export default function ReportsPage() {
     }
   }, [liveReportData, filterScale])
 
-  // Dynamically compute charts data based on filters
+  // Dynamically compute charts data based on filters and DB response
   const chartRevenueData = useMemo(() => {
-    return MOCK_MONTHLY_REVENUE.map(d => ({
+    const list = liveReportData && Array.isArray(liveReportData.monthlyRevenue) && liveReportData.monthlyRevenue.length > 0
+      ? liveReportData.monthlyRevenue
+      : MOCK_MONTHLY_REVENUE
+
+    return list.map(d => ({
       name: d.name,
-      current: Math.round(d.current * filterScale),
-      previous: Math.round(d.previous * filterScale)
+      current: Math.round((d.current || 0) * filterScale),
+      previous: Math.round((d.previous || 0) * filterScale)
     }))
-  }, [filterScale])
+  }, [liveReportData, filterScale])
 
   const chartPractitionerData = useMemo(() => {
-    const list = liveReportData && Array.isArray(liveReportData.practitionerPerformance) && liveReportData.practitionerPerformance.length > 0
+    const list = liveReportData && Array.isArray(liveReportData.practitionerBreakdown) && liveReportData.practitionerBreakdown.length > 0
+      ? liveReportData.practitionerBreakdown
+      : liveReportData && Array.isArray(liveReportData.practitionerPerformance) && liveReportData.practitionerPerformance.length > 0
       ? liveReportData.practitionerPerformance
       : MOCK_PRACTITIONER_DATA
 
@@ -493,7 +499,7 @@ export default function ReportsPage() {
       .filter(d => practitioner === 'All Practitioners' || practitioner === 'All' || (d.name || '').includes(practitioner))
       .map(d => ({
         name: d.name,
-        Appointments: Math.max(1, Math.round((d.Appointments || 0) * filterScale)),
+        Appointments: Math.max(0, Math.round((d.Appointments || 0) * filterScale)),
         Revenue: Math.round((d.Revenue || 0) * filterScale)
       }))
   }, [liveReportData, practitioner, filterScale])

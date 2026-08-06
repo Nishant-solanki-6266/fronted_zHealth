@@ -34,7 +34,7 @@ import {
   ThunderboltOutlined
 } from '@ant-design/icons'
 import { useClinicStore } from '../../../store/clinicStore'
-import { createPatient, updatePatient, deletePatient as apiDeletePatient } from '../../calendar/api/clinicAdminApi'
+import { createPatient, updatePatient, deletePatient as apiDeletePatient, getBranches } from '../../calendar/api/clinicAdminApi'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
 import ClientProgressNotes from '../components/ClientProgressNotes'
@@ -64,7 +64,8 @@ function renderTagIcon(iconName) {
 
 function ClientTag({ label }) {
   const store = useClinicStore.getState()
-  const matched = store.clientTags.find(t => t.name.toLowerCase() === label.toLowerCase())
+  const labelStr = typeof label === 'string' ? label : (label?.name || label?.label || String(label || ''))
+  const matched = Array.isArray(store.clientTags) ? store.clientTags.find(t => String(t?.name || t?.label || '').toLowerCase() === labelStr.toLowerCase()) : null
   const color = matched ? matched.color : '#64748B'
   const icon = matched ? matched.icon : 'TagOutlined'
   return (
@@ -77,7 +78,7 @@ function ClientTag({ label }) {
       }}
     >
       {renderTagIcon(icon)}
-      <span>{label}</span>
+      <span>{labelStr}</span>
     </span>
   )
 }
@@ -89,6 +90,28 @@ export default function ClientProfilePage() {
   const basePath = window.location.pathname.split('/')[1] ? `/${window.location.pathname.split('/')[1]}` : '/clinic'
   const store = useClinicStore()
   const isNew = id === 'new' || !id
+
+  const [branchesList, setBranchesList] = useState([])
+
+  useEffect(() => {
+    let isMounted = true
+    const fetchBranchesData = async () => {
+      try {
+        const res = await getBranches()
+        if (isMounted && res?.success && Array.isArray(res.data)) {
+          setBranchesList(res.data)
+        }
+      } catch (err) {
+        console.error('Failed to fetch branches in ClientProfilePage:', err)
+      }
+    }
+    fetchBranchesData()
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const activeBranches = branchesList.length > 0 ? branchesList : (Array.isArray(store.branches) ? store.branches : [])
 
   // Memoize default empty client values so they have a stable object reference
   const defaultPatient = React.useMemo(() => ({
@@ -439,8 +462,8 @@ export default function ClientProfilePage() {
             label={<span className="text-slate-500 font-semibold text-xs">Branch Assignment</span>}
           >
             <Select placeholder="Select branch" className="rounded-xl h-10 border-slate-200" style={{ height: 40 }}>
-              {store.branches.map(b => (
-                <Option key={b.id} value={b.name}>{b.name}</Option>
+              {activeBranches.map(b => (
+                <Option key={b.id || b.name} value={b.name}>{b.name}</Option>
               ))}
             </Select>
           </Form.Item>

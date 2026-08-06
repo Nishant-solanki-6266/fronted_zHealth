@@ -33,7 +33,8 @@ import {
   AlertOutlined,
   SettingOutlined,
   MobileOutlined,
-  SearchOutlined
+  SearchOutlined,
+  EyeOutlined
 } from '@ant-design/icons'
 
 export const tagIconsMap = {
@@ -69,6 +70,7 @@ import {
   updateSuperAdminProfile,
   getSettingsTemplates,
   createSettingsTemplate,
+  updateSettingsTemplate,
   deleteSettingsTemplate,
   getServices as apiGetServices,
   createService as apiCreateService,
@@ -220,6 +222,15 @@ export default function SuperAdminSettingsPage() {
         if (templatesRes.status === 'fulfilled' && templatesRes.value?.success) {
           const rawData = templatesRes.value.data
           const forms = rawData?.forms || (Array.isArray(rawData) ? rawData : [])
+          const letters = rawData?.letters || []
+          const notes = rawData?.notes || []
+          
+          useClinicStore.setState({
+            formTemplates: forms,
+            letterTemplates: letters.length ? letters : store.letterTemplates,
+            noteTemplates: notes.length ? notes : store.noteTemplates
+          })
+
           const fetchedCharts = forms.filter(t => t.category === 'BODY_CHART' || t.type === 'BODY_CHART')
           if (fetchedCharts?.length) {
             setBodyChartsList(fetchedCharts.map(c => ({ id: c.id, name: c.name, category: 'Physiotherapy', updatedAt: c.lastModified || 'Live DB' })))
@@ -608,6 +619,8 @@ export default function SuperAdminSettingsPage() {
   const [selectedNote, setSelectedNote] = useState(store.noteTemplates[0] || null)
   const [noteModalOpen, setNoteModalOpen] = useState(false)
   const [notePreviewMode, setNotePreviewMode] = useState(false)
+  const [notePreviewModalOpen, setNotePreviewModalOpen] = useState(false)
+  const [previewTab, setPreviewTab] = useState('placeholders')
 
   // Services State
   const [editingService, setEditingService] = useState(null)
@@ -1491,24 +1504,25 @@ export default function SuperAdminSettingsPage() {
 
                 <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
                   <Table
-                dataSource={store.clientTags}
-                pagination={false}
-                rowKey="id"
-                columns={[
-                  {
-                    title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Form Name</span>,
-                    dataIndex: 'name',
-                    render: (text) => <span className="font-bold text-slate-800 dark:text-slate-200">{text}</span>,
-                  },
-                  {
-                    title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Category</span>,
-                    dataIndex: 'category',
-                    render: (text) => <Tag color="blue" className="rounded-full border-none font-bold text-[10px] px-2.5 py-0.5">{text}</Tag>,
-                  },
-                  {
-                    title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Last Modified</span>,
-                    dataIndex: 'lastModified',
-                  },
+                    dataSource={store.formTemplates}
+                    pagination={false}
+                    rowKey="id"
+                    columns={[
+                      {
+                        title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Form Name</span>,
+                        dataIndex: 'name',
+                        render: (text) => <span className="font-bold text-slate-800 dark:text-slate-200">{text}</span>,
+                      },
+                      {
+                        title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Category</span>,
+                        dataIndex: 'category',
+                        render: (text) => <Tag color="blue" className="rounded-full border-none font-bold text-[10px] px-2.5 py-0.5">{text || 'Intake'}</Tag>,
+                      },
+                      {
+                        title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Last Modified</span>,
+                        dataIndex: 'lastModified',
+                        render: (text) => <span className="text-slate-400 font-semibold text-xs">{text || 'Recently'}</span>
+                      },
                   {
                     title: <span className="font-extrabold text-xs uppercase tracking-wider text-slate-500">Actions</span>,
                     key: 'actions',
@@ -1832,18 +1846,23 @@ export default function SuperAdminSettingsPage() {
                       {t.name}
                     </button>
                     <button
-                      onClick={(e) => {
+                      onClick={async (e) => {
                         e.stopPropagation()
                         if (store.noteTemplates.length <= 1) {
                           toast.error('At least one note template must be kept!')
                           return
                         }
-                        const updated = store.noteTemplates.filter((n) => n.id !== t.id)
-                        useClinicStore.setState({ noteTemplates: updated })
-                        if (selectedNote?.id === t.id) {
-                          setSelectedNote(updated[0])
+                        try {
+                          await deleteSettingsTemplate('note', t.id).catch(() => {})
+                          const updated = store.noteTemplates.filter((n) => n.id !== t.id)
+                          useClinicStore.setState({ noteTemplates: updated })
+                          if (selectedNote?.id === t.id) {
+                            setSelectedNote(updated[0])
+                          }
+                          toast.success('Note template deleted from database!')
+                        } catch (err) {
+                          toast.error('Failed to delete note template')
                         }
-                        toast.success('Note template deleted!')
                       }}
                       className="bg-transparent border-none text-slate-400 hover:text-red-500 cursor-pointer p-0.5 ml-1"
                       title="Delete Template"
@@ -1852,34 +1871,35 @@ export default function SuperAdminSettingsPage() {
                     </button>
                   </div>
                 ))}
-              </div>              <div className="lg:col-span-3">
+              </div>
+
+              <div className="lg:col-span-3">
                 {selectedNote ? (
                   <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900">
-                    <div className="flex justify-between items-center mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">
-                      <div>
-                        <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Template Title</span>
-                        <h3 className="text-base font-extrabold text-slate-800 dark:text-white m-0 mt-0.5">{selectedNote.name}</h3>
-                      </div>
+                    <div className="mb-4 border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">TEMPLATE TITLE</span>
+                      <h3 className="text-base font-extrabold text-slate-800 dark:text-white m-0 mt-0.5">{selectedNote.name}</h3>
                     </div>
 
                     <div>
                       <div className="mb-4">
                         <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-2">
-                          Placeholders (Click to insert at cursor position)
+                          PLACEHOLDERS (CLICK TO INSERT AT CURSOR POSITION)
                         </span>
                         <div className="flex flex-wrap gap-2">
                           {['{{Client Name}}', '{{DOB}}', '{{NDIS Number}}', '{{Diagnosis}}', '{{Practitioner Name}}'].map((pl) => (
                             <button
                               key={pl}
                               type="button"
-                              onClick={() => {
-                                const newContent = selectedNote.content + ` ${pl} `
+                              onClick={async () => {
+                                const newContent = (selectedNote.content || '') + ` ${pl} `
+                                const updatedNote = { ...selectedNote, content: newContent }
                                 useClinicStore.setState((state) => ({
                                   noteTemplates: state.noteTemplates.map((n) =>
-                                    n.id === selectedNote.id ? { ...n, content: newContent } : n
+                                    n.id === selectedNote.id ? updatedNote : n
                                   ),
                                 }))
-                                setSelectedNote({ ...selectedNote, content: newContent })
+                                setSelectedNote(updatedNote)
                                 toast.success(`Inserted ${pl}`)
                               }}
                               className="bg-slate-100 dark:bg-slate-800 hover:bg-[#8C4BFF]/10 dark:hover:bg-[#8C4BFF]/20 text-slate-600 dark:text-slate-300 hover:text-[#8C4BFF] border-none px-2.5 py-1 text-[11px] font-extrabold rounded-lg cursor-pointer transition-colors"
@@ -1890,24 +1910,54 @@ export default function SuperAdminSettingsPage() {
                         </div>
                       </div>
 
-                      <div className="mb-5">
+                      <div className="mb-4">
                         <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block mb-1">
-                          Notes Structure / Text Content
+                          NOTES STRUCTURE / TEXT CONTENT
                         </span>
                         <Input.TextArea
                           value={selectedNote.content}
                           onChange={(e) => {
                             const val = e.target.value
+                            const updatedNote = { ...selectedNote, content: val }
                             useClinicStore.setState((state) => ({
                               noteTemplates: state.noteTemplates.map((n) =>
-                                n.id === selectedNote.id ? { ...n, content: val } : n
+                                n.id === selectedNote.id ? updatedNote : n
                               ),
                             }))
-                            setSelectedNote({ ...selectedNote, content: val })
+                            setSelectedNote(updatedNote)
                           }}
                           rows={12}
-                          className="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl"
+                          className="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-xl font-mono text-xs leading-relaxed"
                         />
+                      </div>
+
+                      {/* Bottom Right Actions */}
+                      <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <Button
+                          onClick={() => setNotePreviewModalOpen(true)}
+                          className="rounded-xl font-bold h-10 text-xs px-5 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 flex items-center gap-1.5 cursor-pointer"
+                          icon={<EyeOutlined />}
+                        >
+                          Preview Template
+                        </Button>
+                        <Button
+                          type="primary"
+                          onClick={async () => {
+                            try {
+                              await updateSettingsTemplate('note', selectedNote.id, {
+                                name: selectedNote.name,
+                                content: selectedNote.content
+                              })
+                              toast.success('Notes layout saved to live database!')
+                            } catch (err) {
+                              toast.error('Failed to save notes layout to database')
+                            }
+                          }}
+                          style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
+                          className="rounded-xl font-bold h-10 text-xs px-6 border-none shadow-md cursor-pointer"
+                        >
+                          Save Notes Layout
+                        </Button>
                       </div>
                     </div>
                   </Card>
@@ -1928,22 +1978,32 @@ export default function SuperAdminSettingsPage() {
             >
               <Form
                 layout="vertical"
-                onFinish={(values) => {
-                  const newNote = {
-                    id: `n_${Date.now()}`,
-                    name: values.name,
-                    content: '',
+                onFinish={async (values) => {
+                  try {
+                    const res = await createSettingsTemplate({
+                      type: 'note',
+                      name: values.name,
+                      content: ''
+                    })
+                    const newNote = res?.success && res.data ? res.data : {
+                      id: `n_${Date.now()}`,
+                      name: values.name,
+                      content: '',
+                    }
+                    useClinicStore.setState((state) => ({
+                      noteTemplates: [...state.noteTemplates, newNote],
+                    }))
+                    setSelectedNote(newNote)
+                    setNoteModalOpen(false)
+                    toast.success('Note template created in live database!')
+                  } catch (err) {
+                    toast.error('Failed to create note template')
                   }
-                  useClinicStore.setState((state) => ({
-                    noteTemplates: [...state.noteTemplates, newNote],
-                  }))
-                  setNoteModalOpen(false)
-                  toast.success('Note template created!')
                 }}
                 className="mt-4"
               >
                 <Form.Item name="name" label="Template Name" rules={[{ required: true }]}>
-                  <Input placeholder="e.g. Initial Assessment" />
+                  <Input placeholder="e.g. Initial Assessment Notes" />
                 </Form.Item>
                 <div className="flex justify-end gap-2 mt-6">
                   <Button onClick={() => setNoteModalOpen(false)}>Cancel</Button>
@@ -1952,6 +2012,47 @@ export default function SuperAdminSettingsPage() {
                   </Button>
                 </div>
               </Form>
+            </Modal>
+
+            {/* Note Preview Modal */}
+            <Modal
+              open={notePreviewModalOpen}
+              onCancel={() => setNotePreviewModalOpen(false)}
+              footer={null}
+              destroyOnHidden
+              width={640}
+              title={
+                <span className="font-bold text-slate-800 dark:text-slate-100 text-base">
+                  Template Preview: {selectedNote?.name}
+                </span>
+              }
+              className="dark:bg-[#111827] rounded-2xl"
+            >
+              <div className="mt-4 bg-[#0D1B2E] border border-[#1E3A5F] rounded-2xl overflow-hidden shadow-2xl">
+                {/* Blue left accent bar + content area like the screenshot */}
+                <div className="flex">
+                  <div className="w-1 flex-shrink-0 bg-[#3B82F6] rounded-l-2xl" />
+                  <div className="flex-1 p-5 whitespace-pre-wrap text-slate-200 text-xs font-sans leading-relaxed max-h-[60vh] overflow-y-auto">
+                    {selectedNote?.content ? (
+                      selectedNote.content.split(/(\{\{[^}]+\}\})/).map((part, i) => {
+                        if (part.startsWith('{{') && part.endsWith('}}')) {
+                          return (
+                            <span
+                              key={i}
+                              className="text-[#60A5FA] font-bold bg-[#1E3A5F] px-2 py-0.5 rounded border border-[#3B82F6]/40 inline-block my-0.5 mx-0.5 text-xs"
+                            >
+                              {part}
+                            </span>
+                          )
+                        }
+                        return part
+                      })
+                    ) : (
+                      <span className="text-slate-500 italic">No content available for preview...</span>
+                    )}
+                  </div>
+                </div>
+              </div>
             </Modal>
           </div>
             )}

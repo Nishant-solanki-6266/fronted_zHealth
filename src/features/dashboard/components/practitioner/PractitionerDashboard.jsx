@@ -20,6 +20,7 @@ import {
   SlidersOutlined
 } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
+import { getPractitionerDashboardStats } from '../../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 
@@ -33,6 +34,27 @@ export default function PractitionerDashboard({ store, navigate }) {
 
   const [customiseOpen, setCustomiseOpen] = useState(false)
   const customiseRef = useRef(null)
+
+  // ── DB Stats State ────────────────────────────────────────────────────────
+  const [dbStats, setDbStats] = useState(null)
+  const [statsLoading, setStatsLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        setStatsLoading(true)
+        const res = await getPractitionerDashboardStats()
+        if (res && res.success) {
+          setDbStats(res.data)
+        }
+      } catch (err) {
+        console.error('❌ Practitioner dashboard stats fetch error:', err)
+      } finally {
+        setStatsLoading(false)
+      }
+    }
+    fetchStats()
+  }, [])
 
   useEffect(() => {
     const handler = (e) => {
@@ -272,9 +294,27 @@ export default function PractitionerDashboard({ store, navigate }) {
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {[
-          { label: "Today's Consultations", value: `6 Sessions`, icon: <CalendarOutlined />, color: '#30D2BE', desc: '3 initial, 3 reviews' },
-          { label: 'Uncompleted Notes Review', value: `3 Pending`, icon: <FileTextOutlined />, color: '#8C4BFF', desc: 'Requires validation signature' },
-          { label: 'Clinical Day Utilization', value: '82%', icon: <CheckCircleOutlined />, color: '#10B981', desc: 'Average of 6.2 hours work' }
+          { 
+            label: "Today's Consultations", 
+            value: statsLoading ? '—' : `${dbStats?.todayAppointments ?? 0} Sessions`, 
+            icon: <CalendarOutlined />, 
+            color: '#30D2BE', 
+            desc: statsLoading ? 'Loading DB...' : `${dbStats?.todayCompleted ?? 0} completed, ${dbStats?.todayCancelled ?? 0} cancelled` 
+          },
+          { 
+            label: 'Uncompleted Notes Review', 
+            value: statsLoading ? '—' : `${dbStats?.pendingNotes ?? 0} Pending`, 
+            icon: <FileTextOutlined />, 
+            color: '#8C4BFF', 
+            desc: 'Requires validation / completion' 
+          },
+          { 
+            label: 'Clinical Utilization Rate', 
+            value: statsLoading ? '—' : `${dbStats?.utilisation ?? 0}%`, 
+            icon: <CheckCircleOutlined />, 
+            color: '#10B981', 
+            desc: statsLoading ? 'Loading DB...' : `${dbStats?.monthUtilisation ?? 0}% monthly average` 
+          }
         ].map((kpi, idx) => (
           <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-850 rounded-2xl p-5 shadow-sm">
             <div className="flex justify-between items-start">

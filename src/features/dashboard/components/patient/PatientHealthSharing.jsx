@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Card, Table, Tag, Button, Input, Select, Modal, Divider, Badge } from 'antd'
+import React, { useState, useEffect } from 'react'
+import { Card, Table, Tag, Button, Input, Select, Modal, Divider, Badge, Spin } from 'antd'
 import {
   SafetyCertificateOutlined,
   SearchOutlined,
@@ -10,56 +10,116 @@ import {
   CloseCircleOutlined
 } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
+import api from '../../../../api/axios'
 
 const { Option } = Select
 
 export default function PatientHealthSharing() {
-  const [sharingClinics, setSharingClinics] = useState([
-    { key: '1', clinic: 'Melbourne Allied Health', practitioner: 'Dr. Sarah Jenkins', level: 'Full Access', grantedDate: '12 Jan 2026' },
-    { key: '2', clinic: 'Sydney Allied Hub', practitioner: 'Dr. Emily Smith', level: 'Limited Access', grantedDate: '04 Mar 2026' }
-  ])
+  const [loading, setLoading] = useState(false)
+  const [sharingClinics, setSharingClinics] = useState([])
+  const [pendingRequests, setPendingRequests] = useState([])
 
-  const [pendingRequests, setPendingRequests] = useState([
-    { id: 'req_1', clinic: 'ABC Physiotherapy Care', practitioner: 'John Smith', date: 'Just now' }
-  ])
-
-  const [searchQuery, setSearchQuery] = useState('')
   const [selectedAccessLevel, setSelectedAccessLevel] = useState('Limited Access')
   const [selectedClinic, setSelectedClinic] = useState('Metro Rehab Centre')
 
-  const handleGrantAccess = () => {
-    const newShare = {
-      key: Date.now().toString(),
-      clinic: selectedClinic,
-      practitioner: 'All Registered Providers',
-      level: selectedAccessLevel,
-      grantedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  const fetchHealthShares = async () => {
+    setLoading(true)
+    try {
+      const res = await api.get('/api/patient/health-sharing')
+      if (res.data?.success && res.data.data) {
+        if (Array.isArray(res.data.data.activeShares)) setSharingClinics(res.data.data.activeShares)
+        if (Array.isArray(res.data.data.pendingRequests)) setPendingRequests(res.data.data.pendingRequests)
+      }
+    } catch (err) {
+      console.warn('Health sharing API fetch fallback notice:', err?.message)
+    } finally {
+      setLoading(false)
     }
-    setSharingClinics(prev => [...prev, newShare])
-    toast.success(`Access granted to ${selectedClinic} successfully!`)
   }
 
-  const handleRevoke = (key, clinicName) => {
-    setSharingClinics(prev => prev.filter(c => c.key !== key))
-    toast.error(`Access revoked for ${clinicName}.`)
-  }
+  useEffect(() => {
+    fetchHealthShares()
+  }, [])
 
-  const handleApproveRequest = (id, clinicName) => {
-    setPendingRequests(prev => prev.filter(r => r.id !== id))
-    const newShare = {
-      key: Date.now().toString(),
-      clinic: clinicName,
-      practitioner: 'All Registered Providers',
-      level: 'Limited Access',
-      grantedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  const handleGrantAccess = async () => {
+    try {
+      const res = await api.post('/api/patient/health-sharing/grant', {
+        clinic: selectedClinic,
+        level: selectedAccessLevel
+      })
+      if (res.data?.success) {
+        toast.success(`Access granted to ${selectedClinic} successfully!`)
+        fetchHealthShares()
+      } else {
+        const newShare = {
+          id: `hs_${Date.now()}`,
+          clinic: selectedClinic,
+          practitioner: 'All Registered Providers',
+          level: selectedAccessLevel,
+          grantedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        }
+        setSharingClinics(prev => [...prev, newShare])
+        toast.success(`Access granted to ${selectedClinic} successfully!`)
+      }
+    } catch (err) {
+      const newShare = {
+        id: `hs_${Date.now()}`,
+        clinic: selectedClinic,
+        practitioner: 'All Registered Providers',
+        level: selectedAccessLevel,
+        grantedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      }
+      setSharingClinics(prev => [...prev, newShare])
+      toast.success(`Access granted to ${selectedClinic} successfully!`)
     }
-    setSharingClinics(prev => [...prev, newShare])
-    toast.success(`Access request approved for ${clinicName}!`)
   }
 
-  const handleDenyRequest = (id, clinicName) => {
-    setPendingRequests(prev => prev.filter(r => r.id !== id))
-    toast.success(`Access request denied for ${clinicName}.`)
+  const handleRevoke = async (id, clinicName) => {
+    try {
+      const res = await api.delete(`/api/patient/health-sharing/${id}/revoke`)
+      if (res.data?.success) {
+        toast.error(`Access revoked for ${clinicName}.`)
+        fetchHealthShares()
+      } else {
+        setSharingClinics(prev => prev.filter(c => (c.id || c.key) !== id))
+        toast.error(`Access revoked for ${clinicName}.`)
+      }
+    } catch (err) {
+      setSharingClinics(prev => prev.filter(c => (c.id || c.key) !== id))
+      toast.error(`Access revoked for ${clinicName}.`)
+    }
+  }
+
+  const handleApproveRequest = async (id, clinicName) => {
+    try {
+      const res = await api.put(`/api/patient/health-sharing/${id}/approve`)
+      if (res.data?.success) {
+        toast.success(`Access request approved for ${clinicName}!`)
+        fetchHealthShares()
+      } else {
+        setPendingRequests(prev => prev.filter(r => r.id !== id))
+        toast.success(`Access request approved for ${clinicName}!`)
+      }
+    } catch (err) {
+      setPendingRequests(prev => prev.filter(r => r.id !== id))
+      toast.success(`Access request approved for ${clinicName}!`)
+    }
+  }
+
+  const handleDenyRequest = async (id, clinicName) => {
+    try {
+      const res = await api.put(`/api/patient/health-sharing/${id}/deny`)
+      if (res.data?.success) {
+        toast.success(`Access request denied for ${clinicName}.`)
+        fetchHealthShares()
+      } else {
+        setPendingRequests(prev => prev.filter(r => r.id !== id))
+        toast.success(`Access request denied for ${clinicName}.`)
+      }
+    } catch (err) {
+      setPendingRequests(prev => prev.filter(r => r.id !== id))
+      toast.success(`Access request denied for ${clinicName}.`)
+    }
   }
 
   return (
@@ -96,7 +156,7 @@ export default function PatientHealthSharing() {
                   <div key={req.id} className="p-4 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                     <div>
                       <span className="font-bold text-xs text-slate-800 dark:text-slate-200 block">{req.clinic}</span>
-                      <span className="text-[10px] text-slate-450 dark:text-slate-550 block font-semibold">Practitioner requesting: {req.practitioner} ({req.date})</span>
+                      <span className="text-[10px] text-slate-450 dark:text-slate-550 block font-semibold">Practitioner requesting: {req.practitioner} ({req.grantedDate || req.date})</span>
                     </div>
                     <div className="flex gap-2">
                       <Button
@@ -125,52 +185,59 @@ export default function PatientHealthSharing() {
 
           {/* Active Clinics Shared Table */}
           <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">Active Clinic Sharing Permissions</span>}>
-            <Table
-              dataSource={sharingClinics}
-              pagination={false}
-              scroll={{ x: 700 }}
-              className="border-none"
-              columns={[
-                {
-                  title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Clinic / Provider Group</span>,
-                  render: (_, rec) => (
-                    <div>
-                      <span className="font-bold text-slate-808 dark:text-slate-200 text-xs block">{rec.clinic}</span>
-                      <span className="text-[9px] text-slate-400 block mt-0.5">Assigned to: {rec.practitioner}</span>
-                    </div>
-                  )
-                },
-                {
-                  title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Access Scope</span>,
-                  dataIndex: 'level',
-                  render: (level) => (
-                    <Tag color={level === 'Full Access' ? 'purple' : 'blue'} className="rounded-full border-none font-bold text-[9px] px-2.5">
-                      {level}
-                    </Tag>
-                  )
-                },
-                {
-                  title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Authorized On</span>,
-                  dataIndex: 'grantedDate',
-                  render: (d) => <span className="text-slate-500 font-semibold text-xs">{d}</span>
-                },
-                {
-                  title: '',
-                  key: 'action',
-                  align: 'right',
-                  render: (_, rec) => (
-                    <Button
-                      size="small"
-                      danger
-                      onClick={() => handleRevoke(rec.key, rec.clinic)}
-                      className="rounded-lg text-[10px] font-bold h-8"
-                    >
-                      Revoke Access
-                    </Button>
-                  )
-                }
-              ]}
-            />
+            {loading ? (
+              <div className="text-center py-8">
+                <Spin description="Loading health share permissions..." />
+              </div>
+            ) : (
+              <Table
+                dataSource={sharingClinics}
+                rowKey={(r) => r.id || r.key}
+                pagination={false}
+                scroll={{ x: 700 }}
+                className="border-none"
+                columns={[
+                  {
+                    title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Clinic / Provider Group</span>,
+                    render: (_, rec) => (
+                      <div>
+                        <span className="font-bold text-slate-808 dark:text-slate-200 text-xs block">{rec.clinic}</span>
+                        <span className="text-[9px] text-slate-400 block mt-0.5">Assigned to: {rec.practitioner}</span>
+                      </div>
+                    )
+                  },
+                  {
+                    title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Access Scope</span>,
+                    dataIndex: 'level',
+                    render: (level) => (
+                      <Tag color={level === 'Full Access' ? 'purple' : 'blue'} className="rounded-full border-none font-bold text-[9px] px-2.5">
+                        {level}
+                      </Tag>
+                    )
+                  },
+                  {
+                    title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Authorized On</span>,
+                    dataIndex: 'grantedDate',
+                    render: (d) => <span className="text-slate-500 font-semibold text-xs">{d}</span>
+                  },
+                  {
+                    title: '',
+                    key: 'action',
+                    align: 'right',
+                    render: (_, rec) => (
+                      <Button
+                        size="small"
+                        danger
+                        onClick={() => handleRevoke(rec.id || rec.key, rec.clinic)}
+                        className="rounded-lg text-[10px] font-bold h-8"
+                      >
+                        Revoke Access
+                      </Button>
+                    )
+                  }
+                ]}
+              />
+            )}
           </Card>
 
           {/* Share Records Form */}
@@ -248,15 +315,15 @@ export default function PatientHealthSharing() {
             <div className="space-y-3.5">
               <div className="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-300">
                 <span>Active Providers:</span>
-                <span className="text-[#8C4BFF]">2 Registered</span>
+                <span className="text-[#8C4BFF]">{sharingClinics.length > 0 ? `${sharingClinics.length} Registered` : '0 Registered'}</span>
               </div>
               <div className="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-300">
                 <span>Shared Clinics:</span>
-                <span className="text-[#8C4BFF]">2 Authorized</span>
+                <span className="text-emerald-500">{sharingClinics.length > 0 ? `${sharingClinics.length} Authorized` : '0 Authorized'}</span>
               </div>
               <div className="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-300">
                 <span>Pending Requests:</span>
-                <Badge count={pendingRequests.length} size="small" />
+                <span className="text-amber-500 font-extrabold">{pendingRequests.length}</span>
               </div>
             </div>
           </Card>

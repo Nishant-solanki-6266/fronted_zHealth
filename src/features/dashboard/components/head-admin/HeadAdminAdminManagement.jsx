@@ -164,6 +164,7 @@ export default function HeadAdminAdminManagement() {
     toast.success('Admin profile and page permissions updated successfully!')
     setEditingAdmin(null)
     editForm.resetFields()
+    await fetchAdminsFromBackend()
   }
 
   const handleDeleteAdmin = async (record) => {
@@ -203,10 +204,10 @@ export default function HeadAdminAdminManagement() {
   }
 
   const filtered = adminsList.filter(a => {
-    const matchesSearch = a.name.toLowerCase().includes(searchText.toLowerCase()) || 
-                          a.clinic.toLowerCase().includes(searchText.toLowerCase()) || 
-                          a.email.toLowerCase().includes(searchText.toLowerCase()) ||
-                          a.id.toLowerCase().includes(searchText.toLowerCase())
+    const matchesSearch = a.name.toLowerCase().includes(searchText.toLowerCase()) ||
+      a.clinic.toLowerCase().includes(searchText.toLowerCase()) ||
+      a.email.toLowerCase().includes(searchText.toLowerCase()) ||
+      a.id.toLowerCase().includes(searchText.toLowerCase())
 
     const matchesRole = roleFilter === 'All' || a.role === roleFilter
     const matchesStatus = statusFilter === 'All' || a.status === statusFilter
@@ -238,7 +239,7 @@ export default function HeadAdminAdminManagement() {
     return (
       <div className="bg-[#F8FAFC] dark:bg-slate-955 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-6">
         <div className="flex items-center gap-2">
-          <button 
+          <button
             type="button"
             onClick={() => setEditingAdmin(null)}
             className="flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-slate-600 dark:text-slate-350 transition-colors bg-transparent"
@@ -254,13 +255,13 @@ export default function HeadAdminAdminManagement() {
         <Form form={editForm} layout="vertical" onFinish={handleEditAdminSubmit} className="space-y-6">
           <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-6 space-y-4">
             <h2 className="text-sm font-bold text-slate-800 dark:text-white border-b border-slate-100 dark:border-slate-800 pb-2 mb-0">Personal information</h2>
-            
+
             {/* Profile Photo URL / Avatar Preview */}
             <div className="flex items-center gap-4 mb-4 p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 rounded-2xl">
-              <Avatar 
-                size={54} 
-                icon={<UserOutlined />} 
-                src={avatarUrl} 
+              <Avatar
+                size={54}
+                icon={<UserOutlined />}
+                src={avatarUrl}
                 style={{ background: 'linear-gradient(135deg, #8C4BFF, #0E1B33)' }}
                 className="flex-shrink-0"
               />
@@ -312,8 +313,8 @@ export default function HeadAdminAdminManagement() {
           <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-6 space-y-4">
             <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
               <h2 className="text-sm font-bold text-slate-805 dark:text-white mb-0">Page permissions *</h2>
-              <button 
-                type="button" 
+              <button
+                type="button"
                 onClick={() => {
                   const cleared = {}
                   Object.keys(editPermissions).forEach(k => cleared[k] = false)
@@ -331,7 +332,7 @@ export default function HeadAdminAdminManagement() {
                 {pagesLeft.map(p => (
                   <div key={p.key} className="flex justify-between items-center py-2 border-b border-slate-50 dark:border-slate-800">
                     <label className="flex items-center gap-3 text-xs font-semibold text-slate-700 dark:text-slate-350 cursor-pointer">
-                      <Checkbox 
+                      <Checkbox
                         checked={!!editPermissions[p.key]}
                         onChange={(e) => setEditPermissions(prev => ({ ...prev, [p.key]: e.target.checked }))}
                         className="custom-purple-checkbox"
@@ -352,7 +353,7 @@ export default function HeadAdminAdminManagement() {
                 {pagesRight.map(p => (
                   <div key={p.key} className="flex justify-between items-center py-2 border-b border-slate-50 dark:border-slate-800">
                     <label className="flex items-center gap-3 text-xs font-semibold text-slate-700 dark:text-slate-350 cursor-pointer">
-                      <Checkbox 
+                      <Checkbox
                         checked={!!editPermissions[p.key]}
                         onChange={(e) => setEditPermissions(prev => ({ ...prev, [p.key]: e.target.checked }))}
                         className="custom-purple-checkbox"
@@ -371,16 +372,16 @@ export default function HeadAdminAdminManagement() {
           </div>
 
           <div className="flex justify-end gap-3">
-            <button 
-              type="button" 
-              onClick={() => setEditingAdmin(null)} 
+            <button
+              type="button"
+              onClick={() => setEditingAdmin(null)}
               className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:bg-slate-800 border border-slate-200 text-slate-700 dark:text-slate-300 font-bold h-10 px-5 rounded-xl cursor-pointer"
             >
               Cancel
             </button>
-            <button 
-              type="submit" 
-              style={{ backgroundColor: '#0E1B33' }} 
+            <button
+              type="submit"
+              style={{ backgroundColor: '#0E1B33' }}
               className="text-white border-none font-bold h-10 px-5 rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
             >
               Save changes
@@ -396,7 +397,7 @@ export default function HeadAdminAdminManagement() {
     const handleStatusToggle = async () => {
       const isCurrentlyActive = selectedAdmin.status === 'Active'
       const nextStatus = isCurrentlyActive ? 'Suspended' : 'Active'
-      
+
       await backendFetch(`/super-admin/admins/${selectedAdmin.id}`, {
         method: 'PUT',
         body: JSON.stringify({ status: nextStatus })
@@ -444,7 +445,7 @@ export default function HeadAdminAdminManagement() {
       <div className="bg-[#F8FAFC] dark:bg-slate-950 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-6">
         {/* Top Navigation Row */}
         <div className="flex justify-between items-center mb-4">
-          <button 
+          <button
             type="button"
             onClick={() => {
               setShowProfile(false)
@@ -455,8 +456,8 @@ export default function HeadAdminAdminManagement() {
             ← Back to Admins
           </button>
           <div className="flex gap-2">
-            <Button 
-              icon={<EditOutlined />} 
+            <Button
+              icon={<EditOutlined />}
               onClick={() => {
                 setShowProfile(false)
                 startEditing(selectedAdmin)
@@ -465,9 +466,9 @@ export default function HeadAdminAdminManagement() {
             >
               Edit Admin
             </Button>
-            <Button 
-              danger 
-              icon={<DeleteOutlined />} 
+            <Button
+              danger
+              icon={<DeleteOutlined />}
               onClick={() => handleDeleteAdmin(selectedAdmin)}
               className="rounded-xl h-9 font-semibold text-xs"
             >
@@ -479,8 +480,8 @@ export default function HeadAdminAdminManagement() {
         {/* Title Header Card */}
         <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Avatar 
-              size={72} 
+            <Avatar
+              size={72}
               src={selectedAdmin.avatar}
               style={{ background: 'linear-gradient(135deg, #8C4BFF, #0E1B33)' }}
               className="flex-shrink-0 font-extrabold text-2xl flex items-center justify-center animate-fade-in"
@@ -554,32 +555,31 @@ export default function HeadAdminAdminManagement() {
         <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-6 space-y-4">
           <h4 className="text-xs font-bold text-slate-750 dark:text-white flex items-center gap-1.5 uppercase tracking-wider mb-0 pb-1">⚡ Quick actions</h4>
           <div className="flex flex-wrap gap-2.5">
-            <Button 
-              onClick={handleStatusToggle} 
-              className={`rounded-xl h-10 font-bold text-xs px-5 border ${
-                selectedAdmin.status === 'Active' 
-                  ? 'bg-rose-50 border-rose-200 hover:border-rose-300 text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-400' 
+            <Button
+              onClick={handleStatusToggle}
+              className={`rounded-xl h-10 font-bold text-xs px-5 border ${selectedAdmin.status === 'Active'
+                  ? 'bg-rose-50 border-rose-200 hover:border-rose-300 text-rose-600 dark:bg-rose-950/20 dark:border-rose-900/40 dark:text-rose-400'
                   : 'bg-emerald-50 border-emerald-200 hover:border-emerald-300 text-emerald-600 dark:bg-emerald-950/20 dark:border-emerald-900/40 dark:text-emerald-400'
-              }`}
+                }`}
               icon={selectedAdmin.status === 'Active' ? <PauseCircleOutlined /> : <PlayCircleOutlined />}
             >
               {selectedAdmin.status === 'Active' ? 'Suspend admin' : 'Reactivate admin'}
             </Button>
-            <Button 
+            <Button
               onClick={() => toast.success(`Launching impersonation session for ${selectedAdmin.name}...`)}
               className="rounded-xl h-10 font-bold text-xs px-5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-350"
               icon={<UserSwitchOutlined />}
             >
               Impersonate admin
             </Button>
-            <Button 
+            <Button
               onClick={() => toast.success(`Alert notification sent to ${selectedAdmin.name}!`)}
               className="rounded-xl h-10 font-bold text-xs px-5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-350"
               icon={<SoundOutlined />}
             >
               Send notification
             </Button>
-            <Button 
+            <Button
               onClick={() => { setActiveProfileTab('Password reset'); }}
               className="rounded-xl h-10 font-bold text-xs px-5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-350"
               icon={<LockOutlined />}
@@ -595,11 +595,10 @@ export default function HeadAdminAdminManagement() {
             <button
               key={tab}
               onClick={() => setActiveProfileTab(tab)}
-              className={`px-4 py-2 text-xs font-bold transition-all border-none bg-transparent cursor-pointer rounded-t-xl -mb-[1px] ${
-                activeProfileTab === tab 
-                  ? 'bg-purple-100 dark:bg-purple-950/40 text-[#8C4BFF] border-b-2 border-[#8C4BFF]' 
+              className={`px-4 py-2 text-xs font-bold transition-all border-none bg-transparent cursor-pointer rounded-t-xl -mb-[1px] ${activeProfileTab === tab
+                  ? 'bg-purple-100 dark:bg-purple-950/40 text-[#8C4BFF] border-b-2 border-[#8C4BFF]'
                   : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'
-              }`}
+                }`}
             >
               {tab}
             </button>
@@ -664,7 +663,7 @@ export default function HeadAdminAdminManagement() {
         {activeProfileTab === 'Activity log' && (
           <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-705 dark:text-white">Admin Activity log</span>}>
             <div className="p-2">
-              <Timeline 
+              <Timeline
                 items={mockLogs.map((log, idx) => ({
                   color: idx === 0 ? 'blue' : 'gray',
                   children: (
@@ -687,7 +686,7 @@ export default function HeadAdminAdminManagement() {
             <form onSubmit={handlePasswordReset} className="max-w-md space-y-4 p-2">
               <div>
                 <label className="text-slate-450 dark:text-slate-500 text-[10px] font-bold uppercase tracking-wider block mb-1">New password</label>
-                <Input.Password 
+                <Input.Password
                   placeholder="Enter new password"
                   value={newPassword}
                   onChange={e => setNewPassword(e.target.value)}
@@ -696,15 +695,15 @@ export default function HeadAdminAdminManagement() {
               </div>
               <div>
                 <label className="text-slate-450 dark:text-slate-500 text-[10px] font-bold uppercase tracking-wider block mb-1">Confirm new password</label>
-                <Input.Password 
+                <Input.Password
                   placeholder="Confirm new password"
                   value={confirmPassword}
                   onChange={e => setConfirmPassword(e.target.value)}
                   className="rounded-xl h-10 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                 />
               </div>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 style={{ backgroundColor: '#0E1B33' }}
                 className="text-white border-none font-bold h-10 px-5 rounded-xl cursor-pointer hover:opacity-90 transition-opacity text-xs"
               >
@@ -720,16 +719,16 @@ export default function HeadAdminAdminManagement() {
   // Otherwise, render Table view
   return (
     <div className="space-y-6">
-      
+
       {/* ── Title Header & Add Button ── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-xl font-bold text-slate-805 dark:text-white m-0 tracking-tight">Admin Management</h1>
           <p className="text-slate-400 dark:text-slate-455 text-xs mt-1">Manage platform admins and the pages each one can access</p>
         </div>
-        <Button 
-          type="primary" 
-          onClick={() => setIsAddOpen(true)} 
+        <Button
+          type="primary"
+          onClick={() => setIsAddOpen(true)}
           style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }}
           className="rounded-xl font-bold text-xs h-10 px-5 flex items-center gap-1.5 shadow-sm hover:shadow"
         >
@@ -740,10 +739,10 @@ export default function HeadAdminAdminManagement() {
 
       {/* ── Search & Filter Panel ── */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <Input 
-          placeholder="Search by name, clinic, email or phone..." 
-          value={searchText} 
-          onChange={e => setSearchText(e.target.value)} 
+        <Input
+          placeholder="Search by name, clinic, email or phone..."
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
           className="flex-1 rounded-xl h-10 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
           prefix={<span className="text-slate-400 mr-2">🔍</span>}
         />
@@ -828,8 +827,8 @@ export default function HeadAdminAdminManagement() {
                 return (
                   <div className="flex flex-wrap gap-1 max-w-[240px]">
                     {keys.slice(0, 3).map((p, idx) => (
-                      <span 
-                        key={idx} 
+                      <span
+                        key={idx}
                         className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600 dark:bg-blue-950/20 dark:text-blue-400"
                       >
                         {p}
@@ -864,25 +863,25 @@ export default function HeadAdminAdminManagement() {
               align: 'right',
               render: (_, record) => (
                 <Space onClick={(e) => e.stopPropagation()}>
-                  <Button 
-                    type="text" 
-                    icon={<InfoCircleOutlined className="text-slate-400" />} 
+                  <Button
+                    type="text"
+                    icon={<InfoCircleOutlined className="text-slate-400" />}
                     onClick={() => {
                       setSelectedAdmin(record)
                       setShowProfile(true)
                     }}
                     className="hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 rounded-lg"
                   />
-                  <Button 
-                    type="text" 
-                    icon={<EditOutlined className="text-slate-400" />} 
+                  <Button
+                    type="text"
+                    icon={<EditOutlined className="text-slate-400" />}
                     onClick={() => startEditing(record)}
                     className="hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-800 rounded-lg"
                   />
-                  <Button 
-                    type="text" 
+                  <Button
+                    type="text"
                     danger
-                    icon={<DeleteOutlined />} 
+                    icon={<DeleteOutlined />}
                     onClick={() => handleDeleteAdmin(record)}
                     className="hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg"
                   />

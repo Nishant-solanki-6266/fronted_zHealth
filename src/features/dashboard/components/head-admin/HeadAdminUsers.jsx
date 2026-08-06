@@ -66,6 +66,11 @@ export default function HeadAdminUsers() {
           clinic: u.clinic || 'ZealthOS Platform',
           status: u.status === 'ACTIVE' ? 'Active' : u.status === 'SUSPENDED' ? 'Pending' : u.status === 'INACTIVE' ? 'Inactive' : 'Active',
           type: u.role === 'SUPER_ADMIN' ? 'Super Admin' : u.role === 'CLINIC_ADMIN' ? 'Clinic Admin' : u.role === 'PRACTITIONER' ? 'Doctor' : u.role === 'SALES_EXECUTIVE' ? 'Salesperson' : 'Clinic Admin',
+          subscription: u.subscription || u.tier || 'Basic',
+          tier: u.tier || u.subscription || 'Basic',
+          joined: u.joined || 'Aug 05, 2026',
+          lastLogin: u.lastLogin || '5 Aug 2026, 20:04',
+          address: u.address || 'Main Medical Center',
           avatar: u.avatar || '',
           raw: u
         }))
@@ -139,10 +144,10 @@ export default function HeadAdminUsers() {
   const [twoFactorAuth, setTwoFactorAuth] = useState(false)
 
   const filtered = usersList.filter(u => {
-    const matchesSearch = u.name.toLowerCase().includes(searchText.toLowerCase()) || 
-                          u.clinic.toLowerCase().includes(searchText.toLowerCase()) || 
-                          u.email.toLowerCase().includes(searchText.toLowerCase()) ||
-                          u.type.toLowerCase().includes(searchText.toLowerCase())
+    const matchesSearch = u.name.toLowerCase().includes(searchText.toLowerCase()) ||
+      u.clinic.toLowerCase().includes(searchText.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchText.toLowerCase()) ||
+      u.type.toLowerCase().includes(searchText.toLowerCase())
 
     const matchesType = typeFilter === 'All' || u.type === typeFilter
     const matchesStatus = statusFilter === 'All' || u.status === statusFilter
@@ -156,7 +161,7 @@ export default function HeadAdminUsers() {
     return (
       <div className="bg-[#F8FAFC] dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-6">
         <div className="flex items-center gap-2">
-          <button 
+          <button
             type="button"
             onClick={() => setEditingUser(null)}
             className="flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 hover:bg-slate-100 cursor-pointer text-slate-600 transition-colors bg-transparent"
@@ -172,13 +177,13 @@ export default function HeadAdminUsers() {
         <Form form={editUserForm} layout="vertical" onFinish={handleEditUserSubmit} className="space-y-6">
           <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-6 space-y-4">
             <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-2 mb-0">Personal details</h2>
-            
+
             {/* Profile Photo URL / Avatar Preview */}
             <div className="flex items-center gap-4 mb-4 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-800 rounded-2xl">
-              <Avatar 
-                size={54} 
-                icon={<UserOutlined />} 
-                src={editUserAvatarUrl} 
+              <Avatar
+                size={54}
+                icon={<UserOutlined />}
+                src={editUserAvatarUrl}
                 style={{ background: 'linear-gradient(135deg, #8C4BFF, #0E1B33)' }}
                 className="flex-shrink-0"
               />
@@ -190,7 +195,7 @@ export default function HeadAdminUsers() {
                 <Input placeholder="e.g. https://images.unsplash.com/photo-..." className="rounded-xl h-10 border-slate-200" />
               </Form.Item>
             </div>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Form.Item name="name" label={<span className="text-slate-500 font-bold text-[11px] uppercase tracking-wider">Full name *</span>} rules={[{ required: true }]} className="mb-0">
                 <Input className="rounded-xl h-10 border-slate-200" />
@@ -233,16 +238,16 @@ export default function HeadAdminUsers() {
           </div>
 
           <div className="flex justify-end gap-3">
-            <button 
-              type="button" 
-              onClick={() => setEditingUser(null)} 
+            <button
+              type="button"
+              onClick={() => setEditingUser(null)}
               className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:bg-slate-800 border border-slate-200 text-slate-700 dark:text-slate-300 font-bold h-10 px-5 rounded-xl cursor-pointer"
             >
               Cancel
             </button>
-            <button 
-              type="submit" 
-              style={{ backgroundColor: '#0E1B33' }} 
+            <button
+              type="submit"
+              style={{ backgroundColor: '#0E1B33' }}
               className="text-white border-none font-bold h-10 px-5 rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
             >
               Save changes
@@ -258,7 +263,7 @@ export default function HeadAdminUsers() {
       <div className="space-y-6">
         {/* Navigation & Action Header */}
         <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-          <button 
+          <button
             onClick={() => {
               setShowProfile(false)
               setSelectedUser(null)
@@ -269,8 +274,8 @@ export default function HeadAdminUsers() {
             <span>Back to Users</span>
           </button>
           <div className="flex gap-2">
-            <Button 
-              icon={<EditOutlined />} 
+            <Button
+              icon={<EditOutlined />}
               onClick={() => {
                 setShowProfile(false)
                 startEditingUser(selectedUser)
@@ -279,9 +284,9 @@ export default function HeadAdminUsers() {
             >
               Edit User
             </Button>
-            <Button 
-              danger 
-              icon={<DeleteOutlined />} 
+            <Button
+              danger
+              icon={<DeleteOutlined />}
               onClick={() => handleDeleteUser(selectedUser)}
               className="rounded-xl h-9 font-semibold text-xs"
             >
@@ -311,7 +316,7 @@ export default function HeadAdminUsers() {
               <div className="flex gap-1.5 mt-2">
                 <Tag color={selectedUser.status === 'Active' ? 'success' : selectedUser.status === 'Pending' ? 'warning' : 'default'} className="m-0 border-none rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase">{selectedUser.status}</Tag>
                 <Tag color="default" className="m-0 border-none rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase">{selectedUser.type}</Tag>
-                <Tag color="purple" className="m-0 border-none rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase">Basic</Tag>
+                <Tag color="purple" className="m-0 border-none rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase">{selectedUser.subscription || selectedUser.tier || 'Basic'}</Tag>
                 <Tag className="m-0 border border-slate-200 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase bg-transparent text-slate-500">Subscription</Tag>
               </div>
             </div>
@@ -337,8 +342,8 @@ export default function HeadAdminUsers() {
             </div>
             <div>
               <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Joined</span>
-              <span className="font-extrabold text-slate-800 dark:text-slate-200 text-xs block mt-0.5">Jan 01, 2024</span>
-              <span className="text-slate-400 text-[9px] font-medium block">Last login 1 Jan 2024, 00:00</span>
+              <span className="font-extrabold text-slate-800 dark:text-slate-200 text-xs block mt-0.5">{selectedUser.joined || 'Jan 01, 2026'}</span>
+              <span className="text-slate-400 text-[9px] font-medium block">Last login {selectedUser.lastLogin || '1 Jan 2026, 12:00'}</span>
             </div>
           </div>
 
@@ -371,11 +376,10 @@ export default function HeadAdminUsers() {
             <button
               key={tab}
               onClick={() => setProfileTab(tab)}
-              className={`pb-2 text-xs font-bold transition-all border-none bg-transparent cursor-pointer relative ${
-                profileTab === tab 
-                  ? 'text-[#8C4BFF]' 
+              className={`pb-2 text-xs font-bold transition-all border-none bg-transparent cursor-pointer relative ${profileTab === tab
+                  ? 'text-[#8C4BFF]'
                   : 'text-slate-400 hover:text-slate-600'
-              }`}
+                }`}
             >
               <span className="flex items-center gap-1.5">
                 {tab === 'Overview' && <UserOutlined style={{ fontSize: 12 }} />}
@@ -430,7 +434,7 @@ export default function HeadAdminUsers() {
               </div>
               <div>
                 <div className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Subscription</div>
-                <div className="text-slate-850 font-bold text-xs">Basic</div>
+                <div className="text-slate-850 font-bold text-xs">{selectedUser.subscription || selectedUser.tier || 'Basic'}</div>
               </div>
               <div>
                 <div className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Membership</div>
@@ -438,15 +442,15 @@ export default function HeadAdminUsers() {
               </div>
               <div className="col-span-2">
                 <div className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Address</div>
-                <div className="text-slate-850 font-bold text-xs">100 George Street, Sydney, Australia</div>
+                <div className="text-slate-850 font-bold text-xs">{selectedUser.address || 'Main Medical Center'}</div>
               </div>
               <div>
                 <div className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Joined</div>
-                <div className="text-slate-850 font-bold text-xs">Jan 01, 2024</div>
+                <div className="text-slate-850 font-bold text-xs">{selectedUser.joined || 'Jan 01, 2026'}</div>
               </div>
               <div>
                 <div className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-0.5">Last login</div>
-                <div className="text-slate-850 font-bold text-xs">1 Jan 2024, 00:00</div>
+                <div className="text-slate-850 font-bold text-xs">{selectedUser.lastLogin || '1 Jan 2026, 12:00'}</div>
               </div>
             </div>
           </Card>
@@ -534,7 +538,7 @@ export default function HeadAdminUsers() {
                   children: (
                     <div className="text-xs">
                       <span className="font-bold text-slate-800 dark:text-slate-200">Assigned to {selectedUser.clinic}</span>
-                      <p className="text-slate-400 text-[10px] mt-0.5">12 Mar 2024 at 10:22 AM</p>
+                      <p className="text-slate-400 text-[10px] mt-0.5">{selectedUser.joined || 'Recent'}</p>
                     </div>
                   )
                 }
@@ -557,10 +561,10 @@ export default function HeadAdminUsers() {
 
       {/* Search Bar & Filter Options */}
       <div className="flex flex-col sm:flex-row gap-3">
-        <Input 
-          placeholder="Search here" 
-          value={searchText} 
-          onChange={e => setSearchText(e.target.value)} 
+        <Input
+          placeholder="Search here"
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
           className="flex-1 rounded-xl h-10 border-slate-200 bg-white dark:bg-slate-900"
           prefix={<span className="text-slate-400 mr-2">🔍</span>}
         />
@@ -609,14 +613,14 @@ export default function HeadAdminUsers() {
           })}
           className="border-none"
           columns={[
-            { 
-              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">User ID</span>, 
-              dataIndex: 'displayId', 
-              render: (displayId, record) => <span className="font-mono text-slate-450 text-xs font-bold">{displayId || record.id}</span> 
+            {
+              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">User ID</span>,
+              dataIndex: 'displayId',
+              render: (displayId, record) => <span className="font-mono text-slate-450 text-xs font-bold">{displayId || record.id}</span>
             },
-            { 
-              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">User Name</span>, 
-              dataIndex: 'name', 
+            {
+              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">User Name</span>,
+              dataIndex: 'name',
               render: (name, record) => (
                 <div className="flex items-center gap-2">
                   <Avatar src={record.avatar} size={28} style={{ background: 'linear-gradient(135deg, #8C4BFF, #0E1B33)' }}>
@@ -626,29 +630,29 @@ export default function HeadAdminUsers() {
                 </div>
               )
             },
-            { 
-              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">User Type</span>, 
-              dataIndex: 'type', 
-              render: (type) => <span className="text-slate-605 text-xs font-semibold">{type}</span> 
+            {
+              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">User Type</span>,
+              dataIndex: 'type',
+              render: (type) => <span className="text-slate-605 text-xs font-semibold">{type}</span>
             },
-            { 
-              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Clinics</span>, 
-              dataIndex: 'clinic', 
-              render: (clinic) => <span className="text-slate-605 text-xs font-semibold">{clinic}</span> 
+            {
+              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Clinics</span>,
+              dataIndex: 'clinic',
+              render: (clinic) => <span className="text-slate-605 text-xs font-semibold">{clinic}</span>
             },
-            { 
-              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Contact</span>, 
-              dataIndex: 'contact', 
-              render: (contact) => <span className="font-mono text-slate-500 text-xs">{contact}</span> 
+            {
+              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Contact</span>,
+              dataIndex: 'contact',
+              render: (contact) => <span className="font-mono text-slate-500 text-xs">{contact}</span>
             },
-            { 
-              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email</span>, 
-              dataIndex: 'email', 
-              render: (email) => <span className="text-slate-550 text-xs">{email}</span> 
+            {
+              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Email</span>,
+              dataIndex: 'email',
+              render: (email) => <span className="text-slate-550 text-xs">{email}</span>
             },
-            { 
-              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</span>, 
-              dataIndex: 'status', 
+            {
+              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status</span>,
+              dataIndex: 'status',
               render: (status) => (
                 <Tag color={status === 'Active' ? 'success' : status === 'Pending' ? 'warning' : 'default'} className="rounded-full border-none font-bold text-[9px] px-2.5 py-0.5 select-none">
                   {status}
@@ -661,25 +665,25 @@ export default function HeadAdminUsers() {
               align: 'right',
               render: (_, record) => (
                 <Space onClick={(e) => e.stopPropagation()}>
-                  <Button 
-                    type="text" 
-                    icon={<EyeOutlined className="text-slate-400" />} 
+                  <Button
+                    type="text"
+                    icon={<EyeOutlined className="text-slate-400" />}
                     onClick={() => {
                       setSelectedUser(record)
                       setShowProfile(true)
                     }}
                     className="hover:bg-slate-50 dark:bg-slate-800 rounded-lg"
                   />
-                  <Button 
-                    type="text" 
-                    icon={<EditOutlined className="text-slate-400" />} 
+                  <Button
+                    type="text"
+                    icon={<EditOutlined className="text-slate-400" />}
                     onClick={() => startEditingUser(record)}
                     className="hover:bg-slate-50 dark:bg-slate-800 rounded-lg"
                   />
-                  <Button 
-                    type="text" 
+                  <Button
+                    type="text"
                     danger
-                    icon={<DeleteOutlined />} 
+                    icon={<DeleteOutlined />}
                     onClick={() => handleDeleteUser(record)}
                     className="hover:bg-red-50 rounded-lg"
                   />

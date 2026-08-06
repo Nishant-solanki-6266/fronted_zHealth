@@ -20,6 +20,11 @@ export const createSettingsTemplate = async (templateData) => {
   return res.data
 }
 
+export const updateSettingsTemplate = async (type, id, templateData) => {
+  const res = await api.put(`/api/super-admin/settings/templates/${type}/${id}`, templateData)
+  return res.data
+}
+
 export const deleteSettingsTemplate = async (type, id) => {
   const res = await api.delete(`/api/super-admin/settings/templates/${type}/${id}`)
   return res.data
@@ -277,4 +282,18 @@ export const deleteClinicClientTag = async (id) => {
   const res = await api.delete(`/api/clinic-admin/settings/tags/${id}`)
   return res.data
 }
+
+export const getPaymentTerms = async () => {
+  const res = await api.get('/api/clinic-admin/settings/payment-terms')
+  return res.data
+}
+
+export const updatePaymentTerms = async (terms) => {
+  const res = await api.put('/api/clinic-admin/settings/payment-terms', { terms })
+  return res.data
+}
+
+
+
+
 

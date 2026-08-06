@@ -1,21 +1,31 @@
 import api from '../../../api/axios'
 
+const getRole = () => (typeof window !== 'undefined' ? (localStorage.getItem('userRole') || '').toLowerCase() : '')
+const isPatientContext = () => getRole() === 'patient' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/patient'))
+
 export const getAppointments = async (params) => {
-  const res = await api.get('/api/clinic-admin/appointments', { params })
+  const endpoint = isPatientContext() ? '/api/patient/appointments' : '/api/clinic-admin/appointments'
+  const res = await api.get(endpoint, { params })
   return res.data
 }
 
 export const createAppointment = async (apptData) => {
-  const res = await api.post('/api/clinic-admin/appointments', apptData)
+  const endpoint = isPatientContext() ? '/api/patient/appointments' : '/api/clinic-admin/appointments'
+  const res = await api.post(endpoint, apptData)
   return res.data
 }
 
 export const updateAppointment = async (id, apptData) => {
-  const res = await api.put(`/api/clinic-admin/appointments/${id}`, apptData)
+  const endpoint = isPatientContext() ? `/api/patient/appointments/${id}/reschedule` : `/api/clinic-admin/appointments/${id}`
+  const res = await api.put(endpoint, apptData)
   return res.data
 }
 
 export const deleteAppointment = async (id) => {
+  if (isPatientContext()) {
+    const res = await api.put(`/api/patient/appointments/${id}/cancel`)
+    return res.data
+  }
   const res = await api.delete(`/api/clinic-admin/appointments/${id}`)
   return res.data
 }
@@ -280,5 +290,16 @@ export const updateBodyChartTemplate = async (id, data) => {
 
 export const deleteBodyChartTemplate = async (id) => {
   const res = await api.delete(`/api/practitioner/body-chart-templates/${id}`)
+  return res.data
+}
+
+// ─── Dashboard Stats ──────────────────────────────────────────────────────────
+export const getClinicDashboardStats = async () => {
+  const res = await api.get('/api/clinic-admin/dashboard/stats')
+  return res.data
+}
+
+export const getPractitionerDashboardStats = async () => {
+  const res = await api.get('/api/practitioner/dashboard/stats')
   return res.data
 }

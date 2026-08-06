@@ -19,7 +19,7 @@ export default function AppointmentModal({ open, visible, onCancel, defaultTimeS
 
     const newAppt = {
       patientId: values.patientId,
-      patientName: patientObj ? patientObj.name : 'Unknown Client',
+      patientName: patientObj ? (patientObj.fullName || patientObj.name || 'Unknown Client') : 'Unknown Client',
       practitionerId: values.practitionerId,
       practitionerName: practitionerObj ? practitionerObj.name : 'Unknown Practitioner',
       date: values.date ? values.date.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
@@ -111,6 +111,8 @@ export default function AppointmentModal({ open, visible, onCancel, defaultTimeS
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Form.Item name="patientId" label={<span className="text-slate-600 font-semibold text-xs">Client Patient</span>} rules={[{ required: true }]} className="mb-0">
             <Select 
+              showSearch
+              optionFilterProp="children"
               placeholder="Select client" 
               className="rounded-xl h-10 flex items-center"
               onChange={(val) => {
@@ -123,16 +125,22 @@ export default function AppointmentModal({ open, visible, onCancel, defaultTimeS
                 }
               }}
             >
-              {store.patients.map(p => (
-                <Option key={p.id} value={p.id}>{p.name}</Option>
-              ))}
+              {store.patients.map(p => {
+                const displayName = p.fullName || p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.email || p.displayId || 'Unnamed Client'
+                return <Option key={p.id} value={p.id}>{displayName}</Option>
+              })}
             </Select>
           </Form.Item>
           
           <Form.Item name="practitionerId" label={<span className="text-slate-600 font-semibold text-xs">Practitioner</span>} rules={[{ required: true }]} className="mb-0">
-            <Select placeholder="Select practitioner" className="rounded-xl h-10 flex items-center">
+            <Select 
+              showSearch
+              optionFilterProp="children"
+              placeholder="Select practitioner" 
+              className="rounded-xl h-10 flex items-center"
+            >
               {store.practitioners.map(p => (
-                <Option key={p.id} value={p.id}>{p.name}</Option>
+                <Option key={p.id} value={p.id}>{p.name} ({p.specialty || 'Practitioner'})</Option>
               ))}
             </Select>
           </Form.Item>
@@ -140,9 +148,14 @@ export default function AppointmentModal({ open, visible, onCancel, defaultTimeS
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Form.Item name="serviceId" label={<span className="text-slate-600 font-semibold text-xs">Appointment Type / Service</span>} rules={[{ required: true }]} className="mb-0">
-            <Select placeholder="Select service" className="rounded-xl h-10 flex items-center">
+            <Select 
+              showSearch
+              optionFilterProp="children"
+              placeholder="Select service" 
+              className="rounded-xl h-10 flex items-center"
+            >
               {store.services.filter(s => !s.archived).map(s => (
-                <Option key={s.id} value={s.id}>{s.name} ({s.duration}m)</Option>
+                <Option key={s.id} value={s.id}>{s.name} ({s.duration || 60}m)</Option>
               ))}
             </Select>
           </Form.Item>

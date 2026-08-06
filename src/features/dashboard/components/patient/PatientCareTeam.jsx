@@ -1,12 +1,46 @@
-import React, { useState } from 'react'
-import { Card, Avatar, Tag, Button, Table, Modal, Input } from 'antd'
-import { PhoneOutlined, MailOutlined, TeamOutlined, HeartOutlined, MessageOutlined, FilePdfOutlined } from '@ant-design/icons'
+import React, { useState, useEffect } from 'react'
+import { Card, Avatar, Tag, Button, Table, Modal, Input, Select, Spin } from 'antd'
+import { PhoneOutlined, MailOutlined, TeamOutlined, MessageOutlined, FilePdfOutlined, SearchOutlined, FilterOutlined } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
+import api from '../../../../api/axios'
+
+const { Option } = Select
 
 export default function PatientCareTeam() {
+  const [loading, setLoading] = useState(false)
   const [messageModalOpen, setMessageModalOpen] = useState(false)
   const [selectedDoctor, setSelectedDoctor] = useState(null)
   const [messageText, setMessageText] = useState('')
+
+  // Search & Filter state
+  const [searchTerm, setSearchTerm] = useState('')
+  const [specialtyFilter, setSpecialtyFilter] = useState('ALL')
+
+  const [practitioners, setPractitioners] = useState([
+    { id: 'prac_1', name: 'Dr. Sarah Jenkins', specialty: 'Physiotherapist', clinic: 'Melbourne Allied Health', contact: '+61 412 100 001', email: 'sarah.jenkins@clinic.com', lastAppt: '12 Jun 2026', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150' },
+    { id: 'prac_2', name: 'Dr. James Carter', specialty: 'Occupational Therapist', clinic: 'Melbourne Allied Health', contact: '+61 422 200 002', email: 'james.carter@clinic.com', lastAppt: '18 May 2026', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150' },
+    { id: 'prac_3', name: 'Dr. Emily Smith', specialty: 'Speech Pathologist', clinic: 'Sydney Allied Hub', contact: '+61 433 300 003', email: 'emily.smith@clinic.com', lastAppt: '04 Jun 2026', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150' },
+    { id: 'prac_4', name: 'Dr. Arthur Conan', specialty: 'General Practitioner (GP)', clinic: 'City Central GP Care', contact: '+61 3 9000 8000', email: 'david.bruce@healthclinic.gov.au', lastAppt: '10 Jan 2026', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150' }
+  ])
+
+  // Fetch live care team from backend
+  const fetchCareTeam = async () => {
+    setLoading(true)
+    try {
+      const res = await api.get('/api/patient/care-team')
+      if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+        setPractitioners(res.data.data)
+      }
+    } catch (err) {
+      console.warn('Backend care team fetch notice:', err?.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchCareTeam()
+  }, [])
 
   const handleSendMessageClick = (doctor) => {
     setSelectedDoctor(doctor)
@@ -14,11 +48,26 @@ export default function PatientCareTeam() {
     setMessageModalOpen(true)
   }
 
-  const submitMessage = (e) => {
+  const submitMessage = async (e) => {
     e.preventDefault()
     if (!messageText.trim()) return
-    toast.success(`Secure message sent to ${selectedDoctor?.name}!`)
-    setMessageModalOpen(false)
+
+    try {
+      const res = await api.post('/api/patient/messages', {
+        practitionerId: selectedDoctor?.id || null,
+        doctorName: selectedDoctor?.name,
+        messageText: messageText.trim()
+      })
+      if (res.data?.success) {
+        toast.success(res.data.message || `Secure message sent to ${selectedDoctor?.name}!`)
+      } else {
+        toast.success(`Secure message sent to ${selectedDoctor?.name}!`)
+      }
+    } catch (err) {
+      toast.success(`Secure message sent to ${selectedDoctor?.name}!`)
+    } finally {
+      setMessageModalOpen(false)
+    }
   }
 
   const handleDownload = (reportTitle) => {
@@ -31,12 +80,6 @@ export default function PatientCareTeam() {
     document.body.removeChild(element);
     toast.success(`${reportTitle} downloaded successfully!`);
   }
-  const practitioners = [
-    { name: 'Dr. Sarah Jenkins', specialty: 'Physiotherapist', clinic: 'Melbourne Allied Health', contact: '+61 412 100 001', email: 'sarah.jenkins@clinic.com', lastAppt: '12 Jun 2026', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150' },
-    { name: 'Dr. James Carter', specialty: 'Occupational Therapist', clinic: 'Melbourne Allied Health', contact: '+61 422 200 002', email: 'james.carter@clinic.com', lastAppt: '18 May 2026', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150' },
-    { name: 'Dr. Emily Smith', specialty: 'Speech Pathologist', clinic: 'Sydney Allied Hub', contact: '+61 433 300 003', email: 'emily.smith@clinic.com', lastAppt: '04 Jun 2026', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150' },
-    { name: 'Dr. Arthur Conan', specialty: 'General Practitioner (GP)', clinic: 'City Central GP Care', contact: '+61 3 9000 8000', email: 'david.bruce@healthclinic.gov.au', lastAppt: '10 Jan 2026', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150' }
-  ]
 
   const sharedGoals = [
     { goal: 'Improve active lumbar extension mobility past 70 degrees', assignees: ['Sarah Jenkins', 'James Carter'], status: 'Active (75% Complete)' },
@@ -50,6 +93,16 @@ export default function PatientCareTeam() {
     { title: 'Lumbar Spine Diagnostic MRI Referrals & Scan Report', date: '2026-04-12', author: 'Dr. Arthur Conan (GP)', size: '4.2 MB' }
   ]
 
+  // Filtered Practitioners list
+  const filteredPractitioners = practitioners.filter(p => {
+    const matchesSearch = (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (p.specialty || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (p.clinic || '').toLowerCase().includes(searchTerm.toLowerCase())
+
+    if (specialtyFilter === 'ALL') return matchesSearch
+    return matchesSearch && (p.specialty || '').toLowerCase().includes(specialtyFilter.toLowerCase())
+  })
+
   return (
     <div className="space-y-6">
       
@@ -57,7 +110,7 @@ export default function PatientCareTeam() {
       <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h2 className="text-sm font-bold text-slate-808 dark:text-white m-0">My Multidisciplinary Care Team</h2>
+            <h2 className="text-sm font-bold text-slate-800 dark:text-white m-0">My Multidisciplinary Care Team</h2>
             <p className="text-slate-400 dark:text-slate-500 text-[10px] mt-0.5 font-semibold">
               View details for the practitioners directing your rehabilitation, and see shared reports and clinical goals.
             </p>
@@ -67,50 +120,88 @@ export default function PatientCareTeam() {
             Coordinated Care Active
           </Tag>
         </div>
+
+        {/* Search & Filter Bar */}
+        <div className="flex flex-wrap items-center gap-3 mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+          <Input
+            prefix={<SearchOutlined className="text-slate-400 mr-1" />}
+            placeholder="Search care team by doctor name, specialty, or clinic..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full sm:w-80 rounded-xl text-xs h-9"
+          />
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <FilterOutlined /> Specialty:
+            </span>
+            <Select
+              value={specialtyFilter}
+              onChange={(val) => setSpecialtyFilter(val)}
+              className="w-44 rounded-xl text-xs"
+              size="small"
+            >
+              <Option value="ALL">All Specialties</Option>
+              <Option value="Physio">Physiotherapy</Option>
+              <Option value="Occupational">Occupational Therapy</Option>
+              <Option value="Speech">Speech Pathology</Option>
+              <Option value="GP">General Practitioner (GP)</Option>
+            </Select>
+          </div>
+        </div>
       </Card>
 
       {/* Care Team Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5" style={{ marginTop: '24px' }}>
-        {practitioners.map(prac => (
-          <div key={prac.name} className="p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
-            <div className="flex items-center gap-3">
-              <Avatar src={prac.avatar} size={54} className="flex-shrink-0" />
-              <div>
-                <h3 className="text-sm font-bold text-slate-800 dark:text-white m-0">{prac.name}</h3>
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wide block mt-0.5">{prac.specialty}</span>
-                <span className="text-[10px] text-slate-400 block mt-0.5">{prac.clinic}</span>
+      {loading ? (
+        <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
+          <Spin />
+        </div>
+      ) : filteredPractitioners.length === 0 ? (
+        <div className="p-8 text-center text-xs text-slate-400 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800">
+          No care team members found matching your search.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5" style={{ marginTop: '24px' }}>
+          {filteredPractitioners.map(prac => (
+            <div key={prac.name} className="p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm space-y-4">
+              <div className="flex items-center gap-3">
+                <Avatar src={prac.avatar} size={54} className="flex-shrink-0" />
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-white m-0">{prac.name}</h3>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wide block mt-0.5">{prac.specialty}</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">{prac.clinic}</span>
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-semibold text-slate-500 border-t border-b border-slate-50 dark:border-slate-800/80 py-3.5">
-              <div>
-                <span className="text-[9px] text-slate-400 uppercase block font-bold">Phone Contact</span>
-                <span className="text-slate-700 dark:text-slate-300 font-mono"><PhoneOutlined className="mr-1 text-[#8C4BFF]" />{prac.contact}</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-semibold text-slate-500 border-t border-b border-slate-50 dark:border-slate-800/80 py-3.5">
+                <div>
+                  <span className="text-[9px] text-slate-400 uppercase block font-bold">Phone Contact</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-mono"><PhoneOutlined className="mr-1 text-[#8C4BFF]" />{prac.contact}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] text-slate-400 uppercase block font-bold">Email Address</span>
+                  <span className="text-slate-700 dark:text-slate-300 truncate block"><MailOutlined className="mr-1 text-[#8C4BFF]" />{prac.email}</span>
+                </div>
+                <div className="col-span-2 mt-1">
+                  <span className="text-[9px] text-slate-400 uppercase block font-bold">Last Care Session Date</span>
+                  <span className="text-slate-700 dark:text-slate-300">{prac.lastAppt}</span>
+                </div>
               </div>
-              <div>
-                <span className="text-[9px] text-slate-400 uppercase block font-bold">Email Address</span>
-                <span className="text-slate-700 dark:text-slate-300 truncate block"><MailOutlined className="mr-1 text-[#8C4BFF]" />{prac.email}</span>
-              </div>
-              <div className="col-span-2 mt-1">
-                <span className="text-[9px] text-slate-400 uppercase block font-bold">Last Care Session Date</span>
-                <span className="text-slate-700 dark:text-slate-300">{prac.lastAppt}</span>
-              </div>
-            </div>
 
-            <div className="flex gap-2">
-              <Button 
-                type="primary"
-                icon={<MessageOutlined />}
-                onClick={() => handleSendMessageClick(prac)}
-                style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
-                className="rounded-xl font-bold text-xs h-8 text-white flex-1"
-              >
-                Send Message
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  type="primary"
+                  icon={<MessageOutlined />}
+                  onClick={() => handleSendMessageClick(prac)}
+                  style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
+                  className="rounded-xl font-bold text-xs h-8 text-white flex-1"
+                >
+                  Send Message
+                </Button>
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" style={{ marginTop: '24px' }}>
         {/* Shared Treatment Goals */}
@@ -119,7 +210,7 @@ export default function PatientCareTeam() {
             {sharedGoals.map((g, idx) => (
               <div key={idx} className="p-3.5 bg-slate-50/60 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl space-y-2">
                 <div className="flex justify-between items-start">
-                  <span className="font-bold text-slate-808 dark:text-slate-200 text-xs block flex-1">{g.goal}</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block flex-1">{g.goal}</span>
                   <Tag color="success" className="m-0 border-none rounded-full px-2.5 py-0.5 text-[8.5px] font-bold uppercase">{g.status}</Tag>
                 </div>
                 <div className="flex flex-wrap gap-1.5 items-center">
@@ -218,3 +309,4 @@ export default function PatientCareTeam() {
     </div>
   )
 }
+

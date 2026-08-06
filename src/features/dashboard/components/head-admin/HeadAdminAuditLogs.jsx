@@ -45,10 +45,11 @@ export default function HeadAdminAuditLogs() {
   const fetchAuditData = async () => {
     setLoading(true)
     try {
-      const [logsRes, alertsRes, govRes] = await Promise.all([
+      const [logsRes, alertsRes, govRes, secRes] = await Promise.all([
         api.get('/api/super-admin/audit-logs').catch(() => ({ data: { success: false, data: [] } })),
         api.get('/api/super-admin/compliance-alerts').catch(() => ({ data: { success: false, data: [] } })),
-        api.get('/api/super-admin/governance-logs').catch(() => ({ data: { success: false, data: [] } }))
+        api.get('/api/super-admin/governance-logs').catch(() => ({ data: { success: false, data: [] } })),
+        api.get('/api/super-admin/security-controls').catch(() => ({ data: { success: false, data: null } }))
       ])
 
       if (logsRes.data?.success) {
@@ -59,6 +60,9 @@ export default function HeadAdminAuditLogs() {
       }
       if (govRes.data?.success) {
         setGovernanceLogs(govRes.data.data)
+      }
+      if (secRes.data?.success && secRes.data?.data) {
+        setGovernanceControls(secRes.data.data)
       }
     } catch (err) {
       console.error('Failed to fetch compliance audit data:', err)
@@ -92,6 +96,20 @@ export default function HeadAdminAuditLogs() {
       toast.success(`Alert ${displayId || ''} dismissed.`)
     } catch (err) {
       toast.error('Failed to dismiss alert')
+    }
+  }
+
+  // Update Security Controls in live MySQL DB
+  const handleUpdateSecurityControl = async (key, val) => {
+    const updated = { ...governanceControls, [key]: val }
+    setGovernanceControls(updated)
+    try {
+      const res = await api.put('/api/super-admin/security-controls', updated)
+      if (res.data?.success) {
+        toast.success(`Security control updated in database!`)
+      }
+    } catch (err) {
+      toast.error('Failed to update security control in database')
     }
   }
 
@@ -322,7 +340,17 @@ Confidential & HIPAA Compliant Export Data
                     </div>
                   )
                 },
-                { title: 'TARGET / CLINIC', dataIndex: 'target', render: (t) => <span className="text-xs text-slate-600 dark:text-slate-400">{t || 'Platform Wide'}</span> },
+                {
+                  title: 'TARGET / CLINIC',
+                  dataIndex: 'target',
+                  render: (t) => {
+                    if (!t) return <span className="text-xs text-slate-600 dark:text-slate-400">Platform Wide</span>
+                    const cleanTarget = String(t)
+                      .replace(/\s*\([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\)/gi, '')
+                      .replace(/\s*\([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\)/gi, '')
+                    return <span className="text-xs text-slate-600 dark:text-slate-400 font-medium">{cleanTarget || 'Platform Wide'}</span>
+                  }
+                },
                 { title: 'IP', dataIndex: 'ip', render: (ip) => <span className="font-mono text-[11px] text-slate-400 font-semibold">{ip || '10.42.18.1'}</span> },
                 { title: 'TIMESTAMP', dataIndex: 'timestamp', render: (t) => <span className="text-xs text-slate-400">{t ? new Date(t).toLocaleString() : 'Recently'}</span> },
                 {
@@ -520,10 +548,7 @@ Confidential & HIPAA Compliant Export Data
                   <Switch 
                     checked={governanceControls.enforceMfa} 
                     style={{ backgroundColor: governanceControls.enforceMfa ? '#8C4BFF' : undefined }}
-                    onChange={(val) => {
-                      setGovernanceControls(prev => ({ ...prev, enforceMfa: val }))
-                      toast.success(`MFA Enforcement policy ${val ? 'enabled' : 'disabled'}.`)
-                    }}
+                    onChange={(val) => handleUpdateSecurityControl('enforceMfa', val)}
                   />
                 </div>
 
@@ -535,10 +560,7 @@ Confidential & HIPAA Compliant Export Data
                   <Switch 
                     checked={governanceControls.encryptRest} 
                     style={{ backgroundColor: governanceControls.encryptRest ? '#8C4BFF' : undefined }}
-                    onChange={(val) => {
-                      setGovernanceControls(prev => ({ ...prev, encryptRest: val }))
-                      toast.success(`Data encryption policy ${val ? 'enforced' : 'released'}.`)
-                    }}
+                    onChange={(val) => handleUpdateSecurityControl('encryptRest', val)}
                   />
                 </div>
 
@@ -550,10 +572,7 @@ Confidential & HIPAA Compliant Export Data
                   <Switch 
                     checked={governanceControls.autoLogout} 
                     style={{ backgroundColor: governanceControls.autoLogout ? '#8C4BFF' : undefined }}
-                    onChange={(val) => {
-                      setGovernanceControls(prev => ({ ...prev, autoLogout: val }))
-                      toast.success(`Auto-logout security policy ${val ? 'activated' : 'deactivated'}.`)
-                    }}
+                    onChange={(val) => handleUpdateSecurityControl('autoLogout', val)}
                   />
                 </div>
               </div>

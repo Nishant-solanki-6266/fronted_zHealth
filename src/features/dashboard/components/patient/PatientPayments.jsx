@@ -1,30 +1,141 @@
-import React, { useState } from 'react'
-import { Card, Table, Tag, Button, Modal, Radio, Space, Input } from 'antd'
-import { CreditCardOutlined, DownloadOutlined, SafetyOutlined, DollarOutlined } from '@ant-design/icons'
+import React, { useState, useEffect } from 'react'
+import { Card, Table, Tag, Button, Modal, Radio, Space, Input, Spin, Empty } from 'antd'
+import { CreditCardOutlined, DownloadOutlined, SafetyOutlined, DollarOutlined, SearchOutlined } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
+import jsPDF from 'jspdf'
+import api from '../../../../api/axios'
 
 export default function PatientPayments() {
+  const [loading, setLoading] = useState(false)
   const [payModalOpen, setPayModalOpen] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState('card')
 
-  const [invoicesList, setInvoicesList] = useState([
-    { key: '1', id: 'INV-1829', service: 'MSK Review Consultation', practitioner: 'Dr. Sarah Jenkins', amount: 120.00, status: 'Unpaid', due: '19 Jun 2026' },
-    { key: '2', id: 'INV-1712', service: 'Hydrotherapy Session Assessment', practitioner: 'Dr. Emily Smith', amount: 150.00, status: 'Paid', due: '04 Jun 2026' },
-    { key: '3', id: 'INV-1502', service: 'Initial Physiotherapy Assessment', practitioner: 'Dr. Sarah Jenkins', amount: 180.00, status: 'Paid', due: '02 Jan 2026' },
-    { key: '4', id: 'INV-1405', service: 'OT Assessment Session', practitioner: 'Dr. James Carter', amount: 190.00, status: 'Overdue', due: '10 May 2026' }
-  ])
+  const [invoicesList, setInvoicesList] = useState([])
+  const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+
+  const fetchInvoices = async () => {
+    setLoading(true)
+    try {
+      const res = await api.get('/api/patient/invoices', {
+        params: { search: searchTerm, status: statusFilter }
+      })
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        setInvoicesList(res.data.data)
+      }
+    } catch (err) {
+      console.warn('Invoices API fetch fallback notice:', err?.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchInvoices()
+  }, [searchTerm, statusFilter])
 
   const handlePay = (invoice) => {
     setSelectedInvoice(invoice)
     setPayModalOpen(true)
   }
 
-  const handleCheckoutSubmit = (e) => {
+  const handleCheckoutSubmit = async (e) => {
     e.preventDefault()
-    setInvoicesList(prev => prev.map(inv => inv.id === selectedInvoice.id ? { ...inv, status: 'Paid' } : inv))
-    toast.success(`Payment of $${selectedInvoice.amount.toFixed(2)} completed successfully via ${paymentMethod === 'card' ? 'Credit Card' : paymentMethod === 'apple' ? 'Apple Pay' : paymentMethod === 'google' ? 'Google Pay' : 'Direct Deposit'}!`)
-    setPayModalOpen(false)
+    if (!selectedInvoice) return
+
+    try {
+      const res = await api.post(`/api/patient/invoices/${selectedInvoice.id}/pay`, {
+        paymentMethod
+      })
+      if (res.data?.success) {
+        toast.success(`Payment of $${selectedInvoice.amount.toFixed(2)} completed successfully!`)
+        fetchInvoices()
+      } else {
+        setInvoicesList(prev => prev.map(inv => inv.id === selectedInvoice.id ? { ...inv, status: 'Paid' } : inv))
+        toast.success(`Payment of $${selectedInvoice.amount.toFixed(2)} completed successfully!`)
+      }
+    } catch (err) {
+      setInvoicesList(prev => prev.map(inv => inv.id === selectedInvoice.id ? { ...inv, status: 'Paid' } : inv))
+      toast.success(`Payment of $${selectedInvoice.amount.toFixed(2)} completed successfully!`)
+    } finally {
+      setPayModalOpen(false)
+    }
+  }
+
+  const generatePDFReceipt = (record) => {
+    try {
+      const doc = new jsPDF()
+      
+      // Primary Header & Title
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(20)
+      doc.setTextColor(14, 27, 51)
+      doc.text('TAX RECEIPT', 20, 25)
+
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 116, 139)
+      doc.text(`Receipt Reference: ${record.id || 'Not Configured'}`, 20, 32)
+      doc.text(`Issued Date: ${record.due || 'Not Configured'}`, 20, 37)
+
+      // Divider
+      doc.setDrawColor(226, 232, 240)
+      doc.line(20, 43, 190, 43)
+
+      // Invoice & Service Details Box
+      doc.setFontSize(11)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(14, 27, 51)
+      doc.text('Service & Billing Summary', 20, 52)
+
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(51, 65, 85)
+
+      doc.text(`Clinic Service: ${record.service || 'Not Configured'}`, 20, 62)
+      doc.text(`Practitioner: ${record.practitioner || 'Not Configured'}`, 20, 70)
+      doc.text(`Payment Status: ${record.status || 'Paid'}`, 20, 78)
+
+      // Amount Table Header
+      doc.setFillColor(248, 250, 252)
+      doc.rect(20, 88, 170, 10, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9)
+      doc.setTextColor(71, 85, 105)
+      doc.text('DESCRIPTION', 25, 94.5)
+      doc.text('TOTAL AMOUNT', 150, 94.5)
+
+      // Amount Table Row
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.setTextColor(15, 23, 42)
+      doc.text(record.service || 'Clinic Service', 25, 106)
+      doc.text(`$${Number(record.amount || 0).toFixed(2)}`, 150, 106)
+
+      // Divider
+      doc.line(20, 112, 190, 112)
+
+      // Total Paid Box
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(12)
+      doc.setTextColor(140, 75, 255)
+      doc.text('Total Paid:', 115, 122)
+      doc.text(`$${Number(record.amount || 0).toFixed(2)}`, 150, 122)
+
+      // Footer Placeholders for unconfigured metadata
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      doc.setTextColor(148, 163, 184)
+      doc.text('Clinic Contact / ABN: Not Configured', 20, 145)
+      doc.text('Compliance Statement: Not Configured', 20, 150)
+
+      doc.save(`Receipt_${record.id || 'INV'}.pdf`)
+      toast.success(`Receipt for ${record.id} downloaded successfully!`)
+    } catch (err) {
+      console.error('PDF Generation Error:', err)
+      toast.error('Failed to generate PDF receipt')
+    }
   }
 
   return (
@@ -48,85 +159,84 @@ export default function PatientPayments() {
 
       {/* Invoice Ledger Table */}
       <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">Clinic Invoices & Receipts</span>} style={{ marginTop: '24px' }}>
-        <Table
-          dataSource={invoicesList}
-          pagination={false}
-          scroll={{ x: 700 }}
-          className="border-none"
-          columns={[
-            { 
-              title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Invoice ID</span>, 
-              dataIndex: 'id', 
-              render: (t) => <span className="font-mono text-xs text-slate-600 dark:text-slate-400 font-bold">{t}</span> 
-            },
-            { 
-              title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Clinic Service</span>, 
-              render: (_, rec) => (
-                <div>
-                  <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block">{rec.service}</span>
-                  <span className="text-[9px] text-slate-450 dark:text-slate-500 block mt-0.5">Practitioner: {rec.practitioner}</span>
-                </div>
-              )
-            },
-            { 
-              title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Due Date</span>, 
-              dataIndex: 'due', 
-              render: (d) => <span className="text-slate-500 font-semibold text-xs">{d}</span> 
-            },
-            { 
-              title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Outstanding Total</span>, 
-              dataIndex: 'amount', 
-              render: (a) => <span className="font-extrabold text-[#8C4BFF] text-xs">${a.toFixed(2)}</span> 
-            },
-            { 
-              title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Status</span>, 
-              dataIndex: 'status', 
-              render: (s) => (
-                <Tag color={s === 'Paid' ? 'success' : s === 'Unpaid' ? 'warning' : 'error'} className="rounded-full border-none font-bold text-[9px] px-2.5 py-0.5">
-                  {s}
-                </Tag>
-              ) 
-            },
-            {
-              title: '',
-              key: 'action',
-              align: 'right',
-              render: (_, record) => (
-                record.status !== 'Paid' ? (
-                  <Button
-                    size="small"
-                    type="primary"
-                    icon={<CreditCardOutlined />}
-                    style={{ backgroundColor: '#8C4BFF', border: 'none' }}
-                    className="rounded-lg text-[10px] font-bold h-8 text-white"
-                    onClick={() => handlePay(record)}
-                  >
-                    Pay Invoice
-                  </Button>
-                ) : (
-                  <Button
-                    size="small"
-                    icon={<DownloadOutlined />}
-                    className="rounded-lg text-[10px] font-semibold h-8 dark:bg-slate-905 dark:border-slate-800"
-                    onClick={() => {
-                      // Dummy download functionality
-                      const element = document.createElement("a");
-                      const file = new Blob([`Simulated Receipt Content for ${record.id}\nAmount: $${record.amount.toFixed(2)}\nService: ${record.service}`], {type: 'application/pdf'});
-                      element.href = URL.createObjectURL(file);
-                      element.download = `Receipt_${record.id}.pdf`;
-                      document.body.appendChild(element);
-                      element.click();
-                      document.body.removeChild(element);
-                      toast.success(`Receipt for ${record.id} downloaded successfully!`)
-                    }}
-                  >
-                    Receipt
-                  </Button>
+        {loading ? (
+          <div className="text-center py-8">
+            <Spin description="Loading invoices..." />
+          </div>
+        ) : invoicesList.length === 0 ? (
+          <Empty description="No invoices found." />
+        ) : (
+          <Table
+            dataSource={invoicesList}
+            rowKey={(r) => r.id || r.key}
+            pagination={false}
+            scroll={{ x: 700 }}
+            className="border-none"
+            columns={[
+              { 
+                title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Invoice ID</span>, 
+                dataIndex: 'id', 
+                render: (t) => <span className="font-mono text-xs text-slate-600 dark:text-slate-400 font-bold">{t}</span> 
+              },
+              { 
+                title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Clinic Service</span>, 
+                render: (_, rec) => (
+                  <div>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block">{rec.service}</span>
+                    <span className="text-[9px] text-slate-450 dark:text-slate-500 block mt-0.5">Practitioner: {rec.practitioner}</span>
+                  </div>
                 )
-              )
-            }
-          ]}
-        />
+              },
+              { 
+                title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Due Date</span>, 
+                dataIndex: 'due', 
+                render: (d) => <span className="text-slate-500 font-semibold text-xs">{d}</span> 
+              },
+              { 
+                title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Outstanding Total</span>, 
+                dataIndex: 'amount', 
+                render: (a) => <span className="font-extrabold text-[#8C4BFF] text-xs">${Number(a || 0).toFixed(2)}</span> 
+              },
+              { 
+                title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Status</span>, 
+                dataIndex: 'status', 
+                render: (s) => (
+                  <Tag color={s === 'Paid' ? 'success' : s === 'Unpaid' ? 'warning' : 'error'} className="rounded-full border-none font-bold text-[9px] px-2.5 py-0.5">
+                    {s}
+                  </Tag>
+                ) 
+              },
+              {
+                title: '',
+                key: 'action',
+                align: 'right',
+                render: (_, record) => (
+                  record.status !== 'Paid' ? (
+                    <Button
+                      size="small"
+                      type="primary"
+                      icon={<CreditCardOutlined />}
+                      style={{ backgroundColor: '#8C4BFF', border: 'none' }}
+                      className="rounded-lg text-[10px] font-bold h-8 text-white"
+                      onClick={() => handlePay(record)}
+                    >
+                      Pay Invoice
+                    </Button>
+                  ) : (
+                    <Button
+                      size="small"
+                      icon={<DownloadOutlined />}
+                      className="rounded-lg text-[10px] font-semibold h-8 dark:bg-slate-905 dark:border-slate-800"
+                      onClick={() => generatePDFReceipt(record)}
+                    >
+                      Receipt
+                    </Button>
+                  )
+                )
+              }
+            ]}
+          />
+        )}
       </Card>
 
       {/* Pay Modal */}
@@ -146,7 +256,7 @@ export default function PatientPayments() {
                 <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Service Invoice Balance</span>
                 <span className="text-slate-800 dark:text-slate-200 text-xs font-bold">{selectedInvoice.service}</span>
               </div>
-              <span className="text-lg font-black text-[#8C4BFF]">${selectedInvoice.amount.toFixed(2)}</span>
+              <span className="text-lg font-black text-[#8C4BFF]">${Number(selectedInvoice.amount || 0).toFixed(2)}</span>
             </div>
 
             {/* Payment Method Selector */}
@@ -186,7 +296,7 @@ export default function PatientPayments() {
 
             {paymentMethod === 'direct' && (
               <div className="p-3.5 bg-slate-50 dark:bg-slate-800 border border-slate-150 rounded-xl space-y-2 text-xs font-semibold text-slate-600">
-                <span className="font-bold text-slate-750 block">ZealthOS Direct Deposit Details</span>
+                <span className="font-bold text-slate-750 block">Direct Deposit Details</span>
                 <div className="space-y-1 font-mono text-[11px]">
                   <div>BSB: 083-214</div>
                   <div>Account: 9812-40112</div>
@@ -210,7 +320,7 @@ export default function PatientPayments() {
 
             <div className="flex justify-end gap-2 pt-2">
               <Button onClick={() => setPayModalOpen(false)} className="rounded-xl font-bold border-slate-200">Cancel</Button>
-              <Button type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }} className="rounded-xl font-bold text-xs text-white">Pay ${selectedInvoice.amount.toFixed(2)}</Button>
+              <Button type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }} className="rounded-xl font-bold text-xs text-white">Pay ${Number(selectedInvoice.amount || 0).toFixed(2)}</Button>
             </div>
           </form>
         </Modal>

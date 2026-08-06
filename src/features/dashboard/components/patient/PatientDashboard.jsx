@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, Button, Tag, Progress, Space } from 'antd'
 import {
   CalendarOutlined,
@@ -14,13 +14,146 @@ import {
   RightOutlined
 } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
+import api from '../../../../api/axios'
 
 export default function PatientDashboard({ store, navigate }) {
-  const patientName = 'John Miller'
-  const primaryDoctor = 'Dr. Sarah Jenkins'
-  const primaryDoctorSpecialty = 'Physiotherapist'
-  const primaryClinic = 'Melbourne Allied Health'
-  const nextApptTime = 'Friday 10:00 AM'
+  const [loading, setLoading] = useState(true)
+  const [dashboardData, setDashboardData] = useState({
+    profile: null,
+    appointments: [],
+    careTeam: [],
+    treatmentPlans: [],
+    funding: { accounts: [], claims: [] },
+    formsDocs: { forms: [], documents: [] },
+    exercises: [],
+    invoices: []
+  })
+  const [hasError, setHasError] = useState(false)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const fetchAllDashboardData = async () => {
+      setLoading(true)
+      setHasError(false)
+
+      try {
+        const [
+          profileRes,
+          appointmentsRes,
+          careTeamRes,
+          treatmentPlansRes,
+          fundingRes,
+          formsDocsRes,
+          exercisesRes,
+          invoicesRes
+        ] = await Promise.all([
+          api.get('/api/patient/profile').catch(err => ({ error: err })),
+          api.get('/api/patient/appointments').catch(err => ({ error: err })),
+          api.get('/api/patient/care-team').catch(err => ({ error: err })),
+          api.get('/api/patient/treatment-plans').catch(err => ({ error: err })),
+          api.get('/api/patient/funding-claims').catch(err => ({ error: err })),
+          api.get('/api/patient/forms-documents').catch(err => ({ error: err })),
+          api.get('/api/patient/exercises').catch(err => ({ error: err })),
+          api.get('/api/patient/invoices').catch(err => ({ error: err }))
+        ])
+
+        if (!isMounted) return
+
+        let networkOrServerError = false
+
+        const getResData = (res) => {
+          if (res?.error) {
+            networkOrServerError = true
+            return null
+          }
+          if (res?.data?.success) {
+            return res.data.data
+          }
+          return null
+        }
+
+        const profile = getResData(profileRes)
+        const appointments = getResData(appointmentsRes) || []
+        const careTeam = getResData(careTeamRes) || []
+        const treatmentPlans = getResData(treatmentPlansRes) || []
+        const funding = getResData(fundingRes) || { accounts: [], claims: [] }
+        const formsDocs = getResData(formsDocsRes) || { forms: [], documents: [] }
+        const exercises = getResData(exercisesRes) || []
+        const invoices = getResData(invoicesRes) || []
+
+        if (networkOrServerError) {
+          setHasError(true)
+          toast.error('Could not load some live dashboard data from server')
+        }
+
+        setDashboardData({
+          profile,
+          appointments: Array.isArray(appointments) ? appointments : [],
+          careTeam: Array.isArray(careTeam) ? careTeam : [],
+          treatmentPlans: Array.isArray(treatmentPlans) ? treatmentPlans : [],
+          funding: funding || { accounts: [], claims: [] },
+          formsDocs: formsDocs || { forms: [], documents: [] },
+          exercises: Array.isArray(exercises) ? exercises : [],
+          invoices: Array.isArray(invoices) ? invoices : []
+        })
+      } catch (err) {
+        if (isMounted) {
+          setHasError(true)
+          toast.error('Failed to load dashboard data')
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    fetchAllDashboardData()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const patientName = dashboardData.profile?.fullName || dashboardData.profile?.name || store?.userName || 'Patient'
+  
+  const upcomingAppts = dashboardData.appointments.filter(a => (a.status || 'Scheduled').toLowerCase() === 'scheduled')
+  const nextAppt = upcomingAppts[0] || dashboardData.appointments[0]
+  const nextApptTime = nextAppt ? `${nextAppt.date || ''} ${nextAppt.startTime || ''}`.trim() : 'No upcoming appointment'
+
+  const primaryDocObj = dashboardData.careTeam[0]
+  const primaryDoctor = nextAppt?.practitionerName || primaryDocObj?.name || 'No assigned practitioner'
+  const primaryDoctorSpecialty = primaryDocObj?.specialty || 'Specialist'
+  const primaryClinic = nextAppt?.branchName || primaryDocObj?.clinic || 'Melbourne Allied Health'
+
+  const activePlans = dashboardData.treatmentPlans.filter(p => (p.status || 'Active').toLowerCase() === 'active')
+  const activePlanAdherence = activePlans[0]?.overallProgress !== undefined ? activePlans[0].overallProgress : 0
+  const plansSummaryText = activePlans.length > 0 ? activePlans.map(p => p.condition).filter(Boolean).join(' & ') : 'No active treatment plans'
+
+  const doctorsCount = dashboardData.careTeam.length
+  const activePlansCount = activePlans.length
+  const scheduledCount = upcomingAppts.length
+
+  const epcAccount = (dashboardData.funding.accounts || []).find(a => (a.type || '').toLowerCase().includes('epc') || (a.type || '').toLowerCase().includes('medicare'))
+  const ndisAccount = (dashboardData.funding.accounts || []).find(a => (a.type || '').toLowerCase().includes('ndis'))
+
+  const epcPercent = epcAccount?.percent !== undefined ? epcAccount.percent : 0
+  const epcUsedText = epcAccount ? `${epcAccount.used || '0'} (${epcAccount.remaining || '0 remaining'})` : '0 of 0 used'
+
+  const ndisPercent = ndisAccount?.percent !== undefined ? ndisAccount.percent : 0
+  const ndisRemainingText = ndisAccount ? `${ndisAccount.remaining || '$0 remaining'} (${ndisPercent}% available)` : '$0 remaining'
+
+  const pendingForms = (dashboardData.formsDocs.forms || []).filter(f => (f.status || '').toLowerCase() === 'pending')
+  const pendingExercises = dashboardData.exercises.filter(e => !e.done)
+  const completedExercises = dashboardData.exercises.filter(e => e.done)
+  const totalExercises = dashboardData.exercises.length
+
+  const totalOutstandingTasks = pendingForms.length + pendingExercises.length
+
+  const pendingFormItem = pendingForms[0]
+  const unpaidInvoice = dashboardData.invoices.find(i => (i.status || '').toLowerCase() === 'unpaid' || (i.status || '').toLowerCase() === 'overdue')
+  const latestReport = (dashboardData.formsDocs.documents || [])[0]
 
   return (
     <div className="space-y-6">
@@ -76,7 +209,7 @@ export default function PatientDashboard({ store, navigate }) {
               <div className="flex items-center gap-3">
                 <Progress 
                   type="circle" 
-                  percent={75} 
+                  percent={activePlanAdherence} 
                   size={50} 
                   strokeColor="#30D2BE" 
                   trailColor="rgba(255, 255, 255, 0.15)"
@@ -84,8 +217,8 @@ export default function PatientDashboard({ store, navigate }) {
                   format={(p) => <span style={{ color: '#ffffff', fontSize: '10px', fontWeight: '900' }}>{p}%</span>}
                 />
                 <div>
-                  <span className="font-extrabold block" style={{ fontSize: '12px', color: '#ffffff' }}>On Track</span>
-                  <span className="block mt-0.5 font-semibold" style={{ fontSize: '9px', color: '#e9d5ff' }}>14-Day Streak!</span>
+                  <span className="font-extrabold block" style={{ fontSize: '12px', color: '#ffffff' }}>{activePlanAdherence > 50 ? 'On Track' : 'Needs Review'}</span>
+                  <span className="block mt-0.5 font-semibold" style={{ fontSize: '9px', color: '#e9d5ff' }}>Active Care Plan</span>
                 </div>
               </div>
             </div>
@@ -157,20 +290,20 @@ export default function PatientDashboard({ store, navigate }) {
                 <span className="font-bold text-xs text-slate-808 dark:text-slate-200 block">Active Practitioners</span>
                 <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">Specialists involved in your clinical care</span>
               </div>
-              <Tag color="purple" className="m-0 font-bold border-none text-xs rounded-full px-3">2 Doctors</Tag>
+              <Tag color="purple" className="m-0 font-bold border-none text-xs rounded-full px-3">{doctorsCount} Doctor{doctorsCount === 1 ? '' : 's'}</Tag>
             </div>
 
             {/* Snapshot Row 2: Current Treatment Plans */}
             <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 rounded-xl">
               <div>
                 <span className="font-bold text-xs text-slate-808 dark:text-slate-200 block">Current Treatment Plans</span>
-                <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">Shoulder Mobility & Lumbar Core Stability</span>
+                <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">{plansSummaryText}</span>
               </div>
               <button 
                 onClick={() => navigate('/patient/treatment-plans')}
                 className="text-xs text-[#8C4BFF] font-bold border-none bg-transparent cursor-pointer hover:underline"
               >
-                2 Active Plans
+                {activePlansCount} Active Plan{activePlansCount === 1 ? '' : 's'}
               </button>
             </div>
 
@@ -178,9 +311,11 @@ export default function PatientDashboard({ store, navigate }) {
             <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 rounded-xl">
               <div>
                 <span className="font-bold text-xs text-slate-808 dark:text-slate-200 block">Upcoming Appointments</span>
-                <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">Next review: June 19 with Dr. Sarah Jenkins</span>
+                <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
+                  {nextAppt ? `Next review: ${nextAppt.date || ''} with ${nextAppt.practitionerName || primaryDoctor}` : 'No upcoming appointments scheduled'}
+                </span>
               </div>
-              <Tag color="cyan" className="m-0 font-bold border-none text-xs rounded-full px-3">2 Scheduled</Tag>
+              <Tag color="cyan" className="m-0 font-bold border-none text-xs rounded-full px-3">{scheduledCount} Scheduled</Tag>
             </div>
 
             {/* Snapshot Row 4: Sessions Remaining / NDIS Gauge */}
@@ -189,13 +324,13 @@ export default function PatientDashboard({ store, navigate }) {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="text-[10px] text-slate-400 font-semibold block mb-1">EPC Referral</span>
-                  <Progress percent={60} strokeColor="#8C4BFF" size="small" showInfo={false} />
-                  <span className="text-[9px] font-bold text-slate-500 mt-1 block">3 of 5 used (2 remaining)</span>
+                  <Progress percent={epcPercent} strokeColor="#8C4BFF" size="small" showInfo={false} />
+                  <span className="text-[9px] font-bold text-slate-500 mt-1 block">{epcUsedText}</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 font-semibold block mb-1">NDIS Budget</span>
-                  <Progress percent={65} strokeColor="#30D2BE" size="small" showInfo={false} />
-                  <span className="text-[9px] font-bold text-slate-500 mt-1 block">$7,400 remaining (65% available)</span>
+                  <Progress percent={ndisPercent} strokeColor="#30D2BE" size="small" showInfo={false} />
+                  <span className="text-[9px] font-bold text-slate-500 mt-1 block">{ndisRemainingText}</span>
                 </div>
               </div>
             </div>
@@ -204,9 +339,14 @@ export default function PatientDashboard({ store, navigate }) {
             <div className="flex justify-between items-center p-3 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 rounded-xl">
               <div>
                 <span className="font-bold text-xs text-slate-808 dark:text-slate-200 block">Outstanding Tasks</span>
-                <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">Pending intake questionnaire & exercise routine</span>
+                <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
+                  {totalOutstandingTasks > 0 
+                    ? `Pending ${pendingForms.length} intake form${pendingForms.length === 1 ? '' : 's'} & ${pendingExercises.length} exercise routine${pendingExercises.length === 1 ? '' : 's'}`
+                    : 'All tasks and routines up to date'
+                  }
+                </span>
               </div>
-              <Tag color="warning" className="m-0 font-bold border-none text-xs rounded-full px-3">3 Tasks Due</Tag>
+              <Tag color={totalOutstandingTasks > 0 ? "warning" : "success"} className="m-0 font-bold border-none text-xs rounded-full px-3">{totalOutstandingTasks} Tasks Due</Tag>
             </div>
 
           </div>
@@ -227,7 +367,7 @@ export default function PatientDashboard({ store, navigate }) {
                 </div>
                 <div>
                   <span className="font-bold text-xs text-slate-808 dark:text-slate-200 block">Interventions To Complete</span>
-                  <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">2 of 4 interventions completed</span>
+                  <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">{completedExercises.length} of {totalExercises} interventions completed</span>
                 </div>
               </div>
               <Button 
@@ -247,7 +387,9 @@ export default function PatientDashboard({ store, navigate }) {
                 </div>
                 <div>
                   <span className="font-bold text-xs text-slate-808 dark:text-slate-200 block">Forms to Complete</span>
-                  <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">Clinical Patient Intake Form is pending submission</span>
+                  <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
+                    {pendingFormItem ? `${pendingFormItem.name} is pending submission` : 'No pending forms to submit'}
+                  </span>
                 </div>
               </div>
               <Button 
@@ -267,7 +409,9 @@ export default function PatientDashboard({ store, navigate }) {
                 </div>
                 <div>
                   <span className="font-bold text-xs text-slate-808 dark:text-slate-200 block">Payments Outstanding</span>
-                  <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">INV-1829 ($120.00) is due in 3 days</span>
+                  <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
+                    {unpaidInvoice ? `${unpaidInvoice.id} ($${Number(unpaidInvoice.amount || 0).toFixed(2)}) is due` : 'No outstanding invoice payments'}
+                  </span>
                 </div>
               </div>
               <Button 
@@ -287,7 +431,9 @@ export default function PatientDashboard({ store, navigate }) {
                 </div>
                 <div>
                   <span className="font-bold text-xs text-slate-808 dark:text-slate-200 block">Messages Awaiting Review</span>
-                  <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">New exercise guidelines from Dr. Sarah Jenkins</span>
+                  <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
+                    {primaryDoctor ? `Direct messaging available with ${primaryDoctor}` : 'No unread practitioner messages'}
+                  </span>
                 </div>
               </div>
               <Button 
@@ -307,7 +453,9 @@ export default function PatientDashboard({ store, navigate }) {
                 </div>
                 <div>
                   <span className="font-bold text-xs text-slate-808 dark:text-slate-200 block">Reports Available</span>
-                  <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">Initial Assessment Report & Spine MRI scan PDF</span>
+                  <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
+                    {latestReport ? `${latestReport.name} (${latestReport.size || 'PDF'})` : 'No clinical reports available for download'}
+                  </span>
                 </div>
               </div>
               <Button 

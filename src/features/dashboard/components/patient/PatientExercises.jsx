@@ -1,17 +1,49 @@
-import React, { useState } from 'react'
-import { Card, Button, Progress, Switch, Tag } from 'antd'
+import React, { useState, useEffect } from 'react'
+import { Card, Button, Progress, Switch, Tag, Spin, Empty } from 'antd'
 import { CheckOutlined, PlayCircleOutlined, FireOutlined, BellOutlined, MobileOutlined } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
+import api from '../../../../api/axios'
 
 export default function PatientExercises() {
-  const [exerciseToday, setExerciseToday] = useState([
-    { id: '1', name: 'Double leg calf raises', reps: '3 sets of 15 reps', note: 'Rest 60 seconds between sets.', done: true, img: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?auto=format&fit=crop&q=80&w=200' },
-    { id: '2', name: 'Lumbar stretching extensions', reps: 'Hold 30 secs, 5 reps', note: 'Stretch gently. Stop immediately if pain spikes.', done: true, img: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=200' },
-    { id: '3', name: 'Hamstring eccentric stretches', reps: '3 sets of 10 reps', note: 'Keep knees straight. Lean forward slowly.', done: false, img: 'https://images.unsplash.com/photo-1599058917212-d750089bc07e?auto=format&fit=crop&q=80&w=200' },
-    { id: '4', name: 'Ankle resistance bands flexion', reps: '3 sets of 12 reps', note: 'Use purple resistance band.', done: false, img: 'https://images.unsplash.com/photo-1583454110551-21f2fa2afe61?auto=format&fit=crop&q=80&w=200' },
-  ])
+  const [loading, setLoading] = useState(false)
+  const [exerciseToday, setExerciseToday] = useState([])
 
-  const compliancePercent = Math.round((exerciseToday.filter(ex => ex.done).length / exerciseToday.length) * 100)
+  const fetchExercises = async () => {
+    setLoading(true)
+    try {
+      const res = await api.get('/api/patient/exercises')
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        setExerciseToday(res.data.data)
+      }
+    } catch (err) {
+      console.warn('Prescribed exercises fetch fallback notice:', err?.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchExercises()
+  }, [])
+
+  const handleToggleExercise = async (ex) => {
+    // Optimistic UI update
+    setExerciseToday(prev => prev.map(p => p.id === ex.id ? { ...p, done: !p.done } : p))
+    if (!ex.done) toast.success(`Great job! ${ex.name} completed!`)
+
+    try {
+      const res = await api.put(`/api/patient/exercises/${ex.id}/toggle`)
+      if (res.data?.success && res.data.data) {
+        setExerciseToday(prev => prev.map(p => p.id === ex.id ? res.data.data : p))
+      }
+    } catch (err) {
+      console.warn('Toggle exercise DB sync notice:', err?.message)
+    }
+  }
+
+  const completedCount = exerciseToday.filter(ex => ex.done).length
+  const totalCount = exerciseToday.length
+  const compliancePercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
 
   return (
     <div className="space-y-6">
@@ -26,56 +58,63 @@ export default function PatientExercises() {
         </div>
         <div className="bg-white/20 px-4 py-2 rounded-xl backdrop-blur-md text-center min-w-[120px]">
           <span className="block text-[10px] uppercase font-bold tracking-wider opacity-80">Daily Goal</span>
-          <span className="block text-lg font-black">{exerciseToday.filter(ex => ex.done).length} / {exerciseToday.length} Done</span>
+          <span className="block text-lg font-black">{completedCount} / {totalCount} Done</span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Exercises List */}
         <div className="lg:col-span-2 space-y-4">
-          <h3 className="font-extrabold text-sm text-slate-800 dark:text-slate-200">Today's Prescribed Routine</h3>
+          <h3 className="font-extrabold text-sm text-slate-808 dark:text-slate-200">Today's Prescribed Routine</h3>
           
-          <div className="space-y-4">
-            {exerciseToday.map(ex => (
-              <Card key={ex.id} className={`border ${ex.done ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-900/10' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900'} rounded-2xl shadow-sm overflow-hidden body-no-padding`}>
-                <div className="flex flex-col sm:flex-row">
-                  {/* Video Thumbnail */}
-                  <div className="sm:w-32 h-32 relative flex-shrink-0 bg-slate-900">
-                    <img src={ex.img} alt={ex.name} className={`w-full h-full object-cover transition-all ${ex.done ? 'opacity-50 grayscale' : 'opacity-80 hover:opacity-100 cursor-pointer'}`} />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <PlayCircleOutlined className={`text-3xl ${ex.done ? 'text-white/50' : 'text-white'}`} />
-                    </div>
-                  </div>
-                  
-                  {/* Details */}
-                  <div className="p-4 flex-1 flex flex-col justify-between">
-                    <div>
-                      <div className="flex justify-between items-start">
-                        <span className={`font-extrabold text-sm block ${ex.done ? 'text-slate-500 line-through' : 'text-slate-800 dark:text-slate-200'}`}>{ex.name}</span>
-                        {ex.done && <Tag color="success" className="m-0 border-none rounded-full px-2 py-0.5 text-[9px] font-bold"><CheckOutlined /> DONE</Tag>}
+          {loading ? (
+            <div className="text-center py-12">
+              <Spin size="large" tip="Loading prescribed exercises..." />
+            </div>
+          ) : exerciseToday.length === 0 ? (
+            <Card className="text-center py-8 rounded-2xl">
+              <Empty description="No prescribed exercises scheduled for today." />
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {exerciseToday.map(ex => (
+                <Card key={ex.id} className={`border ${ex.done ? 'border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-900/10' : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900'} rounded-2xl shadow-sm overflow-hidden body-no-padding`}>
+                  <div className="flex flex-col sm:flex-row">
+                    {/* Video Thumbnail */}
+                    <div className="sm:w-32 h-32 relative flex-shrink-0 bg-slate-900">
+                      <img src={ex.img || 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?auto=format&fit=crop&q=80&w=200'} alt={ex.name} className={`w-full h-full object-cover transition-all ${ex.done ? 'opacity-50 grayscale' : 'opacity-80 hover:opacity-100 cursor-pointer'}`} />
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <PlayCircleOutlined className={`text-3xl ${ex.done ? 'text-white/50' : 'text-white'}`} />
                       </div>
-                      <span className="text-[11px] text-[#8C4BFF] font-black uppercase tracking-wide block mt-1">{ex.reps}</span>
-                      <p className="text-[10px] text-slate-500 font-semibold mt-1 mb-0">{ex.note}</p>
                     </div>
                     
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        type={ex.done ? 'default' : 'primary'}
-                        onClick={() => {
-                          setExerciseToday(prev => prev.map(p => p.id === ex.id ? { ...p, done: !p.done } : p))
-                          if(!ex.done) toast.success(`Great job! ${ex.name} completed!`)
-                        }}
-                        style={ex.done ? { backgroundColor: 'transparent', color: '#64748B', border: '1px solid #CBD5E1' } : { backgroundColor: '#8C4BFF', border: 'none' }}
-                        className="rounded-xl font-bold text-xs h-8 px-5 shadow-sm"
-                      >
-                        {ex.done ? 'Undo' : 'Mark Completed'}
-                      </Button>
+                    {/* Details */}
+                    <div className="p-4 flex-1 flex flex-col justify-between">
+                      <div>
+                        <div className="flex justify-between items-start">
+                          <span className={`font-extrabold text-sm block ${ex.done ? 'text-slate-500 line-through' : 'text-slate-808 dark:text-slate-200'}`}>{ex.name}</span>
+                          {ex.done && <Tag color="success" className="m-0 border-none rounded-full px-2 py-0.5 text-[9px] font-bold"><CheckOutlined /> DONE</Tag>}
+                        </div>
+                        <span className="text-[11px] text-[#8C4BFF] font-black uppercase tracking-wide block mt-1">{ex.reps}</span>
+                        <p className="text-[10px] text-slate-500 font-semibold mt-1 mb-0">{ex.note}</p>
+                      </div>
+                      
+                      <div className="mt-3 flex justify-end">
+                        <Button
+                          type={ex.done ? 'default' : 'primary'}
+                          onClick={() => handleToggleExercise(ex)}
+                          style={ex.done ? { backgroundColor: 'transparent', color: '#64748B', border: '1px solid #CBD5E1' } : { backgroundColor: '#8C4BFF', border: 'none' }}
+                          className="rounded-xl font-bold text-xs h-8 px-5 shadow-sm"
+                        >
+                          {ex.done ? 'Undo' : 'Mark Completed'}
+                        </Button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Sidebar Widgets */}

@@ -4,7 +4,7 @@ import { PlusOutlined, InfoCircleOutlined } from '@ant-design/icons'
 import { useClinicStore } from '../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
-import { getWaitlist, createWaitlist, updateWaitlist } from '../../calendar/api/clinicAdminApi'
+import { getWaitlist, createWaitlist, updateWaitlist, getBranches } from '../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 
@@ -21,12 +21,18 @@ export default function WaitlistPage() {
   const fetchWaitlistData = async () => {
     setLoading(true)
     try {
-      const res = await getWaitlist({ search: searchText, appointmentType: typeFilter, status: statusFilter })
+      const [res, branchesRes] = await Promise.all([
+        getWaitlist({ search: searchText, appointmentType: typeFilter, status: statusFilter }),
+        (!store.branches || store.branches.length === 0) ? getBranches() : Promise.resolve(null)
+      ])
       if (res && res.success && Array.isArray(res.data)) {
         store.setWaitlist(res.data)
       }
+      if (branchesRes && branchesRes.success && Array.isArray(branchesRes.data)) {
+        store.setBranches(branchesRes.data)
+      }
     } catch (err) {
-      console.error('Failed to fetch waitlist:', err)
+      console.error('Failed to fetch waitlist or branches:', err)
     } finally {
       setLoading(false)
     }

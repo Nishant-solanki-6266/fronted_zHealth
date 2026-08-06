@@ -8,6 +8,7 @@ import PractitionerProfilePage from './PractitionerProfilePage'
 import SalesSettings from '../../dashboard/components/sales/SalesSettings'
 import { getSuperAdminProfile, updateSuperAdminProfile } from '../api/settingsApi'
 import { getClinicAdminProfile, updateClinicAdminProfile } from '../../calendar/api/clinicAdminApi'
+import api from '../../../api/axios'
 
 const { Option } = Select
 
@@ -22,6 +23,7 @@ export default function AdminProfilePage() {
   
   const isSalesContext = store.userRole === 'sales'
   const isClinicAdminContext = window.location.pathname.startsWith('/clinic-admin') || store.userRole === 'clinic' || store.userRole === 'CLINIC_ADMIN'
+  const isPatientContext = window.location.pathname.startsWith('/patient') || store.userRole === 'patient' || store.userRole === 'PATIENT'
 
   // This state holds the loaded user details to display in the header card
   const [userInfo, setUserInfo] = useState({
@@ -38,7 +40,10 @@ export default function AdminProfilePage() {
     const loadLiveProfile = async () => {
       try {
         let res;
-        if (isSalesContext && store.fetchSalesProfile) {
+        if (isPatientContext) {
+          const response = await api.get('/api/patient/profile')
+          res = response.data
+        } else if (isSalesContext && store.fetchSalesProfile) {
           const rawProfile = await store.fetchSalesProfile()
           if (rawProfile) {
             res = { success: true, data: rawProfile }
@@ -106,7 +111,10 @@ export default function AdminProfilePage() {
       }
 
       let res;
-      if (isSalesContext && store.updateSalesProfile) {
+      if (isPatientContext) {
+        const response = await api.put('/api/patient/profile', payload)
+        res = response.data
+      } else if (isSalesContext && store.updateSalesProfile) {
         res = await store.updateSalesProfile(payload)
         if (values.newPassword) {
           await store.changeSalesPassword({
@@ -141,7 +149,9 @@ export default function AdminProfilePage() {
   const handleAvatarRemove = async () => {
     setUserInfo(prev => ({ ...prev, avatar: null }))
     try {
-      if (isSalesContext && store.updateSalesProfile) {
+      if (isPatientContext) {
+        await api.put('/api/patient/profile', { avatarUrl: null })
+      } else if (isSalesContext && store.updateSalesProfile) {
         await store.updateSalesProfile({ avatarUrl: null })
       } else {
         isClinicAdminContext ? await updateClinicAdminProfile({ avatarUrl: null }) : await updateSuperAdminProfile({ avatarUrl: null })

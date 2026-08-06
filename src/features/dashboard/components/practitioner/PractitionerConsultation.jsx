@@ -198,18 +198,24 @@ export default function PractitionerConsultation() {
     })
   }
 
+  useEffect(() => {
+    if (selectedPatientId && store.fetchConsultations) {
+      store.fetchConsultations(selectedPatientId)
+    }
+  }, [selectedPatientId])
+
   // Save as Draft
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     const apptObj = getSelectedAppointmentObj()
     const existingNoteObj = apptObj ? store.consultations.find(c => c.appointmentId === apptObj.id) : null
 
     if (existingNoteObj) {
-      store.updateConsultation(existingNoteObj.id, {
+      await store.updateConsultation(existingNoteObj.id, {
         notes: noteText,
         status: 'Draft',
         date: new Date().toISOString().split('T')[0]
       })
-      toast.success(`Progress note draft updated for ${patient.name}!`)
+      toast.success(`Progress note draft updated in DB for ${patient.name}!`)
     } else {
       const newCons = {
         patientId: selectedPatientId,
@@ -218,25 +224,27 @@ export default function PractitionerConsultation() {
         status: 'Draft',
         practitionerName: store.userRole === 'clinic' ? 'Clinic Manager' : 'Dr. Sarah Jenkins',
         profession: activeSpecialty,
-        appointmentId: apptObj ? apptObj.id : undefined
+        appointmentId: apptObj ? apptObj.id : undefined,
+        date: new Date().toISOString().split('T')[0]
       }
-      store.addConsultation(newCons)
-      toast.success(`Progress note draft saved for ${patient.name}!`)
+      await store.addConsultation(newCons)
+      toast.success(`Progress note draft saved to DB for ${patient.name}!`)
     }
+    setLastSavedTime(new Date().toLocaleTimeString())
   }
 
   // Save as Final
-  const handleSaveFinal = () => {
+  const handleSaveFinal = async () => {
     const apptObj = getSelectedAppointmentObj()
     const existingNoteObj = apptObj ? store.consultations.find(c => c.appointmentId === apptObj.id) : null
 
     if (existingNoteObj) {
-      store.updateConsultation(existingNoteObj.id, {
+      await store.updateConsultation(existingNoteObj.id, {
         notes: noteText,
         status: 'Completed',
         date: new Date().toISOString().split('T')[0]
       })
-      toast.success(`Progress note saved as final for ${patient.name}!`)
+      toast.success(`Progress note saved as final in DB for ${patient.name}!`)
     } else {
       const newCons = {
         patientId: selectedPatientId,
@@ -245,11 +253,13 @@ export default function PractitionerConsultation() {
         status: 'Completed',
         practitionerName: store.userRole === 'clinic' ? 'Clinic Manager' : 'Dr. Sarah Jenkins',
         profession: activeSpecialty,
-        appointmentId: apptObj ? apptObj.id : undefined
+        appointmentId: apptObj ? apptObj.id : undefined,
+        date: new Date().toISOString().split('T')[0]
       }
-      store.addConsultation(newCons)
-      toast.success(`Progress note saved as final for ${patient.name}!`)
+      await store.addConsultation(newCons)
+      toast.success(`Progress note saved as final to DB for ${patient.name}!`)
     }
+    setLastSavedTime(new Date().toLocaleTimeString())
   }
 
   // Sync URL parameters on mount or when search changes

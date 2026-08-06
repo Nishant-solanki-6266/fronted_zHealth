@@ -26,6 +26,11 @@ const queryClient = new QueryClient({
 
 function App() {
   const darkMode = useClinicStore((state) => state.darkMode)
+  const initStoreData = useClinicStore((state) => state.initStoreData)
+
+  useEffect(() => {
+    initStoreData()
+  }, [initStoreData])
 
   useEffect(() => {
     if (darkMode) {

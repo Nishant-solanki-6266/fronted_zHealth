@@ -48,7 +48,8 @@ function renderTagIcon(iconName) {
 }
 
 function ClientTag({ label, clientTags }) {
-  const matched = clientTags.find(t => t.name.toLowerCase() === label.toLowerCase())
+  const labelStr = typeof label === 'string' ? label : (label?.name || label?.label || String(label || ''))
+  const matched = Array.isArray(clientTags) ? clientTags.find(t => String(t?.name || t?.label || '').toLowerCase() === labelStr.toLowerCase()) : null
   const color = matched ? matched.color : '#64748B'
   const icon = matched ? matched.icon : 'TagOutlined'
   return (
@@ -61,7 +62,7 @@ function ClientTag({ label, clientTags }) {
       }}
     >
       {renderTagIcon(icon)}
-      <span>{label}</span>
+      <span>{labelStr}</span>
     </span>
   )
 }

@@ -10,7 +10,7 @@ const CREDENTIALS = [
   {
     label: 'Super Admin',
     role: 'head_admin',
-    email: 'superadmin@gmail.com',
+    email: 'admin@zhealth.com',
     password: 'Password123!',
     description: 'Platform Owner Control',
     color: '#0E1B33',
@@ -37,8 +37,8 @@ const CREDENTIALS = [
   {
     label: 'Practitioner',
     role: 'practitioner',
-    email: 'practitioner@example.com',
-    password: 'password',
+    email: 'sarah.jenkins@clinic.com',
+    password: 'Password123!',
     description: 'Doctor / Treatment Board',
     color: '#30D2BE',
     bg: '#E6FAF8',
@@ -46,8 +46,8 @@ const CREDENTIALS = [
   {
     label: 'Patient Portal',
     role: 'patient',
-    email: 'patient@example.com',
-    password: 'password',
+    email: 'patient@zhealth.com',
+    password: 'Password123!',
     description: 'Client Personal Bookings',
     color: '#3B82F6',
     bg: '#EBF5FF',

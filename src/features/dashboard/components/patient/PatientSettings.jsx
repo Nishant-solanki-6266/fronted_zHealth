@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useClinicStore } from '../../../../store/clinicStore'
-import { Card, Form, Input, Button, Checkbox, Space, Table, Tag, Modal, Divider, Switch, Tooltip, Select } from 'antd'
+import { Card, Form, Input, Button, Checkbox, Space, Table, Tag, Modal, Divider, Switch, Tooltip, Select, Spin } from 'antd'
 import {
   UserOutlined,
   BellOutlined,
@@ -16,12 +16,20 @@ import {
   GlobalOutlined
 } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
+import api from '../../../../api/axios'
 
 export default function PatientSettings() {
   const navigate = useNavigate()
   const { darkMode } = useClinicStore()
   const [activeTab, setActiveTab] = useState('profile')
   const [activeProfileId, setActiveProfileId] = useState('john')
+  const [loading, setLoading] = useState(false)
+  const [profileData, setProfileData] = useState(null)
+
+  const [profileForm] = Form.useForm()
+  const [gpForm] = Form.useForm()
+  const [insuranceForm] = Form.useForm()
+
   const [tfaEnabled, setTfaEnabled] = useState(true)
   const [smsNotify, setSmsNotify] = useState(true)
   const [emailNotify, setEmailNotify] = useState(true)
@@ -39,34 +47,141 @@ export default function PatientSettings() {
     { key: '2', device: 'iPhone App Client', ip: '120.91.4.11', time: 'Today, 10:15 AM', location: 'Sydney, NSW', status: 'Active Session' }
   ])
 
-  const achievementsList = [
+  const [achievementsList, setAchievementsList] = useState([
     { name: 'First Exercise Completed', status: 'Unlocked', desc: 'Successfully performed your first home care exercise routine.', date: '12 Jan 2026', badge: '🥇' },
     { name: '7-Day Streak', status: 'Unlocked', desc: 'Completed exercises for 7 consecutive days.', date: '19 Jan 2026', badge: '🔥' },
     { name: '30-Day Streak', status: 'Locked', desc: 'Complete daily exercises for 30 days in a row.', progress: '14/30 days', badge: '⭐' },
     { name: 'Treatment Goal Achieved', status: 'Unlocked', desc: 'Reached 80% improvement milestone in Shoulder Mobility.', date: '04 Jun 2026', badge: '🏆' },
     { name: 'Perfect Attendance', status: 'Unlocked', desc: 'Attended all scheduled clinic consultation reviews on time.', date: '12 May 2026', badge: '🎯' }
-  ]
+  ])
 
-  const profilesData = {
+  const fetchAchievements = async () => {
+    try {
+      const res = await api.get('/api/patient/achievements')
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        setAchievementsList(res.data.data)
+      }
+    } catch (err) {
+      console.warn('Patient achievements API fetch fallback notice:', err?.message)
+    }
+  }
+
+  useEffect(() => {
+    fetchProfile()
+    fetchPreferences()
+    fetchTrustedDevices()
+    fetchAchievements()
+  }, [])
+
+  const fetchProfile = async () => {
+    setLoading(true)
+    try {
+      const res = await api.get('/api/patient/profile')
+      if (res.data?.success && res.data.data) {
+        setProfileData(res.data.data)
+      }
+    } catch (err) {
+      console.warn('Patient profile API fetch fallback notice:', err?.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchPreferences = async () => {
+    try {
+      const res = await api.get('/api/patient/preferences')
+      if (res.data?.success && res.data.data) {
+        const p = res.data.data
+        if (p.smsNotify !== undefined) setSmsNotify(p.smsNotify)
+        if (p.emailNotify !== undefined) setEmailNotify(p.emailNotify)
+        if (p.pushNotify !== undefined) setPushNotify(p.pushNotify)
+        if (p.tfaEnabled !== undefined) setTfaEnabled(p.tfaEnabled)
+      }
+    } catch (err) {
+      console.warn('Patient preferences API fetch fallback notice:', err?.message)
+    }
+  }
+
+  const handleSavePreferences = async () => {
+    try {
+      const payload = { smsNotify, emailNotify, pushNotify, tfaEnabled }
+      const res = await api.put('/api/patient/preferences', payload)
+      if (res.data?.success) {
+        toast.success(res.data.message || 'Preferences updated in live database!')
+      } else {
+        toast.error(res.data?.message || 'Failed to update preferences')
+      }
+    } catch (err) {
+      console.error('Error saving preferences:', err)
+      toast.error(err?.response?.data?.message || 'Failed to save preferences to live database.')
+    }
+  }
+
+  const handleTfaToggle = async (checked) => {
+    setTfaEnabled(checked)
+    try {
+      const res = await api.put('/api/patient/preferences', { tfaEnabled: checked })
+      if (res.data?.success) {
+        toast.success(`2FA Authentication ${checked ? 'Enabled' : 'Disabled'} in live database`)
+      }
+    } catch (err) {
+      console.error('Error toggling 2FA:', err)
+      toast.error('Failed to update 2FA setting in live database.')
+    }
+  }
+
+  const fetchTrustedDevices = async () => {
+    try {
+      const res = await api.get('/api/patient/security/devices')
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        setTrustedDevices(res.data.data)
+      }
+    } catch (err) {
+      console.warn('Trusted devices API fetch fallback notice:', err?.message)
+    }
+  }
+
+  const handleRevokeDevice = async (key) => {
+    try {
+      const res = await api.delete(`/api/patient/security/devices/${key}`)
+      if (res.data?.success) {
+        setTrustedDevices(prev => prev.filter(item => item.key !== key))
+        toast.success('Device session terminated in live database.')
+      } else {
+        toast.error(res.data?.message || 'Failed to terminate session')
+      }
+    } catch (err) {
+      console.error('Error terminating device session:', err)
+      toast.error('Failed to terminate device session in live database.')
+    }
+  }
+
+  useEffect(() => {
+    fetchProfile()
+    fetchPreferences()
+    fetchTrustedDevices()
+  }, [])
+
+  const fallbackProfilesData = {
     john: {
-      name: 'John Miller',
-      phone: '+61 411 992 812',
-      email: 'john.miller@example.com',
-      address: '124 Collins St, Melbourne VIC 3000',
-      emergencyName: 'Mary Miller',
-      emergencyRelation: 'Spouse',
-      emergencyPhone: '+61 412 110 992',
-      gpName: 'Dr. Arthur Pendelton',
-      gpClinic: 'Collins Street Medical Group',
-      gpPhone: '+61 3 9821 4410',
-      medicareNum: '3901 88124 1',
-      medicareRef: '2',
-      medicareExpiry: '11/2028',
-      phiProvider: 'Medibank Private',
-      phiMemberNum: 'MBI-98214112'
+      fullName: profileData?.fullName || 'John Miller',
+      phone: profileData?.phone || '+61 411 992 812',
+      email: profileData?.email || 'john.miller@example.com',
+      address: profileData?.address || '124 Collins St, Melbourne VIC 3000',
+      emergencyName: profileData?.emergencyContactName || 'Mary Miller',
+      emergencyRelation: profileData?.emergencyRelation || 'Spouse',
+      emergencyPhone: profileData?.emergencyContactPhone || '+61 412 110 992',
+      gpName: profileData?.gpName || 'Dr. Arthur Pendelton',
+      gpClinic: profileData?.gpClinic || 'Collins Street Medical Group',
+      gpPhone: profileData?.gpPhone || '+61 3 9821 4410',
+      medicareNum: profileData?.medicareNumber || '3901 88124 1',
+      medicareRef: profileData?.medicareRef || '2',
+      medicareExpiry: profileData?.medicareExpiry || '11/2028',
+      phiProvider: profileData?.privateHealthFund || 'Medibank Private',
+      phiMemberNum: profileData?.phiMemberNum || 'MBI-98214112'
     },
     lily: {
-      name: 'Lily Miller',
+      fullName: 'Lily Miller',
       phone: '+61 411 992 812',
       email: 'lily.miller@example.com',
       address: '124 Collins St, Melbourne VIC 3000',
@@ -84,7 +199,62 @@ export default function PatientSettings() {
     }
   }
 
-  const currentProfile = profilesData[activeProfileId]
+  const currentProfile = fallbackProfilesData[activeProfileId]
+
+  useEffect(() => {
+    if (currentProfile) {
+      profileForm.setFieldsValue({
+        fullName: currentProfile.fullName,
+        phone: currentProfile.phone,
+        email: currentProfile.email,
+        address: currentProfile.address,
+        emergencyName: currentProfile.emergencyName,
+        emergencyRelation: currentProfile.emergencyRelation,
+        emergencyPhone: currentProfile.emergencyPhone,
+      })
+      gpForm.setFieldsValue({
+        gpName: currentProfile.gpName,
+        gpClinic: currentProfile.gpClinic,
+        gpPhone: currentProfile.gpPhone,
+      })
+      insuranceForm.setFieldsValue({
+        medicareNum: currentProfile.medicareNum,
+        medicareRef: currentProfile.medicareRef,
+        medicareExpiry: currentProfile.medicareExpiry,
+        phiProvider: currentProfile.phiProvider,
+        phiMemberNum: currentProfile.phiMemberNum,
+      })
+    }
+  }, [currentProfile, profileData, activeProfileId, profileForm, gpForm, insuranceForm])
+
+  const handleSaveProfile = async () => {
+    try {
+      const profileValues = profileForm.getFieldsValue() || {}
+      const gpValues = gpForm.getFieldsValue() || {}
+      const insuranceValues = insuranceForm.getFieldsValue() || {}
+
+      const payload = {
+        ...profileValues,
+        ...gpValues,
+        ...insuranceValues
+      }
+
+      const res = await api.put('/api/patient/profile', payload)
+      if (res.data?.success) {
+        toast.success('Personal details saved successfully in live database!')
+        if (res.data.data) {
+          setProfileData(res.data.data)
+        } else {
+          fetchProfile()
+        }
+      } else {
+        toast.error(res.data?.message || 'Failed to update profile')
+      }
+    } catch (err) {
+      console.error('Error saving patient profile:', err)
+      toast.error(err?.response?.data?.message || 'Failed to save profile. Please check connection.')
+    }
+  }
 
   const tabs = [
     { key: 'profile', label: 'Personal Details', icon: <UserOutlined /> },
@@ -102,7 +272,6 @@ export default function PatientSettings() {
     setAiInput('')
     setIsAiTyping(true)
 
-    // Simulate AI response
     setTimeout(() => {
       let response = "I am looking into your care data. How else can I assist with your recovery routines?"
       const lowercasePrompt = promptText.toLowerCase()
@@ -129,7 +298,7 @@ export default function PatientSettings() {
       case 'profile':
         return (
           <div className="space-y-6">
-            
+
             {/* Parent / Carer Portal Widget */}
             <Card className="border border-indigo-100 dark:border-indigo-900/50 rounded-2xl shadow-sm bg-indigo-50/30 dark:bg-indigo-950/20">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -138,7 +307,7 @@ export default function PatientSettings() {
                     <UserOutlined style={{ fontSize: 20 }} />
                   </div>
                   <div>
-                    <h3 className="text-sm font-extrabold text-slate-800 dark:text-slate-200 m-0">Parent / Carer Portal (Family Management)</h3>
+                    <h3 className="text-sm font-extrabold text-slate-808 dark:text-slate-200 m-0">Parent / Carer Portal (Family Management)</h3>
                     <p className="text-slate-500 dark:text-slate-400 text-[10px] mt-0.5 font-semibold">You are currently managing accounts for your dependents. Switch profiles below.</p>
                   </div>
                 </div>
@@ -151,167 +320,138 @@ export default function PatientSettings() {
 
             <div key={activeProfileId} className="space-y-6">
               <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">My Profile & Contact Details</span>}>
-                <Form 
-                  layout="vertical"
-                  initialValues={{
-                    name: currentProfile.name,
-                    phone: currentProfile.phone,
-                    email: currentProfile.email,
-                    address: currentProfile.address,
-                    emergencyName: currentProfile.emergencyName,
-                    emergencyRelation: currentProfile.emergencyRelation,
-                    emergencyPhone: currentProfile.emergencyPhone
-                  }}
-                onFinish={() => toast.success('Profile details saved successfully!')}
-              >
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Form.Item name="name" label="Full Name" required>
-                    <Input className="rounded-xl h-9" />
-                  </Form.Item>
-                  <Form.Item name="phone" label="Phone Number" required>
-                    <Input className="rounded-xl h-9" />
-                  </Form.Item>
-                  <Form.Item name="email" label="Email Address" required>
-                    <Input className="rounded-xl h-9" />
-                  </Form.Item>
-                </div>
-                <Form.Item name="address" label="Home Address">
-                  <Input className="rounded-xl h-9" />
-                </Form.Item>
-                
-                <Divider className="my-4" />
-                <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3">Emergency Contact Details</h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <Form.Item name="emergencyName" label="Contact Name">
-                    <Input className="rounded-xl h-9" />
-                  </Form.Item>
-                  <Form.Item name="emergencyRelation" label="Relationship">
-                    <Input className="rounded-xl h-9" />
-                  </Form.Item>
-                  <Form.Item name="emergencyPhone" label="Contact Phone">
-                    <Input className="rounded-xl h-9" />
-                  </Form.Item>
-                </div>
-                <div className="flex justify-end pt-2">
-                  <Button type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }} className="rounded-xl font-bold h-9 text-xs text-white">Save Personal Details</Button>
-                </div>
-              </Form>
-            </Card>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* GP Information */}
-              <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">General Practitioner (GP) Information</span>}>
-                <Form 
-                  layout="vertical"
-                  initialValues={{
-                    gpName: currentProfile.gpName,
-                    gpClinic: currentProfile.gpClinic,
-                    gpPhone: currentProfile.gpPhone
-                  }}
-                  onFinish={() => toast.success('GP records updated!')}
-                >
-                  <Form.Item name="gpName" label="GP Doctor Name">
-                    <Input className="rounded-xl h-9" />
-                  </Form.Item>
-                  <Form.Item name="gpClinic" label="GP Clinic Name">
-                    <Input className="rounded-xl h-9" />
-                  </Form.Item>
-                  <Form.Item name="gpPhone" label="GP Phone Contact">
-                    <Input className="rounded-xl h-9" />
-                  </Form.Item>
-                  <div className="flex justify-end pt-2">
-                    <Button type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }} className="rounded-xl font-bold h-9 text-xs text-white">Save GP Records</Button>
+                {loading ? (
+                  <div className="text-center py-6">
+                    <Spin description="Loading profile..." />
                   </div>
-                </Form>
-              </Card>
-
-              {/* Medicare & Insurance details */}
-              <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">Medicare & Private Health Insurance</span>}>
-                <Form 
-                  layout="vertical"
-                  initialValues={{
-                    medicareNum: currentProfile.medicareNum,
-                    medicareRef: currentProfile.medicareRef,
-                    medicareExpiry: currentProfile.medicareExpiry,
-                    phiProvider: currentProfile.phiProvider,
-                    phiMemberNum: currentProfile.phiMemberNum
-                  }}
-                  onFinish={() => toast.success('Insurance records saved!')}
-                >
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="col-span-2">
-                      <Form.Item name="medicareNum" label="Medicare Card Number">
-                        <Input className="rounded-xl h-9 font-mono" />
+                ) : (
+                  <Form
+                    form={profileForm}
+                    layout="vertical"
+                    onFinish={handleSaveProfile}
+                  >
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Form.Item name="fullName" label="Full Name" required>
+                        <Input className="rounded-xl h-9" />
+                      </Form.Item>
+                      <Form.Item name="phone" label="Phone Number" required>
+                        <Input className="rounded-xl h-9" />
+                      </Form.Item>
+                      <Form.Item name="email" label="Email Address" required>
+                        <Input className="rounded-xl h-9" />
                       </Form.Item>
                     </div>
-                    <div>
-                      <Form.Item name="medicareRef" label="Ref No">
-                        <Input className="rounded-xl h-9 font-mono" />
-                      </Form.Item>
-                    </div>
-                  </div>
-                  <Form.Item name="medicareExpiry" label="Card Expiry (MM/YYYY)">
-                    <Input className="rounded-xl h-9 font-mono" />
-                  </Form.Item>
-                  
-                  <Divider className="my-3" />
-                  <div className="grid grid-cols-2 gap-3">
-                    <Form.Item name="phiProvider" label="Private Health Provider">
+                    <Form.Item name="address" label="Home Address">
                       <Input className="rounded-xl h-9" />
                     </Form.Item>
-                    <Form.Item name="phiMemberNum" label="Member Policy ID">
-                      <Input className="rounded-xl h-9 font-mono" />
-                    </Form.Item>
-                  </div>
-                  <div className="flex justify-end pt-2">
-                    <Button type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }} className="rounded-xl font-bold h-9 text-xs text-white">Save Insurance Details</Button>
-                  </div>
-                </Form>
+
+                    <Divider className="my-4" />
+                    <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3">Emergency Contact Details</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Form.Item name="emergencyName" label="Contact Name">
+                        <Input className="rounded-xl h-9" />
+                      </Form.Item>
+                      <Form.Item name="emergencyRelation" label="Relationship">
+                        <Input className="rounded-xl h-9" />
+                      </Form.Item>
+                      <Form.Item name="emergencyPhone" label="Contact Phone">
+                        <Input className="rounded-xl h-9" />
+                      </Form.Item>
+                    </div>
+                    <div className="flex justify-end pt-2">
+                      <Button type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }} className="rounded-xl font-bold h-9 text-xs text-white">Save Personal Details</Button>
+                    </div>
+                  </Form>
+                )}
               </Card>
-            </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* GP Information */}
+                <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">General Practitioner (GP) Information</span>}>
+                  <Form
+                    form={gpForm}
+                    layout="vertical"
+                    onFinish={handleSaveProfile}
+                  >
+                    <Form.Item name="gpName" label="GP Doctor Name">
+                      <Input className="rounded-xl h-9" />
+                    </Form.Item>
+                    <Form.Item name="gpClinic" label="GP Clinic Name">
+                      <Input className="rounded-xl h-9" />
+                    </Form.Item>
+                    <Form.Item name="gpPhone" label="GP Phone Contact">
+                      <Input className="rounded-xl h-9" />
+                    </Form.Item>
+                    <div className="flex justify-end pt-2">
+                      <Button type="primary" htmlType="submit" style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }} className="rounded-xl font-bold h-9 text-xs text-white">Save GP Records</Button>
+                    </div>
+                  </Form>
+                </Card>
+
+                {/* Medicare & Insurance Details */}
+                <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">Medicare & Private Health Insurance</span>}>
+                  <Form
+                    form={insuranceForm}
+                    layout="vertical"
+                    onFinish={handleSaveProfile}
+                  >
+                    <div className="grid grid-cols-3 gap-3">
+                      <Form.Item name="medicareNum" label="Medicare Card Number" className="col-span-2">
+                        <Input className="rounded-xl h-9" />
+                      </Form.Item>
+                      <Form.Item name="medicareRef" label="Ref No" className="col-span-1">
+                        <Input className="rounded-xl h-9" />
+                      </Form.Item>
+                    </div>
+                    <Form.Item name="medicareExpiry" label="Card Expiry (MM/YYYY)">
+                      <Input className="rounded-xl h-9" />
+                    </Form.Item>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Form.Item name="phiProvider" label="Private Health Provider">
+                        <Input className="rounded-xl h-9" />
+                      </Form.Item>
+                      <Form.Item name="phiMemberNum" label="Member Policy ID">
+                        <Input className="rounded-xl h-9" />
+                      </Form.Item>
+                    </div>
+                    <div className="flex justify-end pt-2">
+                      <Button type="primary" htmlType="submit" style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }} className="rounded-xl font-bold h-9 text-xs text-white">Save Insurance Details</Button>
+                    </div>
+                  </Form>
+                </Card>
+              </div>
+
             </div>
           </div>
         )
 
       case 'preferences':
         return (
-          <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-705 dark:text-slate-350">Notifications Preferences</span>}>
-            <div className="space-y-6 max-w-lg">
-              <div className="flex items-center justify-between">
+          <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">Communication & Recovery Alert Preferences</span>}>
+            <div className="space-y-6">
+              <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <span className="font-bold text-xs text-slate-800 dark:text-slate-200 block">SMS Notifications</span>
-                  <span className="text-[10px] text-slate-400 font-semibold block">Receive instant text alerts for appointment scheduling updates and exercise changes.</span>
+                  <h4 className="text-xs font-bold text-slate-808 dark:text-slate-200 m-0">SMS Session Reminders</h4>
+                  <p className="text-[10px] text-slate-400 m-0 mt-0.5">Receive instant SMS alerts 24h prior to clinic appointments.</p>
                 </div>
                 <Switch checked={smsNotify} onChange={setSmsNotify} />
               </div>
-              
-              <Divider className="my-3" />
-              <div className="flex items-center justify-between">
+              <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800">
                 <div>
-                  <span className="font-bold text-xs text-slate-800 dark:text-slate-200 block">Email Alerts</span>
-                  <span className="text-[10px] text-slate-400 font-semibold block">Receive clinical receipts, invoice copies, and monthly health progress PDF summaries.</span>
+                  <h4 className="text-xs font-bold text-slate-808 dark:text-slate-200 m-0">Email Health Reports & Receipts</h4>
+                  <p className="text-[10px] text-slate-400 m-0 mt-0.5">Auto-email finalized consultation summaries and payment tax invoices.</p>
                 </div>
                 <Switch checked={emailNotify} onChange={setEmailNotify} />
               </div>
-
-              <Divider className="my-3" />
-              <div className="flex items-center justify-between">
+              <div className="flex justify-between items-center py-2">
                 <div>
-                  <span className="font-bold text-xs text-slate-800 dark:text-slate-200 block">Push Notifications</span>
-                  <span className="text-[10px] text-slate-400 font-semibold block">Receive system alerts on your browser or phone client when exercises are due.</span>
+                  <h4 className="text-xs font-bold text-slate-808 dark:text-slate-200 m-0">Daily Home Exercise Reminders</h4>
+                  <p className="text-[10px] text-slate-400 m-0 mt-0.5">Push notifications to log completed home stretches and pain scores.</p>
                 </div>
                 <Switch checked={pushNotify} onChange={setPushNotify} />
               </div>
-              
-              <div className="pt-4">
-                <Button 
-                  type="primary"
-                  onClick={() => toast.success('Preferences updated!')}
-                  style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
-                  className="rounded-xl font-bold h-10 text-xs text-white"
-                >
-                  Save Notification Toggles
-                </Button>
+              <div className="flex justify-end pt-2">
+                <Button type="primary" onClick={handleSavePreferences} style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }} className="rounded-xl font-bold h-9 text-xs text-white">Save Preferences</Button>
               </div>
             </div>
           </Card>
@@ -320,81 +460,56 @@ export default function PatientSettings() {
       case 'security':
         return (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              {/* 2FA Card */}
-              <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900">
-                <div className="flex items-center gap-3 mb-4">
-                  <SafetyCertificateOutlined className="text-[#8C4BFF]" style={{ fontSize: 20 }} />
-                  <h3 className="text-base font-extrabold text-slate-800 dark:text-white m-0">Two-Factor Authentication (2FA)</h3>
+            <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">Two-Factor Authentication (2FA)</span>}>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h4 className="text-xs font-bold text-slate-808 dark:text-slate-200 m-0">Two-Factor Security Verification</h4>
+                  <p className="text-[10px] text-slate-400 m-0 mt-0.5">Requires a 6-digit SMS verification code upon patient login.</p>
                 </div>
-                <p className="text-xs text-slate-500 font-semibold leading-relaxed mb-5">
-                  Protect your sensitive clinical health record with an extra security verification layer. We support secure authenticator apps.
-                </p>
-                <div className="flex items-center justify-between p-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl mb-5">
-                  <div>
-                    <span className="font-bold text-xs text-slate-800 dark:text-slate-200 block">2FA Status</span>
-                    <span className="text-[10px] text-emerald-600 font-bold block mt-0.5">Enabled (SMS OTP fallback configured)</span>
-                  </div>
-                  <Switch checked={tfaEnabled} onChange={e => {
-                    setTfaEnabled(e)
-                    toast.success(`2FA turned ${e ? 'ON' : 'OFF'}!`)
-                  }} />
-                </div>
-              </Card>
+                <Switch checked={tfaEnabled} onChange={handleTfaToggle} />
+              </div>
+            </Card>
 
-              {/* Password update */}
-              <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900">
-                <div className="flex items-center gap-3 mb-4">
-                  <LockOutlined className="text-[#8C4BFF]" style={{ fontSize: 20 }} />
-                  <h3 className="text-base font-extrabold text-slate-800 dark:text-white m-0">Change password</h3>
-                </div>
-                <Form
-                  layout="vertical"
-                  onFinish={() => toast.success('Password updated successfully!')}
-                  className="space-y-3"
-                >
-                  <Form.Item name="oldPass" label="Current Password" required>
-                    <Input.Password className="rounded-xl h-9" />
-                  </Form.Item>
-                  <Form.Item name="newPass" label="New Secure Password" required>
-                    <Input.Password className="rounded-xl h-9" />
-                  </Form.Item>
-                  <Button type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33', width: '100%' }} className="rounded-xl font-bold h-9 text-xs text-white">Change Account Password</Button>
-                </Form>
-              </Card>
-
-            </div>
-
-            {/* Trusted devices */}
-            <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">Login History & Device Management</span>}>
-              <Table 
+            <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">Active Portal Sessions & Trusted Devices</span>}>
+              <Table
                 dataSource={trustedDevices}
                 pagination={false}
-                scroll={{ x: 700 }}
+                scroll={{ x: 600 }}
+                className="border-none"
                 columns={[
-                  { title: 'Connected Device', dataIndex: 'device', render: (t) => <span className="font-bold text-xs text-slate-800 dark:text-slate-200">{t}</span> },
-                  { title: 'IP Address', dataIndex: 'ip', render: (t) => <span className="font-mono text-xs text-slate-500">{t}</span> },
-                  { title: 'Location', dataIndex: 'location' },
-                  { title: 'Status', dataIndex: 'status', render: (t) => <Tag color="purple" className="rounded-full border-none font-bold text-[9px] px-2.5">{t}</Tag> },
+                  {
+                    title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Device & Browser</span>,
+                    dataIndex: 'device',
+                    render: (d) => <span className="font-bold text-slate-808 dark:text-slate-200 text-xs">{d}</span>
+                  },
+                  {
+                    title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">IP Address</span>,
+                    dataIndex: 'ip',
+                    render: (ip) => <span className="font-mono text-xs text-slate-500">{ip}</span>
+                  },
+                  {
+                    title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Location / Time</span>,
+                    render: (_, rec) => (
+                      <div>
+                        <span className="text-xs text-slate-600 dark:text-slate-400 font-semibold block">{rec.location}</span>
+                        <span className="text-[9px] text-slate-400 block">{rec.time}</span>
+                      </div>
+                    )
+                  },
                   {
                     title: '',
-                    key: 'actions',
+                    key: 'action',
                     align: 'right',
                     render: (_, rec) => (
-                      rec.key !== '1' ? (
-                        <Button 
-                          size="small" 
-                          danger
-                          onClick={() => {
-                            setTrustedDevices(prev => prev.filter(d => d.key !== rec.key))
-                            toast.success('Session revoked!')
-                          }}
-                          className="rounded-lg text-[10px] font-bold"
-                        >
-                          Revoke
-                        </Button>
-                      ) : null
+                      <Button
+                        size="small"
+                        danger
+                        disabled={rec.key === '1'}
+                        onClick={() => handleRevokeDevice(rec.key)}
+                        className="rounded-lg text-[10px] font-bold h-7"
+                      >
+                        {rec.key === '1' ? 'Current Session' : 'Logout Device'}
+                      </Button>
                     )
                   }
                 ]}
@@ -405,158 +520,73 @@ export default function PatientSettings() {
 
       case 'achievements':
         return (
-          <div className="space-y-6">
-            
-            {/* Gamification progress overview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 bg-amber-50 dark:bg-amber-950/20 text-amber-500 rounded-full flex items-center justify-center text-2xl">
-                  🏆
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Unlocked Achievements</span>
-                  <h3 className="text-xl font-black text-slate-800 dark:text-white m-0">4 out of 5</h3>
-                </div>
-              </div>
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 bg-rose-50 dark:bg-rose-950/20 text-rose-500 rounded-full flex items-center justify-center text-2xl">
-                  🔥
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Current Streak</span>
-                  <h3 className="text-xl font-black text-slate-800 dark:text-white m-0">14 Days Active</h3>
-                </div>
-              </div>
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-6 shadow-sm flex items-center gap-4">
-                <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-500 rounded-full flex items-center justify-center text-2xl">
-                  🌟
-                </div>
-                <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold block">Total Rewards Badges</span>
-                  <h3 className="text-xl font-black text-slate-800 dark:text-white m-0">Gold Care Badge</h3>
-                </div>
-              </div>
-            </div>
-
-            {/* Achievements Card list */}
-            <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">My Care Milestones & Achievements</span>}>
-              <div className="space-y-4">
-                {achievementsList.map(item => (
-                  <div key={item.name} className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <span className="text-3xl flex-shrink-0">{item.badge}</span>
-                      <div>
-                        <span className="font-extrabold text-xs text-slate-800 dark:text-slate-200 block">{item.name}</span>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5 font-semibold">{item.desc}</span>
-                        {item.progress && (
-                          <span className="text-[9px] text-[#8C4BFF] font-black block mt-1">Progress: {item.progress}</span>
-                        )}
-                      </div>
+          <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">My Health Milestones & Badges</span>}>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {achievementsList.map((ach, idx) => (
+                <div key={idx} className="p-4 bg-slate-50/50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl flex items-start gap-3">
+                  <div className="text-2xl">{ach.badge}</div>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold text-slate-808 dark:text-slate-200 m-0">{ach.name}</h4>
+                      <Tag color={ach.status === 'Unlocked' ? 'gold' : 'default'} className="m-0 border-none rounded-full text-[8.5px] font-bold uppercase">{ach.status}</Tag>
                     </div>
-                    <div>
-                      {item.status === 'Unlocked' ? (
-                        <Tag color="success" className="rounded-full border-none font-bold text-[9px] uppercase px-2.5 py-0.5">Unlocked on {item.date}</Tag>
-                      ) : (
-                        <Tag color="default" className="rounded-full border-none font-bold text-[9px] uppercase px-2.5 py-0.5">Locked</Tag>
-                      )}
-                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium m-0">{ach.desc}</p>
+                    <span className="text-[9px] text-slate-400 font-semibold block">{ach.status === 'Unlocked' ? `Unlocked on ${ach.date}` : `Progress: ${ach.progress}`}</span>
                   </div>
-                ))}
-              </div>
-            </Card>
-          </div>
+                </div>
+              ))}
+            </div>
+          </Card>
         )
 
       case 'ai_assistant':
         return (
-          <div className="space-y-6">
-            <Card 
-              className="border border-slate-150 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900"
-              title={
-                <div className="flex items-center gap-2">
-                  <RobotOutlined className="text-[#8C4BFF]" style={{ fontSize: 16 }} />
-                  <span className="font-extrabold text-xs text-slate-800 dark:text-slate-200">Interactive AI Patient Recovery Coach (Mock Beta)</span>
-                </div>
-              }
-            >
-              <div className="flex flex-col h-[400px] justify-between">
-                
-                {/* Chat Feed */}
-                <div className="flex-1 overflow-y-auto space-y-3.5 p-3.5 border border-slate-100 dark:border-slate-800 rounded-2xl bg-slate-50/50 dark:bg-slate-950/20 max-h-[250px]">
-                  {aiChatMessages.map((msg, idx) => (
-                    <div key={idx} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`p-3 rounded-2xl text-xs font-semibold leading-relaxed max-w-[80%] ${
-                        msg.sender === 'user' 
-                          ? 'bg-[#8C4BFF] text-white rounded-br-none' 
-                          : 'bg-white dark:bg-slate-850 text-slate-700 dark:text-slate-200 rounded-bl-none border border-slate-100 dark:border-slate-800'
-                      }`}>
-                        <p className={`m-0 text-xs ${msg.sender === 'user' ? '!text-white' : ''}`} style={msg.sender === 'user' ? { color: '#ffffff' } : {}}>{msg.text}</p>
-                      </div>
-                    </div>
-                  ))}
-                  {isAiTyping && (
-                    <div className="flex justify-start">
-                      <div className="p-3 bg-white dark:bg-slate-850 text-slate-400 rounded-2xl rounded-bl-none border border-slate-100 dark:border-slate-800 text-xs italic font-semibold">
-                        Coach is typing answers...
-                      </div>
-                    </div>
-                  )}
-                </div>
+          <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-350">AI Clinical Assistant & Recovery Coach</span>}>
+            <div className="space-y-4">
 
-                {/* Prompt Buttons Group */}
-                <div className="py-2.5">
-                  <span className="text-[10px] text-slate-400 font-bold uppercase block mb-2">Frequently Asked Recovery Questions</span>
-                  <div className="flex flex-wrap gap-2">
-                    <button 
-                      onClick={() => handleAiAsk("AI Exercise Coach: How do I perform my lumbar extensions correctly?")}
-                      className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-[#8C4BFF]/10 dark:hover:bg-[#8C4BFF]/20 text-slate-600 dark:text-slate-300 hover:text-[#8C4BFF] dark:hover:text-[#8C4BFF] border-none text-[10px] font-bold rounded-xl cursor-pointer transition-all"
-                    >
-                      🧘 Lumbar extensions instructions
-                    </button>
-                    <button 
-                      onClick={() => handleAiAsk("Recovery Coach: What if I feel hamstring tightness after exercise?")}
-                      className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-[#8C4BFF]/10 dark:hover:bg-[#8C4BFF]/20 text-slate-600 dark:text-slate-300 hover:text-[#8C4BFF] dark:hover:text-[#8C4BFF] border-none text-[10px] font-bold rounded-xl cursor-pointer transition-all"
-                    >
-                      ⚠️ Muscle tightness guidelines
-                    </button>
-                    <button 
-                      onClick={() => handleAiAsk("Treatment Explainer: Explain goals on my active EPC plans")}
-                      className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-[#8C4BFF]/10 dark:hover:bg-[#8C4BFF]/20 text-slate-600 dark:text-slate-300 hover:text-[#8C4BFF] dark:hover:text-[#8C4BFF] border-none text-[10px] font-bold rounded-xl cursor-pointer transition-all"
-                    >
-                      📖 Explain my treatment plan goals
-                    </button>
-                    <button 
-                      onClick={() => handleAiAsk("Funding Coach: Tell me how NDIS claim rebates work in ZealthOS")}
-                      className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-[#8C4BFF]/10 dark:hover:bg-[#8C4BFF]/20 text-slate-600 dark:text-slate-300 hover:text-[#8C4BFF] dark:hover:text-[#8C4BFF] border-none text-[10px] font-bold rounded-xl cursor-pointer transition-all"
-                    >
-                      💰 How NDIS sessions work
-                    </button>
-                  </div>
-                </div>
-
-                {/* Text input */}
-                <div className="flex gap-2 border-t border-slate-100 dark:border-slate-800 pt-3">
-                  <Input 
-                    placeholder="Ask AI Patient Coach..." 
-                    value={aiInput}
-                    onChange={e => setAiInput(e.target.value)}
-                    onPressEnter={() => handleAiAsk(aiInput)}
-                    className="rounded-xl h-10 text-xs flex-1"
-                  />
-                  <Button 
-                    type="primary"
-                    icon={<ThunderboltOutlined />}
-                    onClick={() => handleAiAsk(aiInput)}
-                    style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
-                    className="rounded-xl h-10 text-white font-bold text-xs"
-                  >
-                    Ask AI
-                  </Button>
-                </div>
-
+              {/* Preset prompt pills */}
+              <div className="flex flex-wrap gap-2">
+                <Button size="small" onClick={() => handleAiAsk("How do I do lumbar extensions safely?")} className="rounded-xl text-[10px] font-semibold border-slate-200">🧘 Lumbar Extension Guide</Button>
+                <Button size="small" onClick={() => handleAiAsk("What should I tell my GP at Tuesday's review?")} className="rounded-xl text-[10px] font-semibold border-slate-200">📅 Prepare for GP Appointment</Button>
+                <Button size="small" onClick={() => handleAiAsk("Explain my EPC treatment goals")} className="rounded-xl text-[10px] font-semibold border-slate-200">📖 Explain My EPC Plan</Button>
+                <Button size="small" onClick={() => handleAiAsk("How much NDIS funding is left?")} className="rounded-xl text-[10px] font-semibold border-slate-200">💰 Check NDIS Balance</Button>
               </div>
-            </Card>
-          </div>
+
+              {/* Chat Thread */}
+              <div className="h-64 overflow-y-auto p-4 bg-slate-50/70 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl space-y-3">
+                {aiChatMessages.map((msg, index) => (
+                  <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] p-3 rounded-2xl text-xs font-semibold ${msg.sender === 'user' ? 'bg-[#8C4BFF] text-white rounded-br-none' : 'bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-200 rounded-bl-none shadow-sm'
+                      }`}>
+                      {msg.text}
+                    </div>
+                  </div>
+                ))}
+                {isAiTyping && (
+                  <div className="flex justify-start">
+                    <div className="p-3 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl rounded-bl-none text-xs text-slate-400 font-semibold flex items-center gap-2">
+                      <RobotOutlined className="animate-spin text-[#8C4BFF]" />
+                      <span>AI Recovery Assistant is processing your request...</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Input row */}
+              <form onSubmit={(e) => { e.preventDefault(); handleAiAsk(aiInput) }} className="flex gap-2">
+                <Input
+                  placeholder="Ask AI Recovery Coach about exercises, GP prep, or funding..."
+                  value={aiInput}
+                  onChange={(e) => setAiInput(e.target.value)}
+                  className="rounded-xl text-xs h-10"
+                />
+                <Button type="primary" htmlType="submit" style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }} className="rounded-xl font-bold text-xs h-10 px-5 text-white">
+                  Ask AI
+                </Button>
+              </form>
+
+            </div>
+          </Card>
         )
 
       default:
@@ -565,44 +595,38 @@ export default function PatientSettings() {
   }
 
   return (
-    <div className="py-2 space-y-6">
-      <button 
-        onClick={() => navigate('/clinic')}
-        className="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-[#8C4BFF] font-semibold text-xs border-none bg-transparent cursor-pointer mb-2 transition-colors w-fit"
-      >
-        <span className="text-sm">←</span>
-        <span>Back to Dashboard</span>
-      </button>
-      
-      {/* Flat inline tabs wrapper */}
-      <div 
-        className="flex flex-wrap gap-2 bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800"
-        style={{ width: 'fit-content' }}
-      >
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.key
-          return (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer border-none bg-transparent"
-              style={{
-                backgroundColor: isActive ? (darkMode ? '#1E293B' : '#FFFFFF') : 'transparent',
-                color: isActive ? (darkMode ? '#C4B5FD' : '#8C4BFF') : '#64748B',
-                boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.2)' : 'none'
-              }}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-            </button>
-          )
-        })}
+    <div className="space-y-6">
+
+      {/* Intro Header */}
+      <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-sm font-bold text-slate-808 dark:text-white m-0">Patient Account Settings & Personal Profile</h2>
+            <p className="text-slate-400 dark:text-slate-500 text-[10px] mt-0.5 font-semibold">
+              Manage personal contact information, GP records, Medicare details, and AI Recovery Assistant.
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      {/* Settings Navigation Tabs */}
+      <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800 pb-3" style={{ marginTop: '24px' }}>
+        {tabs.map(tab => (
+          <Button
+            key={tab.key}
+            type={activeTab === tab.key ? 'primary' : 'text'}
+            icon={tab.icon}
+            onClick={() => setActiveTab(tab.key)}
+            style={activeTab === tab.key ? { backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' } : {}}
+            className={`rounded-xl font-bold text-xs h-9 ${activeTab === tab.key ? 'text-white' : 'text-slate-600 dark:text-slate-400'}`}
+          >
+            {tab.label}
+          </Button>
+        ))}
       </div>
 
-      {/* Main Tab Content */}
-      <div className="mt-6">
-        {renderTabContent()}
-      </div>
+      {/* Main Tab Content Container */}
+      {renderTabContent()}
 
     </div>
   )
