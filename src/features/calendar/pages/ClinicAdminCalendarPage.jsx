@@ -770,8 +770,37 @@ export default function ClinicAdminCalendarPage() {
     const dateStr = dayObj.format('YYYY-MM-DD')
     const dayAppts = filteredAppts.filter(a => a.date === dateStr)
     return dayAppts.filter(a => {
-      const [ah, am] = a.time.split(':').map(Number)
-      return ah === h && am === m
+      let ah = -1, am = -1;
+      
+      if (a.time && typeof a.time === 'string') {
+        const parts = a.time.split(':').map(Number);
+        ah = parts[0];
+        am = parts[1];
+      } else if (a.startTime && typeof a.startTime === 'string') {
+        const [timeStr, modifier] = a.startTime.split(' ');
+        if (timeStr) {
+          const parts = timeStr.split(':').map(Number);
+          ah = parts[0];
+          am = parts[1];
+          if (modifier === 'PM' && ah < 12) ah += 12;
+          if (modifier === 'AM' && ah === 12) ah = 0;
+        }
+      } else {
+        return false;
+      }
+      
+      if (ah !== h) return false;
+      
+      if (intervalMin === 60) return m === 0;
+      if (intervalMin === 30) return m === (am >= 30 ? 30 : 0);
+      if (intervalMin === 15) {
+        if (am < 15) return m === 0;
+        if (am < 30) return m === 15;
+        if (am < 45) return m === 30;
+        return m === 45;
+      }
+      
+      return am === m;
     })
   }
 

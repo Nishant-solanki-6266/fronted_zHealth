@@ -178,15 +178,19 @@ export default function PatientAppointments() {
 
   const submitCancel = async () => {
     if (selectedApp) {
+      // Optimistically update UI immediately
+      setAppointmentsList(prev => prev.map(a => a.id === selectedApp.id ? { ...a, status: 'Cancelled' } : a))
+      setCancelModalOpen(false)
+
       try {
         await api.put(`/api/patient/appointments/${selectedApp.id}/cancel`)
         toast.error('Appointment cancelled in database.')
       } catch (err) {
         toast.error('Appointment cancelled.')
       }
-      setAppointmentsList(prev => prev.map(a => a.id === selectedApp.id ? { ...a, status: 'Cancelled' } : a))
+    } else {
+      setCancelModalOpen(false)
     }
-    setCancelModalOpen(false)
   }
 
   // Filtered List based on Search & Status

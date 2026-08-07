@@ -12,6 +12,7 @@ import {
 import { toast } from 'react-hot-toast'
 
 const { Option } = Select
+import api from '../../../../api/axios'
 
 export default function PatientMessages() {
   const [activeContact, setActiveContact] = useState('sarah')
@@ -27,21 +28,38 @@ export default function PatientMessages() {
   ]
 
   const [chatHistories, setChatHistories] = useState({
-    sarah: [
-      { id: '1', sender: 'doctor', text: 'Hi John, how is your pain level after completing the calf raises yesterday?', timestamp: 'Yesterday, 4:15 PM', category: 'Treatment Questions' },
-      { id: '2', sender: 'patient', text: 'Hi Sarah, it felt slightly tight during the exercises but the soreness faded within an hour. Functional mobility is improving!', timestamp: 'Yesterday, 5:00 PM', category: 'Treatment Questions' },
-      { id: '3', sender: 'doctor', text: 'Excellent progress. Make sure you keep your chest lifted during hamstring stretches to avoid rounding the lower back.', timestamp: 'Today, 9:30 AM', category: 'Exercise Questions' }
-    ],
-    reception: [
-      { id: '1', sender: 'reception', text: 'Hello John, we have received your booking request for Friday. We are confirming details with Dr. Jenkins.', timestamp: 'Yesterday, 11:00 AM', category: 'Appointment Requests' }
-    ],
-    billing: [
-      { id: '1', sender: 'billing', text: 'Hi John, just a reminder that INV-1829 is due in 3 days. Let us know if you need assistance with claim rebates.', timestamp: '2 days ago', category: 'Billing Questions' }
-    ],
-    support: [
-      { id: '1', sender: 'support', text: 'Welcome to ZealthOS. You can control clinical file sharing permissions in the health record panel.', timestamp: '1 week ago', category: 'General Questions' }
-    ]
+    sarah: [],
+    reception: [],
+    billing: [],
+    support: []
   })
+
+  React.useEffect(() => {
+    const fetchMessages = async () => {
+      try {
+        const res = await api.get('/api/patient/messages')
+        if (res.data?.success && res.data.data) {
+          const dbMessages = res.data.data
+          const formatted = dbMessages.map(msg => ({
+            id: msg.id,
+            sender: msg.sender,
+            text: msg.text,
+            timestamp: new Date(msg.createdAt).toLocaleString(),
+            category: msg.category || 'General Questions'
+          }))
+          
+          setChatHistories(prev => ({
+            ...prev,
+            sarah: formatted
+          }))
+        }
+      } catch (err) {
+        console.warn('Failed to fetch messages:', err)
+      }
+    }
+    fetchMessages()
+  }, [])
+
 
   const handleSend = () => {
     if (!inputText.trim() && uploadedFiles.length === 0) return
@@ -60,32 +78,17 @@ export default function PatientMessages() {
       [activeContact]: [...prev[activeContact], newMsg]
     }))
 
+    api.post('/api/patient/messages', {
+      doctorName: selectedContactObj?.name,
+      messageText: newMsg.text,
+      category: messageCategory
+    }).catch(err => console.warn(err))
+
     setInputText('')
     setUploadedFiles([])
     toast.success('Message sent securely!')
 
-    // Simulate clinical response
-    setTimeout(() => {
-      let responseText = "Thank you for the update. I will review this and get back to you shortly during my clinic hours."
-      if (activeContact === 'reception') {
-        responseText = "Your message has been received. Our clinic coordination staff will process your request shortly."
-      } else if (activeContact === 'billing') {
-        responseText = "Thank you for your response. Our billing team will update your account ledger."
-      }
-
-      const replyMsg = {
-        id: (Date.now() + 1).toString(),
-        sender: 'doctor',
-        text: responseText,
-        timestamp: 'Just now',
-        category: messageCategory
-      }
-
-      setChatHistories(prev => ({
-        ...prev,
-        [activeContact]: [...prev[activeContact], replyMsg]
-      }))
-    }, 2000)
+    // Note: The simulated response was removed because we now rely on real DB data.
   }
 
   const selectedContactObj = contacts.find(c => c.id === activeContact)
@@ -197,11 +200,11 @@ export default function PatientMessages() {
                             ? 'bg-[#8C4BFF] text-white rounded-br-none' 
                             : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none'
                         }`}>
-                          <div className="flex justify-between items-center gap-4 mb-1.5 opacity-80">
+                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-4 mb-2 opacity-80 border-b border-white/20 pb-1.5">
                             <span className="text-[9px] font-black uppercase tracking-wider">{msg.category}</span>
                             <span className="text-[8px] font-semibold">{msg.timestamp}</span>
                           </div>
-                          <div className="m-0 text-xs font-semibold" style={{ color: isPatient ? '#ffffff' : undefined }}>{msg.text}</div>
+                          <div className="m-0 text-sm font-medium" style={{ color: isPatient ? '#ffffff' : undefined }}>{msg.text}</div>
                           {msg.files && msg.files.map(f => (
                             <div key={f.name} className="mt-2 p-2 bg-black/10 rounded-xl flex items-center gap-2 text-[10px] font-bold">
                               {f.type.includes('image') ? <PictureOutlined /> : <FileTextOutlined />}

@@ -200,7 +200,7 @@ function SalesCalendarView({ store, navigate }) {
             icon={<PlusOutlined />}
             onClick={() => {
               form.resetFields()
-              setBookModalVisible(true)
+              setCreateModalVisible(true)
             }}
             style={{ backgroundColor: '#F59E0B', borderColor: '#F59E0B' }}
             className="rounded-xl font-bold text-xs h-10 shadow-sm text-white"
@@ -756,7 +756,7 @@ export default function PractitionerCalendarPage() {
   // Filter appointments
   const filteredAppts = useMemo(() => {
     return store.appointments.filter(appt => {
-      if (!selectedPractitioners.includes(appt.practitionerId)) return false
+      if (appt.practitionerId && !selectedPractitioners.includes(appt.practitionerId)) return false
       if (!searchVal) return true
       const q = searchVal.toLowerCase()
       return appt.patientName?.toLowerCase().includes(q) ||
@@ -770,8 +770,41 @@ export default function PractitionerCalendarPage() {
     const dateStr = dayObj.format('YYYY-MM-DD')
     const dayAppts = filteredAppts.filter(a => a.date === dateStr)
     return dayAppts.filter(a => {
-      const [ah, am] = a.time.split(':').map(Number)
-      return ah === h && am === m
+      let ah = -1, am = -1;
+      
+      if (a.time && typeof a.time === 'string') {
+        const parts = a.time.split(':').map(Number);
+        ah = parts[0];
+        am = parts[1];
+      } else if (a.startTime && typeof a.startTime === 'string') {
+        const [timeStr, modifier] = a.startTime.split(' ');
+        if (timeStr) {
+          const parts = timeStr.split(':').map(Number);
+          ah = parts[0];
+          am = parts[1];
+          if (modifier === 'PM' && ah < 12) ah += 12;
+          if (modifier === 'AM' && ah === 12) ah = 0;
+        }
+      } else {
+        return false;
+      }
+      
+      // If the hour doesn't match, it's not in this slot
+      if (ah !== h) return false;
+      
+      // Place the appointment in the correct minute bucket based on intervalMin
+      // For 60-min slots: everything in the hour goes to m=0
+      // For 30-min slots: 0-29 goes to m=0, 30-59 goes to m=30
+      if (intervalMin === 60) return m === 0;
+      if (intervalMin === 30) return m === (am >= 30 ? 30 : 0);
+      if (intervalMin === 15) {
+        if (am < 15) return m === 0;
+        if (am < 30) return m === 15;
+        if (am < 45) return m === 30;
+        return m === 45;
+      }
+      
+      return am === m;
     })
   }
 
