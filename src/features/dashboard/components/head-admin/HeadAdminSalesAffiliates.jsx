@@ -112,7 +112,6 @@ export default function HeadAdminSalesAffiliates() {
     fetchSalesData()
   }, [])
 
-  // Create Sales User Account
   const handleCreateSubmit = async (values) => {
     try {
       const payload = {
@@ -352,22 +351,27 @@ export default function HeadAdminSalesAffiliates() {
 
           {/* Table Directory */}
           <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden bg-white dark:bg-slate-900">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
-              <div>
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+              <div className="shrink-0">
                 <h2 className="text-sm font-bold text-slate-800 dark:text-white m-0">Sales accounts</h2>
                 <p className="text-slate-400 dark:text-slate-500 text-[10px] mt-0.5 font-semibold">
                   {filteredSales.length} of {salesList.length} · territory + tier + activity
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+              {/* Search in Middle */}
+              <div className="flex-1 max-w-md w-full md:mx-4">
                 <Input
                   placeholder="Search name, email, territory..."
                   value={searchText}
                   onChange={e => setSearchText(e.target.value)}
-                  className="w-full sm:w-56 rounded-xl h-9 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                  className="w-full rounded-xl h-9 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
                   prefix={<span className="text-slate-400 mr-1">🔍</span>}
                 />
+              </div>
+
+              {/* Filters and Action Button on Right Corner */}
+              <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2 w-full md:w-auto shrink-0">
                 <Select value={statusFilter} onChange={setStatusFilter} className="min-w-28 rounded-xl h-9">
                   <Option value="All">All statuses</Option>
                   <Option value="Active">Active</Option>
@@ -384,8 +388,8 @@ export default function HeadAdminSalesAffiliates() {
                 <Button 
                   type="primary" 
                   onClick={() => setIsCreateOpen(true)}
-                  style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }}
-                  className="rounded-xl font-bold text-xs h-9 px-4 flex items-center gap-1.5"
+                  style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
+                  className="rounded-xl font-bold text-xs h-9 px-4 flex items-center gap-1.5 text-white"
                 >
                   <span>+ Create account</span>
                 </Button>

@@ -17,18 +17,44 @@ export default function SalesLeads({ store, modalContext }) {
     store.fetchLeads()
   }, [])
 
+  const getLoggedInSalesName = () => {
+    if (typeof window === 'undefined') return ''
+    const storedName = localStorage.getItem('userName')
+    if (storedName) return storedName
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser)
+        if (parsed?.name) return parsed.name
+      } catch (e) {}
+    }
+    return store.salesProfile?.name || ''
+  }
+
+  const currentRepName = getLoggedInSalesName()
+
+  const isMatchingRep = (salespersonField) => {
+    if (!salespersonField) return true
+    if (!currentRepName) return true
+    const sp = salespersonField.toLowerCase().trim()
+    const cur = currentRepName.toLowerCase().trim()
+    return sp.includes(cur) || cur.includes(sp) || sp === 'unassigned' || sp === 'sales executive'
+  }
+
   // Filters
-  const filteredLeads = (leads || []).filter(l => {
-    const nameStr = l.name || l.companyName || ''
-    const contactStr = l.contactPerson || ''
-    const locStr = l.location || l.territory || ''
-    const matchesSearch = nameStr.toLowerCase().includes(searchText.toLowerCase()) ||
-                          contactStr.toLowerCase().includes(searchText.toLowerCase()) ||
-                          locStr.toLowerCase().includes(searchText.toLowerCase())
-    
-    const matchesStage = selectedStage === 'All' || l.stage === selectedStage
-    return matchesSearch && matchesStage
-  })
+  const filteredLeads = (leads || [])
+    .filter(l => isMatchingRep(l.assignedTo || l.salesperson))
+    .filter(l => {
+      const nameStr = l.name || l.companyName || ''
+      const contactStr = l.contactPerson || ''
+      const locStr = l.location || l.territory || ''
+      const matchesSearch = nameStr.toLowerCase().includes(searchText.toLowerCase()) ||
+                            contactStr.toLowerCase().includes(searchText.toLowerCase()) ||
+                            locStr.toLowerCase().includes(searchText.toLowerCase())
+      
+      const matchesStage = selectedStage === 'All' || l.stage === selectedStage
+      return matchesSearch && matchesStage
+    })
 
   const handleAddNoteSubmit = () => {
     if (!noteInput.trim()) return
@@ -229,21 +255,27 @@ export default function SalesLeads({ store, modalContext }) {
       
       {/* Header and Filter Controls */}
       <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div className="shrink-0">
             <h2 className="text-sm font-bold text-slate-800 dark:text-white m-0">Sales Leads Directory</h2>
             <p className="text-slate-400 dark:text-slate-500 text-[10px] mt-0.5 font-semibold">
               Filter by sales funnel status or search for specific allied health practices.
             </p>
           </div>
-          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+
+          {/* Search Bar in Middle */}
+          <div className="flex-1 max-w-md w-full md:mx-4">
             <Input
               placeholder="Search clinic or contact person..."
               value={searchText}
               onChange={e => setSearchText(e.target.value)}
-              prefix={<SearchOutlined className="text-slate-400" />}
-              className="w-full sm:w-64 rounded-xl h-9 dark:bg-slate-950 dark:border-slate-800"
+              prefix={<SearchOutlined className="text-slate-400 mr-1" />}
+              className="w-full rounded-xl h-9 dark:bg-slate-950 dark:border-slate-800"
             />
+          </div>
+
+          {/* Filters and Action Button on Right Corner */}
+          <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2 w-full md:w-auto shrink-0">
             <Select
               value={selectedStage}
               onChange={setSelectedStage}
@@ -262,8 +294,8 @@ export default function SalesLeads({ store, modalContext }) {
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => modalContext.setLeadModalOpen(true)}
-              style={{ backgroundColor: '#F59E0B', borderColor: '#F59E0B' }}
-              className="rounded-xl font-bold text-xs h-9"
+              style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
+              className="rounded-xl font-bold text-xs h-9 px-4 text-white"
             >
                Register Lead
             </Button>

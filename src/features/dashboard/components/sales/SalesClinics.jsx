@@ -16,23 +16,50 @@ export default function SalesClinics({ store: propStore }) {
     if (store.fetchLeads) store.fetchLeads()
   }, [])
 
-  // Combine database clinics + converted sales leads into converted clinics view
-  const dbClinicsFormatted = (clinics || []).map(c => ({
-    id: c.id,
-    name: c.name,
-    contactPerson: c.contactPerson || c.name,
-    email: c.email || '',
-    state: c.state || c.country || 'General',
-    tier: c.tier || 'Basic',
-    revenue: parseFloat(c.revenue) || 100,
-    status: c.status || 'Active',
-    salesperson: c.salesperson || 'Sales Executive',
-    signupDate: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent',
-    isLead: false,
-  }))
+  const getLoggedInSalesName = () => {
+    if (typeof window === 'undefined') return ''
+    const storedName = localStorage.getItem('userName')
+    if (storedName) return storedName
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser)
+        if (parsed?.name) return parsed.name
+      } catch (e) {}
+    }
+    return store.salesProfile?.name || 'Colin Edegbe'
+  }
+
+  const currentRepName = getLoggedInSalesName()
+
+  const isMatchingRep = (salespersonField) => {
+    if (!salespersonField) return true
+    if (!currentRepName) return true
+    const sp = salespersonField.toLowerCase().trim()
+    const cur = currentRepName.toLowerCase().trim()
+    return sp.includes(cur) || cur.includes(sp)
+  }
+
+  // Combine database clinics + converted sales leads for the active Sales Executive
+  const dbClinicsFormatted = (clinics || [])
+    .filter(c => isMatchingRep(c.salesperson))
+    .map(c => ({
+      id: c.id,
+      name: c.name,
+      contactPerson: c.contactPerson || c.name,
+      email: c.email || '',
+      state: c.state || c.country || 'General',
+      tier: c.tier || 'Basic',
+      revenue: parseFloat(c.revenue) || 100,
+      status: c.status || 'Active',
+      salesperson: c.salesperson || currentRepName,
+      signupDate: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent',
+      isLead: false,
+    }))
 
   const convertedLeadsFormatted = (leads || [])
     .filter(l => l.stage === 'Converted' || l.status === 'Converted')
+    .filter(l => isMatchingRep(l.assignedTo || l.salesperson))
     .map(l => ({
       id: l.id,
       name: l.name || l.companyName,
@@ -42,12 +69,15 @@ export default function SalesClinics({ store: propStore }) {
       tier: l.tier || 'Basic',
       revenue: parseFloat(l.value) || 100,
       status: 'Active',
-      salesperson: l.assignedTo || 'Sales Executive',
+      salesperson: l.assignedTo || currentRepName,
       signupDate: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'Recent',
       isLead: true,
     }))
 
-  const colinClinics = [...dbClinicsFormatted, ...convertedLeadsFormatted]
+  const leadIds = new Set(convertedLeadsFormatted.map(l => l.id))
+  const filteredDbClinics = dbClinicsFormatted.filter(c => !leadIds.has(c.id))
+
+  const colinClinics = [...filteredDbClinics, ...convertedLeadsFormatted]
   const [selectedClinic, setSelectedClinic] = useState(null)
   const [onboardingStates, setOnboardingStates] = useState({})
 

@@ -25,6 +25,14 @@ export const useClinicStore = create((set, get) => ({
   /* Fetch all dynamic settings data on app load */
   initStoreData: async () => {
     try {
+      const role = (get().userRole || (typeof window !== 'undefined' ? localStorage.getItem('userRole') : '') || '').toLowerCase()
+      const isSalesOrHeadAdmin = role === 'sales' || role === 'head_admin' || (typeof window !== 'undefined' && (window.location.pathname.startsWith('/sales') || window.location.pathname.startsWith('/head-admin')))
+      
+      // If user is sales or super admin on sales dashboard, skip clinic-admin specific endpoint calls to prevent 403 Forbidden console errors
+      if (role === 'sales' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/sales'))) {
+        return
+      }
+
       const [tagsRes, reasonsRes, termsRes, patientsRes, practitionersRes, productsRes, servicesRes, branchesRes] = await Promise.allSettled([
         getClinicClientTags(),
         getClinicCancellationReasons(),
@@ -649,13 +657,22 @@ export const useClinicStore = create((set, get) => ({
   /* Appointment Actions */
   fetchAppointments: async (params = {}) => {
     try {
-      const role = (get().userRole || '').toLowerCase()
-      const isPatient = role === 'patient' || window.location.pathname.startsWith('/patient')
+      const role = (get().userRole || (typeof window !== 'undefined' ? localStorage.getItem('userRole') : '') || '').toLowerCase()
+      if (role === 'sales' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/sales'))) {
+        // Sales executive uses sales calendar events (/api/sales/calendar), skip clinic-admin appointments call
+        return
+      }
+      const isPatient = role === 'patient' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/patient'))
       const endpoint = isPatient ? '/api/patient/appointments' : role === 'practitioner' ? '/api/practitioner/appointments' : '/api/clinic-admin/appointments'
       const res = await api.get(endpoint, { params })
       if (res?.data?.success && Array.isArray(res.data.data)) {
-        set({ appointments: res.data.data })
-        return res.data.data
+        const normalized = res.data.data.map(a => ({
+          ...a,
+          time: a.time || a.startTime || '09:00',
+          patientName: a.patientName || a.clientName || 'Client'
+        }))
+        set({ appointments: normalized })
+        return normalized
       }
     } catch (err) {
       console.error('❌ Error fetching appointments from DB:', err?.response?.status, err?.message)

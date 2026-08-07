@@ -753,22 +753,46 @@ export default function ClinicAdminCalendarPage() {
     return days.filter(d => visibleDaysSelected.includes(d.format('dddd')))
   }, [weekStart, viewMode, visibleDaysSelected])
 
+  useEffect(() => {
+    store.fetchAppointments()
+    if (typeof store.initStoreData === 'function') {
+      store.initStoreData()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (store.practitioners && store.practitioners.length > 0) {
+      setSelectedPractitioners(prev => {
+        if (prev.length === 0) return store.practitioners.map(p => p.id)
+        return prev
+      })
+    }
+  }, [store.practitioners])
+
   // Filter appointments
   const filteredAppts = useMemo(() => {
-    return store.appointments.filter(appt => {
-      if (!selectedPractitioners.includes(appt.practitionerId)) return false
+    return (store.appointments || []).filter(appt => {
+      if (!appt) return false
+      if (selectedPractitioners.length > 0 && appt.practitionerId && !selectedPractitioners.includes(appt.practitionerId)) {
+        return false
+      }
       if (!searchVal) return true
       const q = searchVal.toLowerCase()
-      return appt.patientName?.toLowerCase().includes(q) ||
-             appt.practitionerName?.toLowerCase().includes(q) ||
-             appt.appointmentType?.toLowerCase().includes(q) ||
-             appt.diagnosis?.toLowerCase().includes(q)
+      const pName = appt.patientName || appt.clientName || ''
+      const prName = appt.practitionerName || ''
+      const type = appt.appointmentType || appt.serviceType || appt.serviceName || ''
+      const diag = appt.diagnosis || ''
+      return pName.toLowerCase().includes(q) ||
+             prName.toLowerCase().includes(q) ||
+             type.toLowerCase().includes(q) ||
+             diag.toLowerCase().includes(q)
     })
   }, [store.appointments, searchVal, selectedPractitioners])
 
   const getApptsInSlot = (dayObj, h, m) => {
+    if (!dayObj) return []
     const dateStr = dayObj.format('YYYY-MM-DD')
-    const dayAppts = filteredAppts.filter(a => a.date === dateStr)
+    const dayAppts = filteredAppts.filter(a => a && a.date === dateStr)
     return dayAppts.filter(a => {
       let ah = -1, am = -1;
       
@@ -823,7 +847,7 @@ export default function ClinicAdminCalendarPage() {
         endTime: appt.endTime ? dayjs(`${dayObj.format('YYYY-MM-DD')}T${hh}:${mm}`).add(1, 'hour').format('HH:mm') : undefined
       }
       store.updateAppointment(updated)
-      toast.success(`Rescheduled ${appt.patientName} to ${dayObj.format('D MMM')} at ${hh}:${mm}`)
+      toast.success(`Rescheduled ${appt.patientName || appt.clientName} to ${dayObj.format('D MMM')} at ${hh}:${mm}`)
     }
   }
 
@@ -1155,7 +1179,7 @@ export default function ClinicAdminCalendarPage() {
                 <div className="grid mt-2 border-t border-slate-100/80 dark:border-slate-800 pt-1" style={{ gridTemplateColumns: `repeat(${activePractitionerObjects.length}, 1fr)` }}>
                   {activePractitionerObjects.map((p, pIdx) => (
                     <div key={p.id} className={`text-[9px] font-black uppercase tracking-tight truncate px-0.5 ${pIdx > 0 ? 'border-l border-slate-100 dark:border-slate-800' : ''} ${isSelected ? 'text-[#8C4BFF] dark:text-[#A78BFA]' : isToday ? 'text-blue-500' : 'text-slate-500 dark:text-slate-400'}`}>
-                      {p.name.replace('Dr. ', '')}
+                      {p.name ? p.name.replace('Dr. ', '') : ''}
                     </div>
                   ))}
                 </div>
@@ -1241,7 +1265,8 @@ export default function ClinicAdminCalendarPage() {
                           >
                             {pracAppts.map(appt => {
                               const colors = getTypeColor(appt, store.darkMode)
-                              const isNoClient = !appt.patientName || appt.patientName === 'No client'
+                              const patientDisplayName = appt.patientName || appt.clientName
+                              const isNoClient = !patientDisplayName || patientDisplayName === 'No client'
                               const associatedNoteObj = store.consultations.find(c => c.appointmentId === appt.id)
                               
                               return (
@@ -1264,7 +1289,7 @@ export default function ClinicAdminCalendarPage() {
                                   {/* Patient name + icons row */}
                                   <div className="flex justify-between items-start w-full">
                                     <span className="font-black text-[10px] truncate leading-tight flex-1 mr-1" style={{ color: colors.text }}>
-                                      {isNoClient ? 'No client' : appt.patientName}
+                                      {isNoClient ? 'No client' : patientDisplayName}
                                     </span>
                                     <AppointmentStatusIcons appt={appt} noteObj={associatedNoteObj} />
                                   </div>

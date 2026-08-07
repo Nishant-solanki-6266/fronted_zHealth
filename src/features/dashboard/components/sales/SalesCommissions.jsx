@@ -17,20 +17,47 @@ export default function SalesCommissions({ store: propStore }) {
     if (store.fetchLeads) store.fetchLeads()
   }, [])
 
+  const getLoggedInSalesName = () => {
+    if (typeof window === 'undefined') return ''
+    const storedName = localStorage.getItem('userName')
+    if (storedName) return storedName
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser)
+        if (parsed?.name) return parsed.name
+      } catch (e) {}
+    }
+    return store.salesProfile?.name || 'Colin Edegbe'
+  }
+
+  const currentRepName = getLoggedInSalesName()
+
+  const isMatchingRep = (salespersonField) => {
+    if (!salespersonField) return true
+    if (!currentRepName) return true
+    const sp = salespersonField.toLowerCase().trim()
+    const cur = currentRepName.toLowerCase().trim()
+    return sp.includes(cur) || cur.includes(sp) || sp === 'unassigned' || sp === 'sales executive'
+  }
+
   // Combine database clinics + converted sales leads into converted clinics view for commissions
-  const dbClinicsFormatted = (clinics || []).map(c => ({
-    id: c.id,
-    name: c.name,
-    tier: c.tier || 'Basic',
-    revenue: parseFloat(c.revenue) || 100,
-    commissionStatus: c.commissionStatus || 'Paid',
-    commissionPaidDate: c.commissionPaidDate || (c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Active'),
-    salesperson: c.salesperson || 'Sales Executive',
-    signupDate: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent',
-  }))
+  const dbClinicsFormatted = (clinics || [])
+    .filter(c => isMatchingRep(c.salesperson))
+    .map(c => ({
+      id: c.id,
+      name: c.name,
+      tier: c.tier || 'Basic',
+      revenue: parseFloat(c.revenue) || 100,
+      commissionStatus: c.commissionStatus || 'Paid',
+      commissionPaidDate: c.commissionPaidDate || (c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Active'),
+      salesperson: c.salesperson || currentRepName,
+      signupDate: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent',
+    }))
 
   const convertedLeadsFormatted = (leads || [])
     .filter(l => l.stage === 'Converted' || l.status === 'Converted')
+    .filter(l => isMatchingRep(l.assignedTo || l.salesperson))
     .map(l => ({
       id: l.id,
       name: l.name || l.companyName,
@@ -38,11 +65,14 @@ export default function SalesCommissions({ store: propStore }) {
       revenue: parseFloat(l.value) || 100,
       commissionStatus: 'Pending',
       commissionPaidDate: 'Awaiting Cycle',
-      salesperson: l.assignedTo || 'Sales Executive',
+      salesperson: l.assignedTo || currentRepName,
       signupDate: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'Recent',
     }))
 
-  const colinClinics = [...dbClinicsFormatted, ...convertedLeadsFormatted]
+  const leadIds = new Set(convertedLeadsFormatted.map(l => l.id))
+  const filteredDbClinics = dbClinicsFormatted.filter(c => !leadIds.has(c.id))
+
+  const colinClinics = [...filteredDbClinics, ...convertedLeadsFormatted]
 
   const paidCommissionSum = colinClinics
     .filter(c => c.commissionStatus === 'Paid')
@@ -95,7 +125,7 @@ export default function SalesCommissions({ store: propStore }) {
       <div className="bg-white dark:bg-slate-900 p-5 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
         <h2 className="text-sm font-black text-slate-800 dark:text-white m-0">My Commissions Ledger</h2>
         <p className="text-slate-400 dark:text-slate-500 text-[10px] mt-0.5 font-semibold">
-          Colin Edegbe &bull; 12% recurring affiliate commission on converted clinic subscriptions.
+          {currentRepName || 'Sales Executive'} &bull; 12% recurring affiliate commission on converted clinic subscriptions.
         </p>
       </div>
 
