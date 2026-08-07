@@ -21,9 +21,10 @@ export default function AdminProfilePage() {
     return <PractitionerProfilePage />
   }
   
-  const isSalesContext = store.userRole === 'sales'
-  const isClinicAdminContext = window.location.pathname.startsWith('/clinic-admin') || store.userRole === 'clinic' || store.userRole === 'CLINIC_ADMIN'
-  const isPatientContext = window.location.pathname.startsWith('/patient') || store.userRole === 'patient' || store.userRole === 'PATIENT'
+  const storedRole = (store.userRole || (typeof window !== 'undefined' ? localStorage.getItem('userRole') : null) || '').toLowerCase()
+  const isSalesContext = storedRole === 'sales'
+  const isClinicAdminContext = window.location.pathname.startsWith('/clinic-admin') || storedRole === 'clinic' || storedRole === 'clinic_admin'
+  const isPatientContext = window.location.pathname.startsWith('/patient') || storedRole === 'patient'
 
   // This state holds the loaded user details to display in the header card
   const [userInfo, setUserInfo] = useState({
@@ -39,39 +40,59 @@ export default function AdminProfilePage() {
     let isMounted = true
     const loadLiveProfile = async () => {
       try {
+        let loggedUser = null
+        try {
+          const stored = localStorage.getItem('user')
+          if (stored) loggedUser = JSON.parse(stored)
+        } catch (e) {}
+
+        const activeRole = (store.userRole || localStorage.getItem('userRole') || loggedUser?.role || '').toLowerCase()
+        const isClinic = window.location.pathname.startsWith('/clinic-admin') || activeRole === 'clinic' || activeRole === 'clinic_admin' || activeRole === 'clinic manager'
+        const isPatient = window.location.pathname.startsWith('/patient') || activeRole === 'patient'
+        const isSales = activeRole === 'sales'
+
         let res;
-        if (isPatientContext) {
+        if (isPatient) {
           const response = await api.get('/api/patient/profile')
           res = response.data
-        } else if (isSalesContext && store.fetchSalesProfile) {
+        } else if (isSales && store.fetchSalesProfile) {
           const rawProfile = await store.fetchSalesProfile()
           if (rawProfile) {
             res = { success: true, data: rawProfile }
           }
+        } else if (isClinic) {
+          res = await getClinicAdminProfile()
         } else {
-          res = isClinicAdminContext ? await getClinicAdminProfile() : await getSuperAdminProfile()
+          res = await getSuperAdminProfile()
         }
 
         if (res && res.success && res.data && isMounted) {
           const userData = res.data
           const pData = userData.profileData || {}
+
+          const realName = userData.name || loggedUser?.name || 'Admin User'
+          const realEmail = userData.email || loggedUser?.email || ''
+          const realPhone = userData.phone || loggedUser?.phone || ''
+          const realRole = userData.role === 'SUPER_ADMIN' ? 'Super Admin' : (userData.role === 'CLINIC_ADMIN' ? 'Clinic Admin' : (userData.role || 'Clinic Admin'))
+          const realId = userData.displayId || userData.id || loggedUser?.id || 'ADM-000001'
+
           setUserInfo({
-            name: userData.name || (isSalesContext ? 'Sales Representative' : (isClinicAdminContext ? 'Clinic Manager' : 'Alex Sadman')),
-            role: userData.role === 'SUPER_ADMIN' ? 'Super Admin' : (userData.role === 'CLINIC_ADMIN' ? 'Clinic Admin' : (userData.role || 'Clinic Admin')),
-            id: userData.displayId || userData.id || (isSalesContext ? '6351651' : (isClinicAdminContext ? 'ADM-000001' : '6351651')),
-            username: userData.email ? userData.email.split('@')[0] : (isSalesContext ? 'sales_admin' : (isClinicAdminContext ? 'clinic_admin' : 'head_admin_admin')),
+            name: realName,
+            role: realRole,
+            id: realId,
+            username: realEmail ? realEmail.split('@')[0] : 'admin',
             status: userData.status === 'ACTIVE' ? 'Active' : (userData.status || 'Active'),
             avatar: userData.avatarUrl || null
           })
 
           form.setFieldsValue({
-            name: userData.name || (isSalesContext ? 'Sales Representative' : (isClinicAdminContext ? 'Clinic Manager' : 'Alex Sadman')),
-            email: userData.email || (isSalesContext ? 'sales@clinic.com' : (isClinicAdminContext ? 'clinic_manager@clinic.com' : 'head_admin@clinic.com')),
-            mobile: userData.phone || (isSalesContext ? '+61 412 345 678' : (isClinicAdminContext ? '+61 400 111 222' : '+61 412 345 678')),
-            dob: pData.dob ? dayjs(pData.dob) : dayjs(isSalesContext ? '1980-01-01' : (isClinicAdminContext ? '1985-06-15' : '1980-01-01')),
+            name: realName,
+            email: realEmail,
+            mobile: realPhone,
+            dob: pData.dob ? dayjs(pData.dob) : dayjs('1990-01-01'),
             gender: pData.gender || 'Female',
-            street: pData.street || (isSalesContext ? '45 Care Street' : (isClinicAdminContext ? '123 Health Ave' : '45 Care Street')),
-            city: pData.city || (isSalesContext ? 'Sydney' : (isClinicAdminContext ? 'Medical District' : 'Sydney')),
+            street: pData.street || '',
+            city: pData.city || '',
             state: pData.state || 'NSW',
             country: pData.country || 'Australia',
             postalCode: pData.postalCode || '2000'
@@ -107,7 +128,11 @@ export default function AdminProfilePage() {
           state: values.state,
           country: values.country,
           postalCode: values.postalCode
-        }
+        },
+        ...(values.newPassword && {
+          currentPassword: values.currentPassword,
+          newPassword: values.newPassword
+        })
       }
 
       let res;

@@ -79,6 +79,9 @@ export default function LoginForm() {
         localStorage.setItem('accessToken', json.data.accessToken)
         localStorage.setItem('token', json.data.accessToken)
       }
+      if (json.data?.user) {
+        localStorage.setItem('user', JSON.stringify(json.data.user))
+      }
 
       const userRoleFromBackend = json.data?.user?.role
       let role = 'clinic'
@@ -96,6 +99,7 @@ export default function LoginForm() {
       else if (role === 'practitioner') dashboardRoute = '/practitioner/dashboard'
       else if (role === 'patient') dashboardRoute = '/patient/dashboard'
 
+      localStorage.setItem('userRole', role)
       store.setUserRole(role)
       toast.success(`Welcome back, ${label}!`)
       navigate(dashboardRoute)

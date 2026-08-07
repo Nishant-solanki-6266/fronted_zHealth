@@ -20,10 +20,33 @@ export default function SalesDashboard({ store, navigate, modalContext }) {
     if (store.fetchSalesClinics) store.fetchSalesClinics()
   }, [])
 
-  const colinClinics = clinics.length > 0 && clinics.some(c => c.salesperson === 'Colin Edegbe') 
-    ? clinics.filter(c => c.salesperson === 'Colin Edegbe')
-    : clinics
-  const totalLeads = leads.length
+  const getLoggedInSalesName = () => {
+    if (typeof window === 'undefined') return ''
+    const storedName = localStorage.getItem('userName')
+    if (storedName) return storedName
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser)
+        if (parsed?.name) return parsed.name
+      } catch (e) {}
+    }
+    return store.salesProfile?.name || 'Colin Edegbe'
+  }
+
+  const currentRepName = getLoggedInSalesName()
+
+  const isMatchingRep = (salespersonField) => {
+    if (!salespersonField) return true
+    if (!currentRepName) return true
+    const sp = salespersonField.toLowerCase().trim()
+    const cur = currentRepName.toLowerCase().trim()
+    return sp.includes(cur) || cur.includes(sp) || sp === 'unassigned' || sp === 'sales executive'
+  }
+
+  const colinClinics = (clinics || []).filter(c => isMatchingRep(c.salesperson))
+  const myLeads = (leads || []).filter(l => isMatchingRep(l.assignedTo || l.salesperson))
+  const totalLeads = myLeads.length
   const demosBooked = salesCalendarEvents.filter(e => e.type === 'Demos' || e.type === 'Demo Scheduled').length
   const clinicsConverted = colinClinics.length
   const totalMrr = colinClinics.reduce((sum, c) => sum + (parseFloat(c.revenue) || 0), 0)
@@ -219,7 +242,7 @@ export default function SalesDashboard({ store, navigate, modalContext }) {
                   <span className="font-extrabold text-sm text-slate-700 dark:text-white flex items-center gap-2">
                     <BellOutlined className="text-amber-500" /> Upcoming Activities
                   </span>
-                  <button onClick={() => navigate('/clinic/tasks')} className="text-xs text-[#8C4BFF] font-bold hover:underline focus:outline-none">View All →</button>
+                  <button onClick={() => navigate(`${basePath}/calendar`)} className="text-xs text-[#8C4BFF] font-bold hover:underline focus:outline-none">View All →</button>
                 </div>
                 <div className="divide-y divide-slate-50 dark:divide-slate-800">
                   {upcomingDemos.length > 0 ? upcomingDemos.map((demo, i) => (
@@ -270,7 +293,7 @@ export default function SalesDashboard({ store, navigate, modalContext }) {
                   <span className="font-extrabold text-sm text-slate-700 dark:text-white">
                     Active Tasks <span className="text-slate-400 font-bold">({pendingTasks.length})</span>
                   </span>
-                  <button onClick={() => navigate('/clinic/tasks')} className="text-xs text-[#8C4BFF] font-bold hover:underline focus:outline-none">View All →</button>
+                  <button onClick={() => navigate(`${basePath}/tasks`)} className="text-xs text-[#8C4BFF] font-bold hover:underline focus:outline-none">View All →</button>
                 </div>
                 <div className="divide-y divide-slate-50 dark:divide-slate-800">
                   {pendingTasks.slice(0, 5).map(task => (
@@ -319,7 +342,7 @@ export default function SalesDashboard({ store, navigate, modalContext }) {
                     <span className="text-sm font-extrabold">${Math.round(pendingCommissions).toLocaleString()}</span>
                   </div>
                 </div>
-                <button onClick={() => navigate('/clinic/commissions')}
+                <button onClick={() => navigate(`${basePath}/commissions`)}
                   className="mt-4 w-full py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-all text-center block">
                   View Full Commission Ledger →
                 </button>
@@ -329,7 +352,7 @@ export default function SalesDashboard({ store, navigate, modalContext }) {
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
                   <span className="font-extrabold text-sm text-slate-700 dark:text-white">Recent Activity</span>
-                  <button onClick={() => navigate('/clinic/leads')} className="text-xs text-[#8C4BFF] font-bold hover:underline focus:outline-none">Leads Log →</button>
+                  <button onClick={() => navigate(`${basePath}/leads`)} className="text-xs text-[#8C4BFF] font-bold hover:underline focus:outline-none">Leads Log →</button>
                 </div>
                 <div className="p-4">
                   {activityLogs.length > 0 ? (

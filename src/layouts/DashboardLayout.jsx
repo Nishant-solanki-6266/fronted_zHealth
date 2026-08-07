@@ -879,6 +879,9 @@ export default function DashboardLayout({ children }) {
     const isHeadAdminSection = headAdminSections.some(sec => path.includes(`/head-admin/${sec}`))
     const hasHeadAdminAccess = isHeadAdminSection && userRole === 'head_admin'
 
+    const isSalesPath = path.startsWith('/sales')
+    const hasSalesAccess = isSalesPath && (userRole === 'sales' || userRole === 'head_admin' || userRole === 'clinic' || (typeof window !== 'undefined' && localStorage.getItem('userRole') === 'sales'))
+
     const isPatientPath = path.startsWith('/patient/')
     const hasPatientAccess = isPatientPath && (userRole === 'patient' || userRole === 'clinic')
 
@@ -899,7 +902,7 @@ export default function DashboardLayout({ children }) {
     const hasProfileAccess = path.includes('/profile');
     const hasSharedFeatureAccess = path.includes('/ai-notes') || path.includes('/notifications');
 
-    const hasAccess = hasNavAccess || hasSettingsAccess || hasHeadAdminAccess || hasPatientAccess || hasPractitionerAccess || hasProfileAccess || hasSharedFeatureAccess
+    const hasAccess = hasNavAccess || hasSettingsAccess || hasHeadAdminAccess || hasSalesAccess || hasPatientAccess || hasPractitionerAccess || hasProfileAccess || hasSharedFeatureAccess
 
 
     if (!hasAccess) {

@@ -24,9 +24,35 @@ export default function SalesPipeline({ store, modalContext }) {
     'Lost'
   ]
 
+  const getLoggedInSalesName = () => {
+    if (typeof window === 'undefined') return ''
+    const storedName = localStorage.getItem('userName')
+    if (storedName) return storedName
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser)
+        if (parsed?.name) return parsed.name
+      } catch (e) {}
+    }
+    return store.salesProfile?.name || ''
+  }
+
+  const currentRepName = getLoggedInSalesName()
+
+  const isMatchingRep = (salespersonField) => {
+    if (!salespersonField) return true
+    if (!currentRepName) return true
+    const sp = salespersonField.toLowerCase().trim()
+    const cur = currentRepName.toLowerCase().trim()
+    return sp.includes(cur) || cur.includes(sp) || sp === 'unassigned' || sp === 'sales executive'
+  }
+
+  const myLeads = (leads || []).filter(l => isMatchingRep(l.assignedTo || l.salesperson))
+
   // Group leads by stage
   const groupedLeads = stages.reduce((acc, stage) => {
-    acc[stage] = leads.filter(l => l.stage === stage)
+    acc[stage] = myLeads.filter(l => l.stage === stage)
     return acc
   }, {})
 

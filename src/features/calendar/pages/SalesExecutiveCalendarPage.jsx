@@ -77,18 +77,44 @@ function SalesCalendarView({ store, navigate }) {
   const nextWeek = () => setCurrentWeek(d => d.add(7, 'day'))
   const goToday = () => setCurrentWeek(dayjs().startOf('week'))
 
-  // Filter events by search query
+  const getLoggedInSalesName = () => {
+    if (typeof window === 'undefined') return ''
+    const storedName = localStorage.getItem('userName')
+    if (storedName) return storedName
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      try {
+        const parsed = JSON.parse(storedUser)
+        if (parsed?.name) return parsed.name
+      } catch (e) {}
+    }
+    return store.salesProfile?.name || ''
+  }
+
+  const currentRepName = getLoggedInSalesName()
+
+  const isMatchingRep = (salespersonField) => {
+    if (!salespersonField) return true
+    if (!currentRepName) return true
+    const sp = salespersonField.toLowerCase().trim()
+    const cur = currentRepName.toLowerCase().trim()
+    return sp.includes(cur) || cur.includes(sp) || sp === 'unassigned' || sp === 'sales executive'
+  }
+
+  // Filter events by active Sales Executive and search query
   const filteredEvents = useMemo(() => {
-    return store.salesCalendarEvents.filter(evt => {
-      const query = searchQuery.toLowerCase()
-      return (
-        evt.title.toLowerCase().includes(query) ||
-        evt.clinic.toLowerCase().includes(query) ||
-        evt.contact.toLowerCase().includes(query) ||
-        (evt.notes && evt.notes.toLowerCase().includes(query))
-      )
-    })
-  }, [store.salesCalendarEvents, searchQuery])
+    return (store.salesCalendarEvents || [])
+      .filter(evt => isMatchingRep(evt.salesperson || evt.assignedTo))
+      .filter(evt => {
+        const query = searchQuery.toLowerCase()
+        return (
+          evt.title.toLowerCase().includes(query) ||
+          evt.clinic.toLowerCase().includes(query) ||
+          evt.contact.toLowerCase().includes(query) ||
+          (evt.notes && evt.notes.toLowerCase().includes(query))
+        )
+      })
+  }, [store.salesCalendarEvents, searchQuery, currentRepName])
 
   // Get events for a specific day
   const getEventsForDay = (dayObj) => {

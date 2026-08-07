@@ -295,9 +295,7 @@ export default function HeadAdminAdminManagement() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Form.Item name="role" label={<span className="text-slate-555 font-bold text-[11px] uppercase tracking-wider">Role *</span>} rules={[{ required: true }]} className="mb-0">
                 <Select className="rounded-xl h-10 flex items-center dark:bg-slate-900 border-slate-200 dark:border-slate-850">
-                  <Option value="Super Admin">Super Admin</Option>
-                  <Option value="Admin">Admin</Option>
-                  <Option value="Manager">Manager</Option>
+                  <Option value="ClinicAdmin">ClinicAdmin</Option>
                 </Select>
               </Form.Item>
               <Form.Item name="status" label={<span className="text-slate-555 font-bold text-[11px] uppercase tracking-wider">Status *</span>} rules={[{ required: true }]} className="mb-0">
@@ -749,9 +747,7 @@ export default function HeadAdminAdminManagement() {
         <div className="flex gap-2">
           <Select value={roleFilter} onChange={setRoleFilter} className="min-w-36 rounded-xl h-10">
             <Option value="All">All Roles</Option>
-            <Option value="Admin">Admin</Option>
             <Option value="ClinicAdmin">ClinicAdmin</Option>
-            <Option value="Manager">Manager</Option>
           </Select>
           <Select value={statusFilter} onChange={setStatusFilter} className="min-w-36 rounded-xl h-10">
             <Option value="All">All Status</Option>
@@ -910,7 +906,7 @@ export default function HeadAdminAdminManagement() {
           </div>
         }
       >
-        <Form form={addForm} layout="vertical" onFinish={handleAddAdminSubmit} initialValues={{ role: 'Admin' }}>
+        <Form form={addForm} layout="vertical" onFinish={handleAddAdminSubmit} initialValues={{ role: 'ClinicAdmin' }}>
           <Form.Item name="name" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Full Name *</span>} rules={[{ required: true, message: 'Please enter name' }]}>
             <Input placeholder="e.g. Sarah Jenkins" className="rounded-xl h-10" />
           </Form.Item>
@@ -926,9 +922,7 @@ export default function HeadAdminAdminManagement() {
             </Form.Item>
             <Form.Item name="role" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Role *</span>} rules={[{ required: true }]}>
               <Select className="rounded-xl h-10 flex items-center">
-                <Option value="Admin">Admin</Option>
                 <Option value="ClinicAdmin">ClinicAdmin</Option>
-                <Option value="Manager">Manager</Option>
               </Select>
             </Form.Item>
           </div>
