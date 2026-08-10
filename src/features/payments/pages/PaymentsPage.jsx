@@ -40,11 +40,18 @@ export default function PaymentsPage() {
 
   const handleAddPayment = async (values) => {
     setSubmitting(true)
+    const clientNameInput = (values.from || '').trim()
+    const matchedPatient = (store.patients || []).find(p =>
+      (p.fullName || p.name || '').toLowerCase().trim() === clientNameInput.toLowerCase() ||
+      (p.id && p.id === clientNameInput)
+    )
+
     const newPayment = {
       from: values.from,
       clientName: values.from,
       amount: parseFloat(values.amount) || 0,
       paymentDate: values.date ? values.date.format('DD MMM YYYY') : dayjs().format('DD MMM YYYY'),
+      patientId: matchedPatient ? matchedPatient.id : null
     }
 
     try {
