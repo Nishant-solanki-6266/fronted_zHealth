@@ -97,7 +97,7 @@ function SalesCalendarView({ store, navigate }) {
     let demos = 0
     let onboardings = 0
     let followups = 0
-    
+
     daysOfWeek.forEach(day => {
       const dateStr = day.format('YYYY-MM-DD')
       const evts = store.salesCalendarEvents.filter(e => e.date === dateStr)
@@ -106,7 +106,7 @@ function SalesCalendarView({ store, navigate }) {
       onboardings += evts.filter(e => e.type === 'Onboarding meetings').length
       followups += evts.filter(e => e.type === 'Follow-ups').length
     })
-    
+
     return { total, demos, onboardings, followups }
   }, [daysOfWeek, store.salesCalendarEvents])
 
@@ -288,11 +288,10 @@ function SalesCalendarView({ store, navigate }) {
           return (
             <Card
               key={idx}
-              className={`border rounded-2xl shadow-sm min-h-[380px] flex flex-col transition-all overflow-hidden hover:shadow-md ${
-                isToday
+              className={`border rounded-2xl shadow-sm min-h-[380px] flex flex-col transition-all overflow-hidden hover:shadow-md ${isToday
                   ? 'border-[#8C4BFF] bg-[#8C4BFF]/5 dark:bg-[#241A42]/10'
                   : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900'
-              }`}
+                }`}
               bodyStyle={{ padding: '12px', display: 'flex', flexDirection: 'column', flexGrow: 1 }}
             >
               {/* Card Day Header */}
@@ -301,9 +300,8 @@ function SalesCalendarView({ store, navigate }) {
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                     {day.format('dddd')}
                   </span>
-                  <span className={`text-base font-extrabold mt-0.5 inline-block w-8 h-8 leading-8 rounded-full text-center ${
-                    isToday ? 'bg-[#8C4BFF] text-white shadow-sm' : 'text-slate-800 dark:text-slate-200'
-                  }`}>
+                  <span className={`text-base font-extrabold mt-0.5 inline-block w-8 h-8 leading-8 rounded-full text-center ${isToday ? 'bg-[#8C4BFF] text-white shadow-sm' : 'text-slate-800 dark:text-slate-200'
+                    }`}>
                     {day.format('D')}
                   </span>
                 </div>
@@ -383,7 +381,7 @@ function SalesCalendarView({ store, navigate }) {
               <h4 className="text-slate-800 dark:text-white font-extrabold text-sm mb-1">{selectedEvent.title}</h4>
               <p className="text-[10px] text-slate-400 mt-0.5">Scheduled on {selectedEvent.date} at {selectedEvent.time}</p>
             </div>
-            
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Clinic Name</span>
@@ -544,19 +542,19 @@ function SalesCalendarView({ store, navigate }) {
 
 // Appointment type colors mapping
 const TYPE_COLORS = {
-  Procedure:       { bg: '#FFF0F0', border: '#FFCDD2', text: '#E53935', label: '#E53935' },
-  Consultation:    { bg: '#F0F4FF', border: '#C5CAE9', text: '#3949AB', label: '#3949AB' },
-  Administrative:  { bg: '#F0FFF4', border: '#A5D6A7', text: '#2E7D32', label: '#2E7D32' },
-  Diagnostics:     { bg: '#FFFDE7', border: '#FFF176', text: '#F57F17', label: '#F57F17' },
-  'Follow-up':     { bg: '#F3E5F5', border: '#CE93D8', text: '#7B1FA2', label: '#7B1FA2' },
+  Procedure: { bg: '#FFF0F0', border: '#FFCDD2', text: '#E53935', label: '#E53935' },
+  Consultation: { bg: '#F0F4FF', border: '#C5CAE9', text: '#3949AB', label: '#3949AB' },
+  Administrative: { bg: '#F0FFF4', border: '#A5D6A7', text: '#2E7D32', label: '#2E7D32' },
+  Diagnostics: { bg: '#FFFDE7', border: '#FFF176', text: '#F57F17', label: '#F57F17' },
+  'Follow-up': { bg: '#F3E5F5', border: '#CE93D8', text: '#7B1FA2', label: '#7B1FA2' },
   'Staff / Handover': { bg: '#F5F5F5', border: '#E0E0E0', text: '#616161', label: '#616161' },
-  Default:         { bg: '#F8FAFC', border: '#E2E8F0', text: '#475569', label: '#475569' },
+  Default: { bg: '#F8FAFC', border: '#E2E8F0', text: '#475569', label: '#475569' },
 }
 
 const getTypeColor = (appt, isDark) => {
   if (appt?.status === 'Completed' || appt?.isCompleted || appt?.appointmentType === 'Administrative') {
-    return isDark 
-      ? { bg: '#0F2B14', border: '#1A4D24', text: '#A5D6A7', label: '#A5D6A7' } 
+    return isDark
+      ? { bg: '#0F2B14', border: '#1A4D24', text: '#A5D6A7', label: '#A5D6A7' }
       : { bg: '#DCFCE7', border: '#86EFAC', text: '#15803D', label: '#15803D' };
   }
   const c = TYPE_COLORS[appt?.appointmentType] || TYPE_COLORS[appt?.serviceType] || TYPE_COLORS.Default;
@@ -565,14 +563,14 @@ const getTypeColor = (appt, isDark) => {
 
 // ---------- Status Icons Row for appointment cards ----------
 const IconBadge = ({ icon, bg, color, title, noBorder }) => (
-  <span 
+  <span
     title={title}
     className="inline-flex items-center justify-center rounded-[3px] shadow-sm ml-[2px]"
-    style={{ 
-      backgroundColor: bg, 
-      color: color, 
+    style={{
+      backgroundColor: bg,
+      color: color,
       border: noBorder ? 'none' : '1px solid rgba(0,0,0,0.2)',
-      width: 14, 
+      width: 14,
       height: 14,
       fontSize: 10
     }}
@@ -651,9 +649,9 @@ const HOURS = Array.from({ length: 24 }, (_, i) => {
 const getOrdinalSuffix = (dayNum) => {
   if (dayNum > 3 && dayNum < 21) return 'th';
   switch (dayNum % 10) {
-    case 1:  return "st";
-    case 2:  return "nd";
-    case 3:  return "rd";
+    case 1: return "st";
+    case 2: return "nd";
+    case 3: return "rd";
     default: return "th";
   }
 }
@@ -683,14 +681,64 @@ export default function PractitionerCalendarPage() {
   const [selectedAppt, setSelectedAppt] = useState(null)
   const [detailsVisible, setDetailsVisible] = useState(false)
   const [visibleDaysSelected, setVisibleDaysSelected] = useState(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
-  
+
   // Custom work hours (Default: 9:00am - 5:00pm)
   const [workStartHour, setWorkStartHour] = useState(9)
   const [workEndHour, setWorkEndHour] = useState(17)
   const [showMiniCalendar, setShowMiniCalendar] = useState(true)
-  const [selectedPractitioners, setSelectedPractitioners] = useState(
-    store.practitioners?.map(p => p.id) || []
-  )
+
+  // Identify logged in practitioner dynamically for multi-tenant live DB isolation
+  const getLoggedInPractitionerId = (practitionersList) => {
+    if (!Array.isArray(practitionersList) || practitionersList.length === 0) return []
+
+    let parsedUser = null
+    try {
+      const storedUserStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+      if (storedUserStr) parsedUser = JSON.parse(storedUserStr)
+    } catch (e) {
+      console.error("Error parsing user from localStorage:", e)
+    }
+
+    const authUserId = parsedUser?.id || (typeof window !== 'undefined' ? localStorage.getItem('userId') || '' : '')
+    const authUserEmail = (parsedUser?.email || (typeof window !== 'undefined' ? localStorage.getItem('userEmail') || '' : '')).toLowerCase().trim()
+    const authUserName = (parsedUser?.name || (typeof window !== 'undefined' ? localStorage.getItem('userName') || '' : '')).toLowerCase().trim()
+    const directPractitionerId = parsedUser?.practitioner?.id || parsedUser?.practitionerId
+
+    if (directPractitionerId) {
+      const directMatch = practitionersList.find(p => p.id === directPractitionerId)
+      if (directMatch) return [directMatch.id]
+    }
+
+    let found = practitionersList.find(p => p.userId && authUserId && p.userId === authUserId)
+    if (!found) found = practitionersList.find(p => p.id && authUserId && p.id === authUserId)
+    if (!found && authUserEmail) {
+      found = practitionersList.find(p => p.email && p.email.toLowerCase().trim() === authUserEmail)
+    }
+    if (!found && authUserName) {
+      const cleanAuthName = authUserName.replace(/dr\.?\s*/g, '')
+      found = practitionersList.find(p => {
+        const cleanPName = (p.name || '').toLowerCase().replace(/dr\.?\s*/g, '')
+        return cleanPName.length > 0 && cleanAuthName.length > 0 && (cleanPName.includes(cleanAuthName) || cleanAuthName.includes(cleanPName))
+      })
+    }
+
+    const target = found || practitionersList[0]
+    return target ? [target.id] : []
+  }
+
+  const [selectedPractitioners, setSelectedPractitioners] = useState(() => {
+    return getLoggedInPractitionerId(store.practitioners)
+  })
+
+  // Ensure calendar defaults to logged-in practitioner when store.practitioners loads
+  useEffect(() => {
+    if (store.practitioners && store.practitioners.length > 0) {
+      const loggedInIds = getLoggedInPractitionerId(store.practitioners)
+      if (loggedInIds.length > 0) {
+        setSelectedPractitioners(loggedInIds)
+      }
+    }
+  }, [store.practitioners])
 
   const [createModalVisible, setCreateModalVisible] = useState(false)
   const [defaultSlot, setDefaultSlot] = useState(null)
@@ -760,9 +808,9 @@ export default function PractitionerCalendarPage() {
       if (!searchVal) return true
       const q = searchVal.toLowerCase()
       return appt.patientName?.toLowerCase().includes(q) ||
-             appt.practitionerName?.toLowerCase().includes(q) ||
-             appt.appointmentType?.toLowerCase().includes(q) ||
-             appt.diagnosis?.toLowerCase().includes(q)
+        appt.practitionerName?.toLowerCase().includes(q) ||
+        appt.appointmentType?.toLowerCase().includes(q) ||
+        appt.diagnosis?.toLowerCase().includes(q)
     })
   }, [store.appointments, searchVal, selectedPractitioners])
 
@@ -771,7 +819,7 @@ export default function PractitionerCalendarPage() {
     const dayAppts = filteredAppts.filter(a => a.date === dateStr)
     return dayAppts.filter(a => {
       let ah = -1, am = -1;
-      
+
       if (a.time && typeof a.time === 'string') {
         const parts = a.time.split(':').map(Number);
         ah = parts[0];
@@ -788,10 +836,10 @@ export default function PractitionerCalendarPage() {
       } else {
         return false;
       }
-      
+
       // If the hour doesn't match, it's not in this slot
       if (ah !== h) return false;
-      
+
       // Place the appointment in the correct minute bucket based on intervalMin
       // For 60-min slots: everything in the hour goes to m=0
       // For 30-min slots: 0-29 goes to m=0, 30-59 goes to m=30
@@ -803,7 +851,7 @@ export default function PractitionerCalendarPage() {
         if (am < 45) return m === 30;
         return m === 45;
       }
-      
+
       return am === m;
     })
   }
@@ -952,7 +1000,7 @@ export default function PractitionerCalendarPage() {
           {activeIndicationBanner && (
             <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-600 border border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800 rounded-lg text-xs font-bold shadow-sm animate-fadeIn">
               <span>{activeIndicationBanner}</span>
-              <button 
+              <button
                 onClick={() => {
                   setActiveIndicationBanner(null)
                   navigate(location.pathname, { replace: true })
@@ -1025,7 +1073,7 @@ export default function PractitionerCalendarPage() {
                     <Option value="Sunday">Sun</Option>
                   </Select>
                 </div>
-                
+
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 block mb-1">Start Time</span>
@@ -1055,9 +1103,9 @@ export default function PractitionerCalendarPage() {
               </div>
             }
           >
-            <Button 
-              shape="circle" 
-              icon={<SettingOutlined />} 
+            <Button
+              shape="circle"
+              icon={<SettingOutlined />}
               style={{ height: 36, width: 36 }}
               className="border-slate-200 text-slate-600 hover:text-[#8C4BFF] hover:border-[#8C4BFF] dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"
             />
@@ -1132,168 +1180,167 @@ export default function PractitionerCalendarPage() {
         )}
 
         <div className="flex-grow overflow-x-auto h-full flex flex-col">
-          <div 
+          <div
             className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col dark:bg-slate-900 dark:border-slate-800 h-full"
             style={{ minWidth: Math.max(750, visibleDays.length * activePractitionerObjects.length * 90) }}
           >
-        
-        {/* Days Header */}
-        <div
-          className="grid border-b border-slate-100 flex-shrink-0 dark:border-slate-800"
-          style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}
-        >
-          <div className="py-3 border-r border-slate-100 dark:border-slate-800" />
-          {visibleDays.map((day, i) => {
-            const isToday = day.isSame(today, 'day')
-            const isSelected = day.isSame(weekStart, 'day')
-            const highlightClass = isSelected 
-              ? 'border-t-4 border-t-[#8C4BFF] bg-[#8C4BFF]/10 dark:bg-[#8C4BFF]/20 text-[#8C4BFF] dark:text-[#A78BFA] border-r-slate-150 dark:border-r-slate-800'
-              : isToday 
-                ? 'border-t-4 border-t-blue-500 bg-blue-500/5 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400 border-r-slate-150 dark:border-r-slate-800'
-                : 'border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400'
 
-            return (
-              <div 
-                key={i} 
-                className={`py-2 text-center border-r last:border-r-0 transition-colors flex flex-col justify-between ${highlightClass}`}
-              >
-                <div className={`text-[11px] font-extrabold uppercase tracking-wider ${isSelected ? 'text-[#8C4BFF] dark:text-[#A78BFA]' : isToday ? 'text-blue-500' : 'text-slate-500 dark:text-slate-400'}`}>
-                  {formatCustomDate(day)}
-                </div>
-                {/* Individual sub-columns header for each Practitioner */}
-                <div className="grid mt-2 border-t border-slate-100/80 dark:border-slate-800 pt-1" style={{ gridTemplateColumns: `repeat(${activePractitionerObjects.length}, 1fr)` }}>
-                  {activePractitionerObjects.map((p, pIdx) => (
-                    <div key={p.id} className={`text-[9px] font-black uppercase tracking-tight truncate px-0.5 ${pIdx > 0 ? 'border-l border-slate-100 dark:border-slate-800' : ''} ${isSelected ? 'text-[#8C4BFF] dark:text-[#A78BFA]' : isToday ? 'text-blue-500' : 'text-slate-500 dark:text-slate-400'}`}>
-                      {p.name.replace('Dr. ', '')}
+            {/* Days Header */}
+            <div
+              className="grid border-b border-slate-100 flex-shrink-0 dark:border-slate-800"
+              style={{ gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)` }}
+            >
+              <div className="py-3 border-r border-slate-100 dark:border-slate-800" />
+              {visibleDays.map((day, i) => {
+                const isToday = day.isSame(today, 'day')
+                const isSelected = day.isSame(weekStart, 'day')
+                const highlightClass = isSelected
+                  ? 'border-t-4 border-t-[#8C4BFF] bg-[#8C4BFF]/10 dark:bg-[#8C4BFF]/20 text-[#8C4BFF] dark:text-[#A78BFA] border-r-slate-150 dark:border-r-slate-800'
+                  : isToday
+                    ? 'border-t-4 border-t-blue-500 bg-blue-500/5 dark:bg-blue-500/10 text-blue-500 dark:text-blue-400 border-r-slate-150 dark:border-r-slate-800'
+                    : 'border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400'
+
+                return (
+                  <div
+                    key={i}
+                    className={`py-2 text-center border-r last:border-r-0 transition-colors flex flex-col justify-between ${highlightClass}`}
+                  >
+                    <div className={`text-[11px] font-extrabold uppercase tracking-wider ${isSelected ? 'text-[#8C4BFF] dark:text-[#A78BFA]' : isToday ? 'text-blue-500' : 'text-slate-500 dark:text-slate-400'}`}>
+                      {formatCustomDate(day)}
                     </div>
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+                    {/* Individual sub-columns header for each Practitioner */}
+                    <div className="grid mt-2 border-t border-slate-100/80 dark:border-slate-800 pt-1" style={{ gridTemplateColumns: `repeat(${activePractitionerObjects.length}, 1fr)` }}>
+                      {activePractitionerObjects.map((p, pIdx) => (
+                        <div key={p.id} className={`text-[9px] font-black uppercase tracking-tight truncate px-0.5 ${pIdx > 0 ? 'border-l border-slate-100 dark:border-slate-800' : ''} ${isSelected ? 'text-[#8C4BFF] dark:text-[#A78BFA]' : isToday ? 'text-blue-500' : 'text-slate-500 dark:text-slate-400'}`}>
+                          {p.name.replace('Dr. ', '')}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
 
-        {/* Scrollable grid slots */}
-        <div className="overflow-y-auto flex-grow">
-          {timeSlots.map(({ h, m, label }, slotIdx) => {
-            return (
-              <div
-                key={slotIdx}
-                className="grid border-b border-slate-100 dark:border-slate-800"
-                style={{
-                  gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)`,
-                  minHeight: slotHeight,
-                }}
-              >
-                {/* Hours Label Column */}
-                <div className="border-r border-slate-100 flex items-start justify-end pr-3 pt-1 dark:border-slate-800">
-                  {label && (
-                    <span className="text-[10px] font-semibold text-slate-400 select-none">
-                      {label}
-                    </span>
-                  )}
-                </div>
+            {/* Scrollable grid slots */}
+            <div className="overflow-y-auto flex-grow">
+              {timeSlots.map(({ h, m, label }, slotIdx) => {
+                return (
+                  <div
+                    key={slotIdx}
+                    className="grid border-b border-slate-100 dark:border-slate-800"
+                    style={{
+                      gridTemplateColumns: `80px repeat(${visibleDays.length}, 1fr)`,
+                      minHeight: slotHeight,
+                    }}
+                  >
+                    {/* Hours Label Column */}
+                    <div className="border-r border-slate-100 flex items-start justify-end pr-3 pt-1 dark:border-slate-800">
+                      {label && (
+                        <span className="text-[10px] font-semibold text-slate-400 select-none">
+                          {label}
+                        </span>
+                      )}
+                    </div>
 
-                {/* Day Cells columns divided into Practitioner sub-columns */}
-                {visibleDays.map((day, dayIdx) => {
-                  const appts = getApptsInSlot(day, h, m)
-                  const isToday = day.isSame(today, 'day')
-                  const isSelected = day.isSame(weekStart, 'day')
-                  
-                  return (
-                    <div
-                      key={dayIdx}
-                      className={`border-r border-slate-100 last:border-r-0 p-0 cursor-pointer transition-colors grid dark:border-slate-800 ${
-                        isSelected ? 'bg-[#8C4BFF]/10 dark:bg-[#8C4BFF]/10' : isToday ? 'bg-blue-500/5' : 'hover:bg-slate-50/60 dark:hover:bg-slate-800/40'
-                      }`}
-                      style={{ gridTemplateColumns: `repeat(${activePractitionerObjects.length}, 1fr)` }}
-                      onDragOver={e => e.preventDefault()}
-                      onDrop={e => handleDrop(e, day, h, m)}
-                    >
-                      {activePractitionerObjects.map((prac, pracIdx) => {
-                        const pracAppts = appts.filter(a => a.practitionerId === prac.id || (!a.practitionerId && pracIdx === 0))
-                        
-                        return (
-                          <div
-                            key={prac.id}
-                            className={`h-full min-h-[44px] p-0.5 ${pracIdx > 0 ? 'border-l border-slate-100/60 dark:border-slate-800/60' : ''} flex flex-col gap-1`}
-                            onClick={(e) => {
-                              if (e.target === e.currentTarget) {
-                                const hh = String(h).padStart(2, '0')
-                                const mm = String(m).padStart(2, '0')
-                                
-                                const params = new URLSearchParams(location.search);
-                                const rescheduleApptId = params.get('rescheduleApptId');
-                                
-                                if (rescheduleApptId) {
-                                  const appt = store.appointments.find(a => a.id === rescheduleApptId);
-                                  if (appt) {
-                                    const updated = {
-                                      ...appt,
-                                      date: day.format('YYYY-MM-DD'),
-                                      time: `${hh}:${mm}`,
-                                      endTime: appt.endTime ? dayjs(`${day.format('YYYY-MM-DD')}T${hh}:${mm}`).add(1, 'hour').format('HH:mm') : undefined,
-                                      practitionerId: prac.id
-                                    };
-                                    store.updateAppointment(updated);
-                                    toast.success(`Rescheduled ${appt.patientName} to ${day.format('D MMM')} at ${hh}:${mm}`);
-                                    setActiveIndicationBanner(null);
-                                    navigate(location.pathname, { replace: true });
-                                    return;
+                    {/* Day Cells columns divided into Practitioner sub-columns */}
+                    {visibleDays.map((day, dayIdx) => {
+                      const appts = getApptsInSlot(day, h, m)
+                      const isToday = day.isSame(today, 'day')
+                      const isSelected = day.isSame(weekStart, 'day')
+
+                      return (
+                        <div
+                          key={dayIdx}
+                          className={`border-r border-slate-100 last:border-r-0 p-0 cursor-pointer transition-colors grid dark:border-slate-800 ${isSelected ? 'bg-[#8C4BFF]/10 dark:bg-[#8C4BFF]/10' : isToday ? 'bg-blue-500/5' : 'hover:bg-slate-50/60 dark:hover:bg-slate-800/40'
+                            }`}
+                          style={{ gridTemplateColumns: `repeat(${activePractitionerObjects.length}, 1fr)` }}
+                          onDragOver={e => e.preventDefault()}
+                          onDrop={e => handleDrop(e, day, h, m)}
+                        >
+                          {activePractitionerObjects.map((prac, pracIdx) => {
+                            const pracAppts = appts.filter(a => a.practitionerId === prac.id || (!a.practitionerId && pracIdx === 0))
+
+                            return (
+                              <div
+                                key={prac.id}
+                                className={`h-full min-h-[44px] p-0.5 ${pracIdx > 0 ? 'border-l border-slate-100/60 dark:border-slate-800/60' : ''} flex flex-col gap-1`}
+                                onClick={(e) => {
+                                  if (e.target === e.currentTarget) {
+                                    const hh = String(h).padStart(2, '0')
+                                    const mm = String(m).padStart(2, '0')
+
+                                    const params = new URLSearchParams(location.search);
+                                    const rescheduleApptId = params.get('rescheduleApptId');
+
+                                    if (rescheduleApptId) {
+                                      const appt = store.appointments.find(a => a.id === rescheduleApptId);
+                                      if (appt) {
+                                        const updated = {
+                                          ...appt,
+                                          date: day.format('YYYY-MM-DD'),
+                                          time: `${hh}:${mm}`,
+                                          endTime: appt.endTime ? dayjs(`${day.format('YYYY-MM-DD')}T${hh}:${mm}`).add(1, 'hour').format('HH:mm') : undefined,
+                                          practitionerId: prac.id
+                                        };
+                                        store.updateAppointment(updated);
+                                        toast.success(`Rescheduled ${appt.patientName} to ${day.format('D MMM')} at ${hh}:${mm}`);
+                                        setActiveIndicationBanner(null);
+                                        navigate(location.pathname, { replace: true });
+                                        return;
+                                      }
+                                    }
+
+                                    setDefaultSlot({ date: day.format('YYYY-MM-DD'), time: `${hh}:${mm}`, practitionerId: prac.id })
+                                    setCreateModalVisible(true)
                                   }
-                                }
+                                }}
+                              >
+                                {pracAppts.map(appt => {
+                                  const colors = getTypeColor(appt, store.darkMode)
+                                  const isNoClient = !appt.patientName || appt.patientName === 'No client'
+                                  const associatedNoteObj = store.consultations.find(c => c.appointmentId === appt.id)
 
-                                setDefaultSlot({ date: day.format('YYYY-MM-DD'), time: `${hh}:${mm}`, practitionerId: prac.id })
-                                setCreateModalVisible(true)
-                              }
-                            }}
-                          >
-                            {pracAppts.map(appt => {
-                              const colors = getTypeColor(appt, store.darkMode)
-                              const isNoClient = !appt.patientName || appt.patientName === 'No client'
-                              const associatedNoteObj = store.consultations.find(c => c.appointmentId === appt.id)
-                              
-                              return (
-                                <div
-                                  key={appt.id}
-                                  draggable
-                                  onDragStart={e => handleDragStart(e, appt.id)}
-                                  onClick={e => {
-                                    e.stopPropagation()
-                                    setSelectedAppt(appt)
-                                    setDetailsVisible(true)
-                                  }}
-                                  className="rounded-lg px-1.5 py-1 mb-0.5 cursor-pointer border-l-[3px] hover:shadow-md transition-all select-none w-full text-left"
-                                  style={{
-                                    backgroundColor: colors.bg,
-                                    borderColor: colors.border,
-                                    color: colors.text,
-                                  }}
-                                >
-                                  {/* Patient name + icons row */}
-                                  <div className="flex justify-between items-start w-full">
-                                    <span className="font-black text-[10px] truncate leading-tight flex-1 mr-1" style={{ color: colors.text }}>
-                                      {isNoClient ? 'No client' : appt.patientName}
-                                    </span>
-                                    <AppointmentStatusIcons appt={appt} noteObj={associatedNoteObj} />
-                                  </div>
-                                  <div className="text-[9px] font-bold truncate opacity-80 mt-0.5" style={{ color: colors.label }}>
-                                    {appt.appointmentType || appt.serviceType || 'Consultation'}
-                                  </div>
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })}
-              </div>
-            )
-          })}
-        </div>
-      </div>
+                                  return (
+                                    <div
+                                      key={appt.id}
+                                      draggable
+                                      onDragStart={e => handleDragStart(e, appt.id)}
+                                      onClick={e => {
+                                        e.stopPropagation()
+                                        setSelectedAppt(appt)
+                                        setDetailsVisible(true)
+                                      }}
+                                      className="rounded-lg px-1.5 py-1 mb-0.5 cursor-pointer border-l-[3px] hover:shadow-md transition-all select-none w-full text-left"
+                                      style={{
+                                        backgroundColor: colors.bg,
+                                        borderColor: colors.border,
+                                        color: colors.text,
+                                      }}
+                                    >
+                                      {/* Patient name + icons row */}
+                                      <div className="flex justify-between items-start w-full">
+                                        <span className="font-black text-[10px] truncate leading-tight flex-1 mr-1" style={{ color: colors.text }}>
+                                          {isNoClient ? 'No client' : appt.patientName}
+                                        </span>
+                                        <AppointmentStatusIcons appt={appt} noteObj={associatedNoteObj} />
+                                      </div>
+                                      <div className="text-[9px] font-bold truncate opacity-80 mt-0.5" style={{ color: colors.label }}>
+                                        {appt.appointmentType || appt.serviceType || 'Consultation'}
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
 
         </div>
       </div>

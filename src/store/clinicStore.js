@@ -431,16 +431,50 @@ export const useClinicStore = create((set, get) => ({
       integrations: state.integrations.filter((item) => item.id !== id),
     }))
   },
-  addMessageBoardItem: (msg) => {
+  messageBoardLoading: false,
+  fetchMessageBoardItems: async () => {
+    set({ messageBoardLoading: true })
+    try {
+      const res = await api.get('/api/message-board')
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        set({ messageBoard: res.data.data })
+      }
+    } catch (err) {
+      console.error('❌ Error loading message board from DB:', err)
+    } finally {
+      set({ messageBoardLoading: false })
+    }
+  },
+  addMessageBoardItem: async (msg) => {
+    try {
+      const res = await api.post('/api/message-board', msg)
+      if (res.data?.success && res.data.data) {
+        set((state) => ({
+          messageBoard: [res.data.data, ...state.messageBoard]
+        }))
+        return res.data.data
+      }
+    } catch (err) {
+      console.error('❌ Error posting message board item to DB:', err)
+      const fallbackMsg = {
+        id: `mb_${Date.now()}`,
+        ...msg,
+        timestamp: new Date().toLocaleString(),
+      }
+      set((state) => ({
+        messageBoard: [fallbackMsg, ...state.messageBoard],
+      }))
+      return fallbackMsg
+    }
+  },
+  deleteMessageBoardItem: async (id) => {
+    try {
+      await api.delete(`/api/message-board/${id}`)
+    } catch (err) {
+      console.error('❌ Error deleting message board item from DB:', err)
+    }
     set((state) => ({
-      messageBoard: [
-        ...state.messageBoard,
-        {
-          id: `mb_${Date.now()}`,
-          ...msg,
-          timestamp: new Date().toLocaleString(),
-        },
-      ],
+      messageBoard: state.messageBoard.filter((item) => item.id !== id)
     }))
   },
 

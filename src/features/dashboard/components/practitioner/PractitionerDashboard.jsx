@@ -63,13 +63,17 @@ export default function PractitionerDashboard({ store, navigate }) {
       }
     }
     document.addEventListener('mousedown', handler)
+    if (store.fetchMessageBoardItems) {
+      store.fetchMessageBoardItems()
+    }
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!messageText.trim()) return
-    store.addMessageBoardItem({
-      sender: 'Dr. Sarah Jenkins',
+    const senderName = store.user?.name || 'Dr. Sarah Jenkins'
+    await store.addMessageBoardItem({
+      sender: senderName,
       senderRole: 'Practitioner',
       message: messageText.trim(),
       taskRef: taskRef.trim() || null,

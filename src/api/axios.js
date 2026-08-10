@@ -1,6 +1,18 @@
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001'
+const getRawApiUrl = () => {
+  let envUrl = import.meta.env.VITE_API_URL
+  if (envUrl && envUrl.trim() !== '') {
+    envUrl = envUrl.trim().replace(/\/+$/, '')
+    if (envUrl.startsWith('https://localhost') || envUrl.startsWith('https://127.0.0.1')) {
+      envUrl = envUrl.replace(/^https:/, 'http:')
+    }
+    return envUrl
+  }
+  return 'https://zhealthos-backend-production.up.railway.app'
+}
+
+const API_BASE_URL = getRawApiUrl()
 
 const api = axios.create({
   baseURL: API_BASE_URL,

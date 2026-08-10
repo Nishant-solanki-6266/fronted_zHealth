@@ -30,6 +30,8 @@ import {
 } from 'recharts'
 import { toast } from 'react-hot-toast'
 
+import { API_BASE_URL } from '@/api/axios'
+
 const { Option } = Select
 
 export default function HeadAdminBilling() {
@@ -49,6 +51,21 @@ export default function HeadAdminBilling() {
   const [subscriptionInvoicesList, setSubscriptionInvoicesList] = useState([])
 
   const backendFetch = async (endpoint, options = {}) => {
+    const mainBase = API_BASE_URL
+    try {
+      const res = await fetch(`${mainBase}/api${endpoint}`, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('accessToken') || ''}`,
+          ...(options.headers || {}),
+        },
+      })
+      if (res.ok) {
+        return await res.json()
+      }
+    } catch (e) {}
+
     const defaultPorts = [5001, 8001, 8002, 8003, 5000]
     const PORTS = window._activeBackendPort ? [window._activeBackendPort, ...defaultPorts.filter(p => p !== window._activeBackendPort)] : defaultPorts
 
