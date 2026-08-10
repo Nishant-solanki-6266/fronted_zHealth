@@ -29,9 +29,20 @@ export default function PractitionerMessages() {
       message: values.message,
       timestamp: 'Just now'
     }
-    setInternalMsgs([...internalMsgs, newMsg])
+    setInternalMsgs(prev => [...prev, newMsg])
     toast.success(`Message sent to ${values.receiver}!`)
     internalForm.resetFields()
+
+    // Auto-reply simulation for demo
+    setTimeout(() => {
+      const replyMsg = {
+        sender: values.receiver,
+        receiver: 'Dr. Sarah Jenkins',
+        message: values.message,
+        timestamp: 'Just now'
+      }
+      setInternalMsgs(prev => [...prev, replyMsg])
+    }, 1500)
   }
 
   const handleSendPatient = (values) => {

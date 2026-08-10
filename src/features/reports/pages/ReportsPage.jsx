@@ -445,62 +445,73 @@ export default function ReportsPage() {
   // Dynamically compute card metrics based on selected filters and live database
   const metrics = useMemo(() => {
     if (liveReportData && liveReportData.metrics) {
+      // Real DB data — show exact values, no filterScale distortion
       const m = liveReportData.metrics
       return {
-        revenue: Math.round((m.revenue || 16900) * filterScale),
-        appointments: Math.max(1, Math.round((m.appointments || 195) * filterScale)),
-        newClients: Math.max(1, Math.round((m.newClients || 150) * filterScale)),
-        outstanding: Math.round((m.outstanding || 2400) * filterScale),
-        utilisation: m.utilisation || 78,
-        cancellation: m.cancellation || 5.8,
-        uninvoiced: Math.max(1, Math.round((m.uninvoiced || 8) * filterScale))
+        revenue: m.revenue || 0,
+        appointments: m.appointments || 0,
+        newClients: m.newClients || 0,
+        outstanding: m.outstanding || 0,
+        utilisation: m.utilisation || 0,
+        cancellation: m.cancellation || 0,
+        uninvoiced: m.uninvoiced || 0
       }
     }
-    let baseRevenue = 16900
-    let baseAppts = 195
-    let baseNewClients = 150
-    let baseOutstanding = 2400
-    let baseUtilisation = 78
-    let baseCancellation = 5.8
-    let baseUninvoiced = 8
-
+    // Fallback dummy data when no API response (only apply filterScale to dummy)
     return {
-      revenue: Math.round(baseRevenue * filterScale),
-      appointments: Math.max(1, Math.round(baseAppts * filterScale)),
-      newClients: Math.max(1, Math.round(baseNewClients * filterScale)),
-      outstanding: Math.round(baseOutstanding * filterScale),
-      utilisation: baseUtilisation,
-      cancellation: baseCancellation,
-      uninvoiced: Math.max(1, Math.round(baseUninvoiced * filterScale))
+      revenue: Math.round(16900 * filterScale),
+      appointments: Math.max(1, Math.round(195 * filterScale)),
+      newClients: Math.max(1, Math.round(150 * filterScale)),
+      outstanding: Math.round(2400 * filterScale),
+      utilisation: 78,
+      cancellation: 5.8,
+      uninvoiced: Math.max(1, Math.round(8 * filterScale))
     }
   }, [liveReportData, filterScale])
 
-  // Dynamically compute charts data based on filters and DB response
+  // Dynamically compute charts data — use real DB data when available, fallback to MOCK only when DB is empty
   const chartRevenueData = useMemo(() => {
-    const list = liveReportData && Array.isArray(liveReportData.monthlyRevenue) && liveReportData.monthlyRevenue.length > 0
-      ? liveReportData.monthlyRevenue
-      : MOCK_MONTHLY_REVENUE
-
+    const hasLiveData = liveReportData && Array.isArray(liveReportData.monthlyRevenue) && liveReportData.monthlyRevenue.length > 0
+    const list = hasLiveData ? liveReportData.monthlyRevenue : MOCK_MONTHLY_REVENUE
+    // Apply filterScale only to mock/fallback data, not real DB data
+    const scale = hasLiveData ? 1 : filterScale
     return list.map(d => ({
       name: d.name,
-      current: Math.round((d.current || 0) * filterScale),
-      previous: Math.round((d.previous || 0) * filterScale)
+      current: Math.round((d.current || 0) * scale),
+      previous: Math.round((d.previous || 0) * scale)
     }))
   }, [liveReportData, filterScale])
 
-  const chartPractitionerData = useMemo(() => {
-    const list = liveReportData && Array.isArray(liveReportData.practitionerBreakdown) && liveReportData.practitionerBreakdown.length > 0
-      ? liveReportData.practitionerBreakdown
-      : liveReportData && Array.isArray(liveReportData.practitionerPerformance) && liveReportData.practitionerPerformance.length > 0
-      ? liveReportData.practitionerPerformance
-      : MOCK_PRACTITIONER_DATA
+  // Client growth chart from DB
+  const chartClientGrowthData = useMemo(() => {
+    if (liveReportData && Array.isArray(liveReportData.clientGrowth) && liveReportData.clientGrowth.length > 0) {
+      return liveReportData.clientGrowth
+    }
+    return MOCK_CLIENT_GROWTH
+  }, [liveReportData])
 
+  // Payment status pie chart from DB
+  const chartPaymentStatusData = useMemo(() => {
+    if (liveReportData && Array.isArray(liveReportData.paymentStatus) && liveReportData.paymentStatus.some(p => p.value > 0)) {
+      return [
+        { name: 'Paid', value: liveReportData.paymentStatus.find(p => p.name === 'Paid')?.value || 0, color: '#30D2BE' },
+        { name: 'Outstanding', value: liveReportData.paymentStatus.find(p => p.name === 'Outstanding')?.value || 0, color: '#F59E0B' },
+        { name: 'Draft / Uninvoiced', value: liveReportData.paymentStatus.find(p => p.name === 'Draft / Uninvoiced')?.value || 0, color: '#8C4BFF' }
+      ]
+    }
+    return MOCK_PAYMENT_STATUS
+  }, [liveReportData])
+
+  const chartPractitionerData = useMemo(() => {
+    const hasLiveData = liveReportData && Array.isArray(liveReportData.practitionerPerformance) && liveReportData.practitionerPerformance.length > 0
+    const list = hasLiveData ? liveReportData.practitionerPerformance : MOCK_PRACTITIONER_DATA
+    const scale = hasLiveData ? 1 : filterScale
     return list
       .filter(d => practitioner === 'All Practitioners' || practitioner === 'All' || (d.name || '').includes(practitioner))
       .map(d => ({
         name: d.name,
-        Appointments: Math.max(0, Math.round((d.Appointments || 0) * filterScale)),
-        Revenue: Math.round((d.Revenue || 0) * filterScale)
+        Appointments: Math.max(0, Math.round((d.Appointments || 0) * scale)),
+        Revenue: Math.round((d.Revenue || 0) * scale)
       }))
   }, [liveReportData, practitioner, filterScale])
 

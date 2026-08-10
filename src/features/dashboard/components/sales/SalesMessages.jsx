@@ -45,6 +45,15 @@ export default function SalesMessages({ store: propStore }) {
 
     setTextInput('')
     toast.success('Message sent!')
+
+    // Auto-reply simulation for demo
+    setTimeout(() => {
+      store.addSalesMessage({
+        sender: activeChannel,
+        recipient: 'Colin Edegbe',
+        text: textInput
+      })
+    }, 1500)
   }
 
   // Scroll to bottom on new messages
