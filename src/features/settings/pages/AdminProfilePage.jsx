@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Form, Input, Button, DatePicker, Select, Radio, Space, Upload, Card, Divider } from 'antd'
 import { UploadOutlined, DeleteOutlined, LockOutlined, SaveOutlined, CloseOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
@@ -13,9 +14,11 @@ import api from '../../../api/axios'
 const { Option } = Select
 
 export default function AdminProfilePage() {
+  const navigate = useNavigate()
   const [form] = Form.useForm()
   const store = useClinicStore()
   const [saving, setSaving] = useState(false)
+  const [initialProfileValues, setInitialProfileValues] = useState(null)
   
   if (store.userRole === 'practitioner') {
     return <PractitionerProfilePage />
@@ -85,7 +88,7 @@ export default function AdminProfilePage() {
             avatar: userData.avatarUrl || null
           })
 
-          form.setFieldsValue({
+          const profileFields = {
             name: realName,
             email: realEmail,
             mobile: realPhone,
@@ -96,7 +99,10 @@ export default function AdminProfilePage() {
             state: pData.state || 'NSW',
             country: pData.country || 'Australia',
             postalCode: pData.postalCode || '2000'
-          })
+          }
+
+          setInitialProfileValues(profileFields)
+          form.setFieldsValue(profileFields)
         }
       } catch (err) {
         console.error("Failed to load live profile from database:", err)
@@ -106,6 +112,31 @@ export default function AdminProfilePage() {
     loadLiveProfile()
     return () => { isMounted = false }
   }, [form, isClinicAdminContext])
+
+  const handleCancel = () => {
+    if (initialProfileValues) {
+      form.setFieldsValue({
+        ...initialProfileValues,
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      })
+    } else {
+      form.resetFields()
+    }
+
+    if (window.history.length > 1) {
+      navigate(-1)
+    } else if (isSalesContext) {
+      navigate('/sales')
+    } else if (isClinicAdminContext) {
+      navigate('/clinic-admin')
+    } else if (isPatientContext) {
+      navigate('/patient')
+    } else {
+      navigate('/head-admin')
+    }
+  }
 
   const handleSave = async (values) => {
     if (values.newPassword && values.newPassword !== values.confirmPassword) {
@@ -159,7 +190,35 @@ export default function AdminProfilePage() {
           name: updated.name || values.name,
           avatar: updated.avatarUrl || prev.avatar
         }))
-        form.setFieldsValue({ currentPassword: '', newPassword: '', confirmPassword: '' })
+        const newSavedFields = {
+          name: values.name,
+          email: values.email,
+          mobile: values.mobile,
+          dob: values.dob,
+          gender: values.gender,
+          street: values.street,
+          city: values.city,
+          state: values.state,
+          country: values.country,
+          postalCode: values.postalCode
+        }
+        setInitialProfileValues(newSavedFields)
+        form.setFieldsValue({ ...newSavedFields, currentPassword: '', newPassword: '', confirmPassword: '' })
+        
+        // Return to Dashboard after saving
+        setTimeout(() => {
+          if (window.history.length > 1) {
+            navigate(-1)
+          } else if (isSalesContext) {
+            navigate('/sales')
+          } else if (isClinicAdminContext) {
+            navigate('/clinic-admin')
+          } else if (isPatientContext) {
+            navigate('/patient')
+          } else {
+            navigate('/head-admin')
+          }
+        }, 500)
       } else {
         toast.error(res?.message || 'Failed to update profile in database')
       }
@@ -348,8 +407,9 @@ export default function AdminProfilePage() {
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-700">
           <Button 
-            className="h-11 px-6 rounded-lg bg-transparent border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:text-slate-200 dark:hover:text-white hover:border-slate-400 dark:hover:border-slate-500 font-medium shadow-none"
-            onClick={() => form.resetFields()}
+            type="button"
+            className="h-11 px-6 rounded-lg bg-transparent border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:text-slate-200 dark:hover:text-white hover:border-slate-400 dark:hover:border-slate-500 font-medium shadow-none cursor-pointer"
+            onClick={handleCancel}
           >
             Cancel
           </Button>

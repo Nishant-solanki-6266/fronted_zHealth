@@ -71,12 +71,16 @@ export default function ClinicAdminDashboard({ store: propStore }) {
       }
     }
     fetchStats()
+    if (store.fetchMessageBoardItems) {
+      store.fetchMessageBoardItems()
+    }
   }, [])
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!messageText.trim()) return
-    store.addMessageBoardItem({
-      sender: 'Alex Sadman',
+    const senderName = store.user?.name || 'Clinic Admin'
+    await store.addMessageBoardItem({
+      sender: senderName,
       senderRole: 'Clinic Admin',
       message: messageText.trim(),
       taskRef: taskRef.trim() || null,

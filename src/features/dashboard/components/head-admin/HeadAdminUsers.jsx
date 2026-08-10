@@ -13,6 +13,7 @@ import {
 } from '@ant-design/icons'
 import { useClinicStore } from '../../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
+import { API_BASE_URL } from '@/api/axios'
 
 const { Option } = Select
 
@@ -33,6 +34,17 @@ export default function HeadAdminUsers() {
   const editUserAvatarUrl = Form.useWatch('avatar', editUserForm)
 
   const backendFetch = async (endpoint, options = {}) => {
+    const mainBase = API_BASE_URL
+    try {
+      const res = await fetch(`${mainBase}/api${endpoint}`, {
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+        ...options
+      })
+      if (res.ok) {
+        return await res.json()
+      }
+    } catch (e) {}
+
     const defaultPorts = [5001, 8001, 8002, 8003, 5000]
     const PORTS = window._activeBackendPort ? [window._activeBackendPort, ...defaultPorts.filter(p => p !== window._activeBackendPort)] : defaultPorts
 

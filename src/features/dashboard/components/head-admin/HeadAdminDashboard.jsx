@@ -67,17 +67,21 @@ export default function HeadAdminDashboard({ store, navigate }) {
     }
 
     fetchAllDashboardData()
+    if (store.fetchMessageBoardItems) {
+      store.fetchMessageBoardItems()
+    }
 
     return () => {
       isMounted = false
     }
   }, [])
 
-  const handleSendMessage = () => {
+  const handleSendMessage = async () => {
     if (!messageText.trim()) return
-    store.addMessageBoardItem({
-      sender: 'Alex Sadman',
-      senderRole: 'Clinic Admin',
+    const senderName = store.user?.name || 'Super Admin'
+    await store.addMessageBoardItem({
+      sender: senderName,
+      senderRole: 'Super Admin',
       message: messageText.trim(),
       taskRef: taskRef.trim() || null,
     })

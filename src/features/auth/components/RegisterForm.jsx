@@ -1,17 +1,37 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Form, Input, Button, Checkbox } from 'antd'
 import { MailOutlined, LockOutlined, BankOutlined, UserOutlined } from '@ant-design/icons'
 import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
+import api from '../../../api/axios'
 
 export default function RegisterForm() {
   const [form] = Form.useForm()
   const navigate = useNavigate()
+  const [loading, setLoading] = useState(false)
 
-  const onFinish = (values) => {
-    toast.success('Organization registered successfully! Welcome to ZealthOS.')
-    // Redirect to login page and pre-fill credentials in simulation
-    navigate('/login')
+  const onFinish = async (values) => {
+    setLoading(true)
+    try {
+      const res = await api.post('/api/auth/register', {
+        organization: values.organization,
+        fullName: values.fullName,
+        email: values.email,
+        password: values.password
+      })
+
+      if (res.data?.success) {
+        toast.success(res.data?.message || 'Organization registered successfully! Welcome to ZealthOS.')
+        navigate('/login', { state: { registeredEmail: values.email } })
+      } else {
+        toast.error(res.data?.message || 'Registration failed')
+      }
+    } catch (err) {
+      console.error('Registration API Error:', err)
+      toast.error(err.response?.data?.message || 'Failed to register clinic in database')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -123,6 +143,7 @@ export default function RegisterForm() {
             type="primary"
             htmlType="submit"
             size="large"
+            loading={loading}
             className="w-full h-11 bg-brand-purple hover:bg-brand-purple/90 border-none font-bold rounded-xl shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center space-x-1"
           >
             <span>Register Clinic</span>
