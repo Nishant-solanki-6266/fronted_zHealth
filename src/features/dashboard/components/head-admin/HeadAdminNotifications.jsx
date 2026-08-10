@@ -9,6 +9,7 @@ import {
 } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
 import { useClinicStore } from '../../../../store/clinicStore'
+import api from '../../../../api/axios'
 
 const { Option } = Select
 
@@ -66,12 +67,26 @@ export default function HeadAdminNotifications() {
   const userRole = store.userRole
   const darkMode = store.darkMode
 
-  // Initialize notifications state based on the current role
-  const [notificationsList, setNotificationsList] = useState(() => getMockNotifications(userRole))
-  
-  // Re-sync notifications if role changes dynamically
+  const [notificationsList, setNotificationsList] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true)
+      const { data } = await api.get('/api/notifications')
+      if (data.success) {
+        setNotificationsList(data.data)
+      }
+    } catch (error) {
+      console.error(error)
+      toast.error('Failed to load notifications')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    setNotificationsList(getMockNotifications(userRole))
+    fetchNotifications()
   }, [userRole])
 
   const [activeTab, setActiveTab] = useState('Inbox')
@@ -79,19 +94,23 @@ export default function HeadAdminNotifications() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [form] = Form.useForm()
 
-  const handleBroadcast = (values) => {
-    const newNotif = {
-      id: String(Date.now()),
-      title: values.title || 'New Message',
-      message: values.message,
-      target: values.target || 'All',
-      date: 'Today',
-      type: 'sent'
+  const handleBroadcast = async (values) => {
+    try {
+      const { data } = await api.post('/api/notifications/broadcast', {
+        title: values.title,
+        message: values.message,
+        target: values.target
+      })
+      if (data.success) {
+        toast.success('Message sent successfully!')
+        fetchNotifications()
+        form.resetFields()
+        setIsModalOpen(false)
+      }
+    } catch (error) {
+      console.error(error)
+      toast.error('Failed to send message')
     }
-    setNotificationsList(prev => [newNotif, ...prev])
-    toast.success('Message sent successfully!')
-    form.resetFields()
-    setIsModalOpen(false)
   }
 
   // Filter list by tab first
@@ -213,21 +232,30 @@ export default function HeadAdminNotifications() {
               <div className="flex items-center justify-between sm:justify-end gap-6 flex-shrink-0">
                 <div className="flex flex-col sm:items-end text-[10px] text-slate-400 dark:text-slate-500 font-semibold">
                   <span className="text-slate-500 dark:text-slate-400">Recipient: {item.target}</span>
-                  <span className="mt-0.5">{item.date}</span>
+                  <span className="mt-0.5">{new Date(item.createdAt).toLocaleDateString() + ' ' + new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <Button
                     type="text"
                     icon={<InfoCircleOutlined className="text-slate-400 hover:text-slate-600" />}
-                    onClick={() => {
+                    onClick={async () => {
+                      // Mark read on click
+                      if (!item.isRead) {
+                        try {
+                          await api.put(`/api/notifications/${item.id}/read`)
+                          setNotificationsList(prev => prev.map(n => n.id === item.id ? { ...n, isRead: true } : n))
+                        } catch (err) {
+                          console.error(err)
+                        }
+                      }
                       Modal.info({
                         title: item.title,
                         content: (
                           <div className="space-y-2 text-xs font-semibold mt-3" style={{ color: '#475569' }}>
                             <p style={{ color: '#475569' }}><strong style={{ color: '#0F1B33' }}>Message:</strong> {item.message}</p>
                             <p style={{ color: '#475569' }}><strong style={{ color: '#0F1B33' }}>Recipient:</strong> {item.target}</p>
-                            <p style={{ color: '#475569' }}><strong style={{ color: '#0F1B33' }}>Date:</strong> {item.date}</p>
+                            <p style={{ color: '#475569' }}><strong style={{ color: '#0F1B33' }}>Date:</strong> {new Date(item.createdAt).toLocaleString()}</p>
                           </div>
                         ),
                         okButtonProps: { style: { backgroundColor: '#0E1B33', borderRadius: '8px' } }
@@ -239,9 +267,17 @@ export default function HeadAdminNotifications() {
                     type="text"
                     danger
                     icon={<DeleteOutlined />}
-                    onClick={() => {
-                      setNotificationsList(prev => prev.filter(n => n.id !== item.id))
-                      toast.success('Notification removed')
+                    onClick={async () => {
+                      try {
+                        const { data } = await api.delete(`/api/notifications/${item.id}`)
+                        if (data.success) {
+                          setNotificationsList(prev => prev.filter(n => n.id !== item.id))
+                          toast.success('Notification removed')
+                        }
+                      } catch (error) {
+                        console.error(error)
+                        toast.error('Failed to remove notification')
+                      }
                     }}
                     className="flex items-center justify-center w-8 h-8 rounded-lg"
                   />
