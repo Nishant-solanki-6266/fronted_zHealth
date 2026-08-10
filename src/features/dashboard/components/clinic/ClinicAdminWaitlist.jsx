@@ -4,7 +4,7 @@ import { PlusOutlined, InfoCircleOutlined } from '@ant-design/icons'
 import { useClinicStore } from '../../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
-import { getWaitlist, createWaitlist, updateWaitlist, getBranches } from '../../../calendar/api/clinicAdminApi'
+import { getWaitlist, createWaitlist, updateWaitlist, getBranches, getClinicDetails } from '../../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 
@@ -15,8 +15,16 @@ export default function ClinicAdminWaitlist() {
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
+  const [clinicName, setClinicName] = useState('')
   const [form] = Form.useForm()
+
+  useEffect(() => {
+    getClinicDetails().then(res => {
+      if (res && res.success && res.data && res.data.name) {
+        setClinicName(res.data.name)
+      }
+    }).catch(() => {})
+  }, [])
 
   const fetchWaitlistData = async () => {
     setLoading(true)
@@ -183,6 +191,18 @@ export default function ClinicAdminWaitlist() {
 
   return (
     <div className="space-y-6">
+      {/* ── Clinic Branded Header Banner ── */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+        <div>
+          <h2 className="text-xl font-black text-slate-800 dark:text-white tracking-tight flex items-center gap-2 mb-0">
+            <span>{clinicName ? `${clinicName} — Waitlist Queue` : 'Waitlist Management'}</span>
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mt-0.5 mb-0">
+            Client waitlist queue, appointment preference, and branch allocation for {clinicName || 'your clinic'}.
+          </p>
+        </div>
+      </div>
+
       {/* ── Top controls bar matching screenshot ── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Search */}

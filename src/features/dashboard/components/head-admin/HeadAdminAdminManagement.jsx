@@ -26,12 +26,15 @@ import {
   CalendarFilled,
   CheckCircleOutlined
 } from '@ant-design/icons'
-import { toast } from 'react-hot-toast'
+import { useNavigate } from 'react-router-dom'
+import { useClinicStore } from '@/store/clinicStore'
 import { API_BASE_URL } from '@/api/axios'
 
 const { Option } = Select
 
 export default function HeadAdminAdminManagement() {
+  const navigate = useNavigate()
+  const store = useClinicStore()
   const [searchText, setSearchText] = useState('')
   const [roleFilter, setRoleFilter] = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
@@ -580,7 +583,12 @@ export default function HeadAdminAdminManagement() {
               {selectedAdmin.status === 'Active' ? 'Suspend admin' : 'Reactivate admin'}
             </Button>
             <Button
-              onClick={() => toast.success(`Launching impersonation session for ${selectedAdmin.name}...`)}
+              onClick={() => {
+                toast.success(`Launching impersonation session for ${selectedAdmin ? selectedAdmin.name : 'admin'}...`)
+                if (store && store.setUserRole) store.setUserRole('clinic')
+                else localStorage.setItem('userRole', 'clinic')
+                navigate('/clinic-admin/waitlist')
+              }}
               className="rounded-xl h-10 font-bold text-xs px-5 border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-350"
               icon={<UserSwitchOutlined />}
             >
