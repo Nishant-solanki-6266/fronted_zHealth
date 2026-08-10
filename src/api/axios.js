@@ -9,7 +9,11 @@ const getRawApiUrl = () => {
     }
     return envUrl
   }
-  return 'https://zhealthos-backend-production.up.railway.app'
+  // Live Backend URL (Commented out)
+  // return 'https://zhealthos-backend-production.up.railway.app'
+
+  // Local Backend URL
+  return 'http://localhost:5001'
 }
 
 const API_BASE_URL = getRawApiUrl()

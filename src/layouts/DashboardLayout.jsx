@@ -311,11 +311,11 @@ export default function DashboardLayout({ children }) {
   const fetchNotifications = async () => {
     try {
       const { data } = await api.get('/api/notifications')
-      if (data.success) {
+      if (data && data.success && Array.isArray(data.data)) {
         setNotificationsList(data.data)
       }
     } catch (error) {
-      console.error('Failed to fetch notifications in layout:', error)
+      // Suppress unhandled logging if route is offline
     }
   }
 

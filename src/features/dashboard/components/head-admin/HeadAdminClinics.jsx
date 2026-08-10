@@ -67,7 +67,8 @@ export default function HeadAdminClinics({ store: propStore }) {
     aiAssistant: true,
     whiteLabel: false,
     advancedReporting: false,
-    patientPortal: true
+    patientPortal: true,
+    waitlist: true
   })
   const [invoiceSearch, setInvoiceSearch] = useState('')
   const [invoiceStatusFilter, setInvoiceStatusFilter] = useState('All')
@@ -193,7 +194,7 @@ export default function HeadAdminClinics({ store: propStore }) {
         revenue: item.revenue !== undefined && item.revenue !== null ? item.revenue : 0,
         tier: item.tier || 'Basic',
         status: item.status || 'Active',
-        featureFlags: item.featureFlags || { aiAssistant: true, whiteLabel: false, advancedReporting: false, patientPortal: true },
+        featureFlags: item.featureFlags || { aiAssistant: true, whiteLabel: false, advancedReporting: false, patientPortal: true, waitlist: true },
         aiUsageCount: item.aiUsageCount || 0,
         aiUsageLimit: item.aiUsageLimit || 200,
         lastBillingReset: item.lastBillingReset ? new Date(item.lastBillingReset).toLocaleString() : 'Never',
@@ -596,7 +597,13 @@ export default function HeadAdminClinics({ store: propStore }) {
           method: 'POST'
         })
       }
-      toast.success(`Launching impersonation session for ${selectedClinic.name}...`)
+      toast.success(`Launching impersonation session for ${selectedClinic ? selectedClinic.name : 'clinic'}...`)
+      if (store && store.setUserRole) {
+        store.setUserRole('clinic')
+      } else {
+        localStorage.setItem('userRole', 'clinic')
+      }
+      navigate('/clinic-admin/waitlist')
     }
 
     const handleDownloadInvoice = (record) => {
@@ -785,7 +792,8 @@ Issued By: ZealthOS Head Admin Platform
                 { key: 'aiAssistant', label: 'AI Assistant', desc: 'Zealth AI clinical summarisation and assistance.' },
                 { key: 'whiteLabel', label: 'White-label', desc: 'Custom branding across the clinic workspace.' },
                 { key: 'advancedReporting', label: 'Advanced Reporting', desc: 'Analytics dashboards and exportable reports.' },
-                { key: 'patientPortal', label: 'Patient Portal', desc: 'Self-service portal for the clinic\'s patients.' }
+                { key: 'patientPortal', label: 'Patient Portal', desc: 'Self-service portal for the clinic\'s patients.' },
+                { key: 'waitlist', label: 'Waitlist Management', desc: 'Client waitlist queue and branch allocation under clinic name.' }
               ].map(feat => (
                 <div key={feat.key} className="p-3.5 bg-slate-50/50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 rounded-xl flex items-center justify-between">
                   <div>
