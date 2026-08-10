@@ -18,14 +18,14 @@ export default function PractitionerProfilePage() {
         if (res && res.success && res.data) {
           const d = res.data
           form.setFieldsValue({
-            title: d.title || 'Mr',
-            firstName: d.firstName || 'Colin',
-            lastName: d.lastName || 'Edegbe',
+            title: d.title || 'Dr',
+            firstName: d.firstName || '',
+            lastName: d.lastName || '',
             gender: d.gender || 'Male',
-            email: d.email || 'colin.edegbe@ceotherapy.com',
-            phone: d.phone || '+61 412 345 678',
-            profTitle: d.profTitle || 'Physiotherapist',
-            locations: d.locations || ['NDIS', 'CEO Therapy Mobile'],
+            email: d.email || '',
+            phone: d.phone || '',
+            profTitle: d.profTitle || 'Practitioner',
+            locations: d.locations || ['Melbourne Clinic'],
             services: d.services || []
           })
         }
@@ -274,7 +274,9 @@ export default function PractitionerProfilePage() {
                     <label className="block text-slate-800 dark:text-slate-200 font-bold text-sm mb-3">Signature</label>
                     <div className="h-20 max-w-sm border-b border-slate-200 flex items-end pb-2 mb-4">
                       {/* Mock signature */}
-                      <span className="font-serif text-3xl text-slate-700 dark:text-slate-300 italic ml-4">Colin E.</span>
+                      <span className="font-serif text-3xl text-slate-700 dark:text-slate-300 italic ml-4">
+                        {form.getFieldValue('firstName') ? `${form.getFieldValue('firstName')} ${form.getFieldValue('lastName')}` : 'Dr. Signature'}
+                      </span>
                     </div>
                     <Space>
                       <Button className="rounded-lg font-semibold border-slate-300">Re-sign</Button>

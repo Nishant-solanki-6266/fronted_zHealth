@@ -303,3 +303,18 @@ export const getPractitionerDashboardStats = async () => {
   const res = await api.get('/api/practitioner/dashboard/stats')
   return res.data
 }
+
+export const getApiKeys = async () => {
+  const res = await api.get('/api/practitioner/settings/api-keys')
+  return res.data
+}
+
+export const createApiKey = async (name) => {
+  const res = await api.post('/api/practitioner/settings/api-keys', { name })
+  return res.data
+}
+
+export const deleteApiKey = async (id) => {
+  const res = await api.delete(`/api/practitioner/settings/api-keys/${id}`)
+  return res.data
+}

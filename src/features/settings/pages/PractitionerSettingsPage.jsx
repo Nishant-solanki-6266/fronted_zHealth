@@ -41,7 +41,7 @@ import PatientSettings from '../../dashboard/components/patient/PatientSettings'
 import ClinicDetailsTab from '../components/ClinicDetailsTab'
 import SubscriptionPage from './SubscriptionPage'
 import RolesPermissionsTab from '../components/RolesPermissionsTab'
-import { getBodyChartTemplates, createBodyChartTemplate, deleteBodyChartTemplate } from '../../calendar/api/clinicAdminApi'
+import { getBodyChartTemplates, createBodyChartTemplate, deleteBodyChartTemplate, getPractitionerProfile, updatePractitionerProfile, getApiKeys as getApiKeysApi, createApiKey as createApiKeyApi, deleteApiKey as deleteApiKeyApi } from '../../calendar/api/clinicAdminApi'
 import { 
   getPractitionerLoginHistory, 
   recordPractitionerLoginLog, 
@@ -177,14 +177,60 @@ export default function PractitionerSettingsPage() {
     toast.success('Provider number removed')
   }
 
-  const [apiKeys, setApiKeys] = useState([
-    { key: '1', name: 'Production App', created: '2026-01-10', lastUsed: '2026-07-03', token: 'sk_live_12345...89' },
-    { key: '2', name: 'Zapier Integration', created: '2026-03-15', lastUsed: '2026-07-01', token: 'sk_live_98765...21' },
-  ])
+  // Availability Live DB State
+  const defaultSchedule = [
+    { day: 'Monday', startTime: '09:00 AM', endTime: '05:00 PM', closed: false },
+    { day: 'Tuesday', startTime: '09:00 AM', endTime: '05:00 PM', closed: false },
+    { day: 'Wednesday', startTime: '09:00 AM', endTime: '05:00 PM', closed: false },
+    { day: 'Thursday', startTime: '09:00 AM', endTime: '05:00 PM', closed: false },
+    { day: 'Friday', startTime: '09:00 AM', endTime: '05:00 PM', closed: false },
+    { day: 'Saturday', startTime: '09:00 AM', endTime: '05:00 PM', closed: true },
+    { day: 'Sunday', startTime: '09:00 AM', endTime: '05:00 PM', closed: true }
+  ]
+  const [weeklySchedule, setWeeklySchedule] = useState(defaultSchedule)
+  const [scheduleSaving, setScheduleSaving] = useState(false)
 
-  const handleGenerateApiKey = () => {
-    setApiKeys([...apiKeys, { key: Date.now().toString(), name: 'New API Key', created: new Date().toISOString().split('T')[0], lastUsed: 'Never', token: `sk_live_${Math.floor(Math.random()*1000000000)}` }])
-    toast.success('New API Key generated successfully')
+  // API Keys Live DB State
+  const [apiKeys, setApiKeys] = useState([])
+  const [apiKeyLoading, setApiKeyLoading] = useState(false)
+
+  useEffect(() => {
+    const loadApiKeys = async () => {
+      setApiKeyLoading(true)
+      try {
+        const res = await getApiKeysApi()
+        if (res && res.success && res.data) {
+          setApiKeys(res.data.map(k => ({ ...k, key: k.id })))
+        }
+      } catch (err) {
+        console.error('Failed to load API keys from live DB:', err)
+      } finally {
+        setApiKeyLoading(false)
+      }
+    }
+    loadApiKeys()
+  }, [])
+
+  const handleGenerateApiKey = async () => {
+    try {
+      const res = await createApiKeyApi('Production Integration API Key')
+      if (res && res.success && res.data) {
+        setApiKeys(prev => [{ ...res.data, key: res.data.id }, ...prev])
+        toast.success('New API Key generated and saved to live database!')
+      }
+    } catch (err) {
+      toast.error('Failed to generate API key')
+    }
+  }
+
+  const handleDeleteApiKey = async (id) => {
+    try {
+      await deleteApiKeyApi(id)
+      setApiKeys(prev => prev.filter(k => k.id !== id && k.key !== id))
+      toast.success('API Key revoked from live database!')
+    } catch (err) {
+      toast.error('Failed to revoke API key')
+    }
   }
   // Data Import / Export State
   const [importFile, setImportFile] = useState(null)
@@ -192,6 +238,55 @@ export default function PractitionerSettingsPage() {
   const [errorModalOpen, setErrorModalOpen] = useState(false)
   const [selectedErrors, setSelectedErrors] = useState([])
   const [selectedLogFileName, setSelectedLogFileName] = useState('')
+
+  // Live DB Practitioner Profile State
+  const [profileForm] = Form.useForm()
+  const [pracProfile, setPracProfile] = useState(null)
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await getPractitionerProfile()
+        if (res && res.success && res.data) {
+          setPracProfile(res.data)
+        }
+      } catch (err) {
+        console.error('Failed to load profile details from live DB:', err)
+      }
+    }
+    fetchProfile()
+  }, [])
+
+  useEffect(() => {
+    if (pracProfile) {
+      if (profileForm) {
+        profileForm.setFieldsValue({
+          title: pracProfile.title || 'Dr',
+          firstName: pracProfile.firstName || '',
+          lastName: pracProfile.lastName || '',
+          gender: pracProfile.gender || 'Male',
+          email: pracProfile.email || '',
+          phone: pracProfile.phone || '',
+          profTitle: pracProfile.profTitle || 'Practitioner'
+        })
+      }
+      if (pracProfile.availability && Array.isArray(pracProfile.availability)) {
+        setWeeklySchedule(pracProfile.availability)
+      }
+    }
+  }, [pracProfile, profileForm])
+
+  const handleSaveSchedule = async () => {
+    setScheduleSaving(true)
+    try {
+      await updatePractitionerProfile({ availability: weeklySchedule })
+      toast.success('Availability schedule saved successfully in live database!')
+    } catch (err) {
+      toast.error('Failed to save availability schedule')
+    } finally {
+      setScheduleSaving(false)
+    }
+  }
 
   // Body Chart Templates State (live DB)
   const [bodyChartTemplates, setBodyChartTemplates] = useState([])
@@ -462,8 +557,26 @@ export default function PractitionerSettingsPage() {
       case 'profile':
         return (
           <Form 
+            form={profileForm}
+            key={pracProfile ? (pracProfile.id || pracProfile.email) : 'loading'}
+            initialValues={{
+              title: pracProfile?.title || 'Dr',
+              firstName: pracProfile?.firstName || '',
+              lastName: pracProfile?.lastName || '',
+              gender: pracProfile?.gender || 'Male',
+              email: pracProfile?.email || '',
+              phone: pracProfile?.phone || '',
+              profTitle: pracProfile?.profTitle || 'Practitioner'
+            }}
             layout="vertical" 
-            onFinish={() => toast.success('Profile settings updated successfully!')}
+            onFinish={async (values) => {
+              try {
+                await updatePractitionerProfile(values)
+                toast.success('Profile settings updated successfully in live database!')
+              } catch (err) {
+                toast.error('Failed to update profile settings')
+              }
+            }}
             className="space-y-6 max-w-4xl pb-10 animate-fade-in"
           >
             <div className="flex justify-between items-center mb-6">
@@ -488,31 +601,31 @@ export default function PractitionerSettingsPage() {
                         <div className="flex flex-col md:flex-row gap-8">
                           <div className="flex-1 space-y-4">
                             <div className="flex gap-4">
-                              <Form.Item label={<span className="font-semibold text-xs">Title</span>} className="w-24 mb-0">
-                                <Select defaultValue="Mr">
+                              <Form.Item name="title" label={<span className="font-semibold text-xs">Title</span>} className="w-24 mb-0">
+                                <Select>
                                   <Option value="Mr">Mr</Option>
                                   <Option value="Ms">Ms</Option>
                                   <Option value="Dr">Dr</Option>
                                 </Select>
                               </Form.Item>
-                              <Form.Item label={<span className="font-semibold text-xs">First name <span className="text-red-500">*</span></span>} className="flex-1 mb-0">
-                                <Input defaultValue="Colin" />
+                              <Form.Item name="firstName" label={<span className="font-semibold text-xs">First name <span className="text-red-500">*</span></span>} className="flex-1 mb-0">
+                                <Input />
                               </Form.Item>
-                              <Form.Item label={<span className="font-semibold text-xs">Last name <span className="text-red-500">*</span></span>} className="flex-1 mb-0">
-                                <Input defaultValue="Edegbe" />
+                              <Form.Item name="lastName" label={<span className="font-semibold text-xs">Last name <span className="text-red-500">*</span></span>} className="flex-1 mb-0">
+                                <Input />
                               </Form.Item>
                             </div>
                             
-                            <Form.Item label={<span className="font-semibold text-xs">Gender</span>} className="mb-0">
-                              <Select defaultValue="Male">
+                            <Form.Item name="gender" label={<span className="font-semibold text-xs">Gender</span>} className="mb-0">
+                              <Select>
                                 <Option value="Male">Male</Option>
                                 <Option value="Female">Female</Option>
                                 <Option value="Other">Other</Option>
                               </Select>
                             </Form.Item>
 
-                            <Form.Item label={<span className="font-semibold text-xs">Email <span className="text-red-500">*</span></span>} className="mb-0">
-                              <Input defaultValue="colin.edegbe@ceotherapy.com" />
+                            <Form.Item name="email" label={<span className="font-semibold text-xs">Email <span className="text-red-500">*</span></span>} className="mb-0">
+                              <Input />
                             </Form.Item>
 
                             <Form.Item label={<span className="font-semibold text-xs">Date of birth</span>} className="mb-0">
@@ -535,17 +648,17 @@ export default function PractitionerSettingsPage() {
                               </div>
                             </Form.Item>
 
-                            <Form.Item label={<span className="font-semibold text-xs">Phone numbers</span>} className="mb-0 mt-2">
+                            <Form.Item name="phone" label={<span className="font-semibold text-xs">Phone numbers</span>} className="mb-0 mt-2">
                               <div className="flex flex-col gap-2">
-                                <Input defaultValue="+61 412 345 678" />
+                                <Input />
                                 <div>
                                   <Button icon={<PlusOutlined />} className="text-xs" onClick={() => toast.success('Phone number field added')}>Add new phone number</Button>
                                 </div>
                               </div>
                             </Form.Item>
 
-                            <Form.Item label={<span className="font-semibold text-xs mt-2">Professional title (Occupational Therapist, Physiotherapist, etc.) <span className="text-red-500">*</span></span>} className="mb-0">
-                              <Input defaultValue="Physiotherapist" />
+                            <Form.Item name="profTitle" label={<span className="font-semibold text-xs mt-2">Professional title (Occupational Therapist, Physiotherapist, etc.) <span className="text-red-500">*</span></span>} className="mb-0">
+                              <Input />
                             </Form.Item>
 
                             <Form.Item label={<span className="font-semibold text-xs mt-2">Groups</span>} className="mb-0">
@@ -607,7 +720,7 @@ export default function PractitionerSettingsPage() {
                             <div>
                               <h4 className="font-semibold text-sm mb-3">Signature</h4>
                               <div className="mb-4 text-3xl text-slate-400 italic border-b border-slate-200 inline-block px-4 py-2" style={{ fontFamily: 'cursive' }}>
-                                Colin Edegbe
+                                {pracProfile?.signature || (pracProfile?.firstName ? `${pracProfile.firstName} ${pracProfile.lastName}` : 'Dr. Signature')}
                               </div>
                               <div className="flex gap-3">
                                 <Button onClick={() => toast.success('Signature pad opened')}>Re-sign</Button>
@@ -657,32 +770,65 @@ export default function PractitionerSettingsPage() {
                     children: (
                       <div className="py-6 space-y-6">
                         <div className="flex justify-between items-center mb-4">
-                          <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0">Weekly Schedule</h3>
-                          <Button type="primary" className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 border-none rounded-lg" onClick={() => toast.success('Availability updated')}>Save Schedule</Button>
+                          <div>
+                            <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0">Weekly Schedule</h3>
+                            <p className="text-xs text-slate-400 font-semibold m-0 mt-1">Configure your active working hours saved directly in live database.</p>
+                          </div>
+                          <Button 
+                            type="primary" 
+                            loading={scheduleSaving}
+                            className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 border-none rounded-lg font-bold" 
+                            onClick={handleSaveSchedule}
+                          >
+                            Save Schedule
+                          </Button>
                         </div>
                         <div className="bg-slate-50 dark:bg-slate-900/50 p-6 rounded-xl border border-slate-100 dark:border-slate-800 space-y-4">
-                          {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(day => (
-                            <div key={day} className="flex items-center gap-4">
-                              <div className="w-24 font-semibold text-slate-700 dark:text-slate-300">{day}</div>
-                              <Select defaultValue="09:00 AM" className="w-32">
+                          {weeklySchedule.map((item, idx) => (
+                            <div key={item.day} className={`flex items-center gap-4 ${item.closed ? 'opacity-50' : ''}`}>
+                              <div className="w-28 font-semibold text-slate-700 dark:text-slate-300">{item.day}</div>
+                              <Select 
+                                value={item.closed ? 'Closed' : item.startTime} 
+                                disabled={item.closed}
+                                onChange={val => {
+                                  const updated = [...weeklySchedule]
+                                  updated[idx].startTime = val
+                                  setWeeklySchedule(updated)
+                                }}
+                                className="w-32"
+                              >
+                                <Option value="08:00 AM">08:00 AM</Option>
                                 <Option value="09:00 AM">09:00 AM</Option>
                                 <Option value="10:00 AM">10:00 AM</Option>
                               </Select>
                               <span className="text-slate-400">to</span>
-                              <Select defaultValue="05:00 PM" className="w-32">
+                              <Select 
+                                value={item.closed ? 'Closed' : item.endTime} 
+                                disabled={item.closed}
+                                onChange={val => {
+                                  const updated = [...weeklySchedule]
+                                  updated[idx].endTime = val
+                                  setWeeklySchedule(updated)
+                                }}
+                                className="w-32"
+                              >
+                                <Option value="04:00 PM">04:00 PM</Option>
                                 <Option value="05:00 PM">05:00 PM</Option>
                                 <Option value="06:00 PM">06:00 PM</Option>
                               </Select>
+                              <Checkbox
+                                checked={item.closed}
+                                onChange={e => {
+                                  const updated = [...weeklySchedule]
+                                  updated[idx].closed = e.target.checked
+                                  setWeeklySchedule(updated)
+                                }}
+                                className="ml-4 font-semibold text-xs text-slate-500"
+                              >
+                                Closed
+                              </Checkbox>
                             </div>
                           ))}
-                          <div className="flex items-center gap-4 opacity-50">
-                            <div className="w-24 font-semibold text-slate-700 dark:text-slate-300">Saturday</div>
-                            <Select defaultValue="Closed" className="w-32" disabled />
-                          </div>
-                          <div className="flex items-center gap-4 opacity-50">
-                            <div className="w-24 font-semibold text-slate-700 dark:text-slate-300">Sunday</div>
-                            <Select defaultValue="Closed" className="w-32" disabled />
-                          </div>
                         </div>
                       </div>
                     ) 
@@ -1059,20 +1205,31 @@ export default function PractitionerSettingsPage() {
                     children: (
                       <div className="py-6 space-y-6">
                         <div className="flex justify-between items-center mb-4">
-                          <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0">Active API Keys</h3>
-                          <Button type="primary" icon={<PlusOutlined />} className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 border-none rounded-lg font-semibold" onClick={handleGenerateApiKey}>Generate New Key</Button>
+                          <div>
+                            <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0">Active API Keys</h3>
+                            <p className="text-xs text-slate-400 font-semibold m-0 mt-1">Manage API tokens for external integrations saved in live database.</p>
+                          </div>
+                          <Button 
+                            type="primary" 
+                            icon={<PlusOutlined />} 
+                            className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 border-none rounded-lg font-semibold" 
+                            onClick={handleGenerateApiKey}
+                          >
+                            Generate New Key
+                          </Button>
                         </div>
                         <Table 
                           dataSource={apiKeys} 
+                          loading={apiKeyLoading}
                           columns={[
-                            { title: 'Name', dataIndex: 'name', key: 'name', className: 'font-semibold' },
-                            { title: 'Token', dataIndex: 'token', key: 'token', render: (text) => <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-xs">{text}</span> },
-                            { title: 'Created', dataIndex: 'created', key: 'created' },
-                            { title: 'Last Used', dataIndex: 'lastUsed', key: 'lastUsed' },
+                            { title: 'Name', dataIndex: 'name', key: 'name', className: 'font-semibold text-xs' },
+                            { title: 'Token', dataIndex: 'token', key: 'token', render: (text) => <span className="font-mono bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-xs text-slate-700 dark:text-slate-300">{text}</span> },
+                            { title: 'Created', dataIndex: 'created', key: 'created', className: 'text-xs text-slate-500 font-semibold' },
+                            { title: 'Last Used', dataIndex: 'lastUsed', key: 'lastUsed', className: 'text-xs text-slate-500 font-semibold' },
                             { 
                               title: 'Action', 
                               key: 'action', 
-                              render: (_, record) => <Button danger type="text" icon={<DeleteOutlined />} onClick={() => { setApiKeys(apiKeys.filter(k => k.key !== record.key)); toast.success('API Key revoked'); }} />
+                              render: (_, record) => <Button danger type="text" icon={<DeleteOutlined />} onClick={() => handleDeleteApiKey(record.id || record.key)} />
                             }
                           ]}
                           pagination={false}
