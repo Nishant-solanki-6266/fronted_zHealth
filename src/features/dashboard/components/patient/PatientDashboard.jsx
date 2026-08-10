@@ -123,9 +123,9 @@ export default function PatientDashboard({ store, navigate }) {
   const nextApptTime = nextAppt ? `${nextAppt.date || ''} ${nextAppt.startTime || ''}`.trim() : 'No upcoming appointment'
 
   const primaryDocObj = dashboardData.careTeam[0]
-  const primaryDoctor = nextAppt?.practitionerName || primaryDocObj?.name || 'No assigned practitioner'
-  const primaryDoctorSpecialty = primaryDocObj?.specialty || 'Specialist'
-  const primaryClinic = nextAppt?.branchName || primaryDocObj?.clinic || 'Melbourne Allied Health'
+  const primaryDoctor = nextAppt?.practitionerName || primaryDocObj?.name || 'Not Assigned'
+  const primaryDoctorSpecialty = primaryDocObj?.specialty || (nextAppt ? 'Practitioner' : 'Pending')
+  const primaryClinic = nextAppt?.branchName || primaryDocObj?.clinic || 'Not Assigned'
 
   const activePlans = dashboardData.treatmentPlans.filter(p => (p.status || 'Active').toLowerCase() === 'active')
   const activePlanAdherence = activePlans[0]?.overallProgress !== undefined ? activePlans[0].overallProgress : 0

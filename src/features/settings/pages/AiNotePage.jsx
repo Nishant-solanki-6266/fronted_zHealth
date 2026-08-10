@@ -11,6 +11,7 @@ import {
 import { toast } from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 import { useClinicStore } from '../../../store/clinicStore'
+import api from '../../../api/axios'
 
 export default function AiNotePage() {
   const navigate = useNavigate()
@@ -19,7 +20,9 @@ export default function AiNotePage() {
   const [inputValue, setInputValue] = useState('')
   const [recentPrompts, setRecentPrompts] = useState([])
 
-  const handleSend = () => {
+  const [isLoading, setIsLoading] = useState(false)
+
+  const handleSend = async () => {
     if (!inputValue.trim()) return
     const newMsg = {
       id: String(Date.now()),
@@ -29,16 +32,29 @@ export default function AiNotePage() {
     setMessages(prev => [...prev, newMsg])
     setRecentPrompts(prev => [inputValue, ...prev])
     setInputValue('')
+    setIsLoading(true)
 
-    // Simulate AI typing response
-    setTimeout(() => {
-      const aiMsg = {
-        id: String(Date.now() + 1),
-        sender: 'ai',
-        text: `I've analyzed your prompt regarding: "${newMsg.text}". Let me help you generate the appropriate treatment plan.`
+    try {
+      const { data } = await api.post('/api/ai/chat', { 
+        prompt: newMsg.text,
+        history: messages 
+      })
+      if (data.success) {
+        const aiMsg = {
+          id: String(Date.now() + 1),
+          sender: 'ai',
+          text: data.data.reply
+        }
+        setMessages(prev => [...prev, aiMsg])
+      } else {
+        toast.error(data.message || 'Failed to get AI response')
       }
-      setMessages(prev => [...prev, aiMsg])
-    }, 1200)
+    } catch (error) {
+      console.error(error)
+      toast.error(error.response?.data?.message || 'Error communicating with AI server')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleClear = () => {
@@ -121,6 +137,18 @@ export default function AiNotePage() {
                     </div>
                   </div>
                 ))}
+                {isLoading && (
+                  <div className="flex gap-3 max-w-[80%] mr-auto animate-pulse">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs flex-shrink-0 font-bold bg-violet-100 text-violet-600">
+                      <RobotOutlined />
+                    </div>
+                    <div className="p-4 rounded-2xl text-xs font-semibold leading-relaxed bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-350 rounded-tl-none border border-slate-100 dark:border-slate-805 flex gap-1">
+                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                      <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

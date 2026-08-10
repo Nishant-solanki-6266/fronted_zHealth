@@ -682,7 +682,7 @@ export default function SuperAdminCalendarPage() {
   const [searchVal, setSearchVal] = useState('')
   const [selectedAppt, setSelectedAppt] = useState(null)
   const [detailsVisible, setDetailsVisible] = useState(false)
-  const [visibleDaysSelected, setVisibleDaysSelected] = useState(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'])
+  const [visibleDaysSelected, setVisibleDaysSelected] = useState(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
   
   // Custom work hours (Default: 9:00am - 5:00pm)
   const [workStartHour, setWorkStartHour] = useState(9)
@@ -749,7 +749,7 @@ export default function SuperAdminCalendarPage() {
       days = Array.from({ length: 7 }, (_, i) => start.add(i, 'day'))
     }
 
-    if (viewMode === '1 Day') return days
+    if (viewMode === '1 Day' || viewMode === '7 Days' || viewMode === '14 Days' || viewMode === '30 Days') return days
     return days.filter(d => visibleDaysSelected.includes(d.format('dddd')))
   }, [weekStart, viewMode, visibleDaysSelected])
 

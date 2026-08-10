@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Badge, Tooltip, Modal, Form, Input, Select, Space, Upload, Button, Divider, DatePicker, TimePicker, Slider, Checkbox } from 'antd'
 import {
@@ -49,6 +49,7 @@ import { toast } from 'react-hot-toast'
 import logoImg from '../assets/logo2.png'
 import { useClinicStore } from '../store/clinicStore'
 import { createDocument as createDocumentApi } from '../features/calendar/api/clinicAdminApi'
+import api from '../api/axios'
 
 
 import { Brain } from 'lucide-react'
@@ -299,7 +300,30 @@ export default function DashboardLayout({ children }) {
   const toggleDarkMode = store.toggleDarkMode
   const navItems = getNavItems(userRole)
 
-  const rolePrefix = userRole === 'head_admin' ? 'head-admin' : userRole === 'clinic' ? 'clinic-admin' : userRole;
+  const rolePrefix = (userRole === 'head_admin' || userRole === 'super_admin' || userRole === 'super-admin')
+    ? 'head-admin'
+    : userRole === 'clinic'
+      ? 'clinic-admin'
+      : userRole;
+
+  const [notificationsList, setNotificationsList] = useState([])
+
+  const fetchNotifications = async () => {
+    try {
+      const { data } = await api.get('/api/notifications')
+      if (data && data.success && Array.isArray(data.data)) {
+        setNotificationsList(data.data)
+      }
+    } catch (error) {
+      // Suppress unhandled logging if route is offline
+    }
+  }
+
+  useEffect(() => {
+    fetchNotifications()
+    const interval = setInterval(fetchNotifications, 30000)
+    return () => clearInterval(interval)
+  }, [userRole])
 
   const getHeaderTitle = () => {
     const path = location.pathname
@@ -1269,7 +1293,7 @@ export default function DashboardLayout({ children }) {
               <Tooltip title="Notifications">
                 <button
                   className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
-                  onClick={() => setNotificationDropdownOpen(!notificationDropdownOpen)}
+                  onClick={() => navigate(`/${rolePrefix}/notifications`)}
                   style={{
                     backgroundColor: 'transparent',
                     border: 'none',
@@ -1278,59 +1302,11 @@ export default function DashboardLayout({ children }) {
                   onMouseEnter={e => e.currentTarget.style.backgroundColor = darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'}
                   onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
                 >
-                  <Badge count={4} size="small" offset={[2, -2]}>
+                  <Badge count={notificationsList.filter(n => !n.isRead).length} size="small" offset={[2, -2]}>
                     <BellOutlined style={{ fontSize: 16, color: darkMode ? '#94A3B8' : '#475569' }} />
                   </Badge>
                 </button>
               </Tooltip>
-
-              {notificationDropdownOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40 bg-transparent"
-                    onClick={() => setNotificationDropdownOpen(false)}
-                  />
-
-                  <div
-                    className="absolute right-0 mt-2 w-80 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-lg py-2 z-50 animate-fade-in"
-                    style={{
-                      boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1)',
-                    }}
-                  >
-                    <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                      <span className="text-sm font-bold text-slate-800 dark:text-white">Notifications</span>
-                      <button
-                        onClick={() => {
-                          setNotificationDropdownOpen(false)
-                          navigate(`/${rolePrefix}/notifications`)
-                        }}
-                        className="text-xs font-bold text-[#8C4BFF] hover:text-[#7B3DE8] bg-transparent border-none cursor-pointer p-0"
-                      >
-                        See All
-                      </button>
-                    </div>
-                    <div className="max-h-[320px] overflow-y-auto no-scrollbar py-1">
-                      {[
-                        { id: 1, title: 'New Report Assigned', desc: 'You have a new report to review for John Miller.', time: '10m ago', unread: true },
-                        { id: 2, title: 'Meeting Reminder', desc: 'Consultation with Alice Smith in 15 mins.', time: '15m ago', unread: true },
-                        { id: 3, title: 'System Update', desc: 'ZealthOS will be updated tonight at 2 AM.', time: '1h ago', unread: false },
-                        { id: 4, title: 'Message from Admin', desc: 'Please check your timesheet for this week.', time: '2h ago', unread: false },
-                        { id: 5, title: 'Payment Received', desc: 'Payment of $150 from James Davis processed.', time: '1d ago', unread: false },
-                        { id: 6, title: 'Task Completed', desc: 'Notes review for previous session approved.', time: '1d ago', unread: false },
-                        { id: 7, title: 'Welcome', desc: 'Welcome to ZealthOS Practitioner Dashboard!', time: '2d ago', unread: false },
-                      ].map(notif => (
-                        <div key={notif.id} className={`px-4 py-3 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer ${notif.unread ? 'bg-[#8C4BFF]/5 dark:bg-[#8C4BFF]/10' : ''}`}>
-                          <div className="flex justify-between items-start mb-1">
-                            <span className={`text-xs font-bold ${notif.unread ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`}>{notif.title}</span>
-                            <span className="text-[10px] text-slate-400 font-semibold">{notif.time}</span>
-                          </div>
-                          <p className="text-[11px] text-slate-500 dark:text-slate-400 m-0 leading-tight">{notif.desc}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
             </div>
 
 

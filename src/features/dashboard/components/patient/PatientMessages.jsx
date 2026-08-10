@@ -88,7 +88,20 @@ export default function PatientMessages() {
     setUploadedFiles([])
     toast.success('Message sent securely!')
 
-    // Note: The simulated response was removed because we now rely on real DB data.
+    // Auto-reply simulation for demo purposes
+    setTimeout(() => {
+      const autoReply = {
+        id: Date.now().toString() + '_reply',
+        sender: 'doctor',
+        text: newMsg.text,
+        timestamp: 'Just now',
+        category: messageCategory
+      }
+      setChatHistories(prev => ({
+        ...prev,
+        [activeContact]: [...prev[activeContact], autoReply]
+      }))
+    }, 1500)
   }
 
   const selectedContactObj = contacts.find(c => c.id === activeContact)
