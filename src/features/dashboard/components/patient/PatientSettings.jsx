@@ -162,70 +162,32 @@ export default function PatientSettings() {
     fetchTrustedDevices()
   }, [])
 
-  const fallbackProfilesData = {
-    john: {
-      fullName: profileData?.fullName || 'John Miller',
-      phone: profileData?.phone || '+61 411 992 812',
-      email: profileData?.email || 'john.miller@example.com',
-      address: profileData?.address || '124 Collins St, Melbourne VIC 3000',
-      emergencyName: profileData?.emergencyContactName || 'Mary Miller',
-      emergencyRelation: profileData?.emergencyRelation || 'Spouse',
-      emergencyPhone: profileData?.emergencyContactPhone || '+61 412 110 992',
-      gpName: profileData?.gpName || 'Dr. Arthur Pendelton',
-      gpClinic: profileData?.gpClinic || 'Collins Street Medical Group',
-      gpPhone: profileData?.gpPhone || '+61 3 9821 4410',
-      medicareNum: profileData?.medicareNumber || '3901 88124 1',
-      medicareRef: profileData?.medicareRef || '2',
-      medicareExpiry: profileData?.medicareExpiry || '11/2028',
-      phiProvider: profileData?.privateHealthFund || 'Medibank Private',
-      phiMemberNum: profileData?.phiMemberNum || 'MBI-98214112'
-    },
-    lily: {
-      fullName: 'Lily Miller',
-      phone: '+61 411 992 812',
-      email: 'lily.miller@example.com',
-      address: '124 Collins St, Melbourne VIC 3000',
-      emergencyName: 'John Miller',
-      emergencyRelation: 'Father',
-      emergencyPhone: '+61 411 992 812',
-      gpName: 'Dr. Sarah Jenkins',
-      gpClinic: 'Kids Health Clinic',
-      gpPhone: '+61 3 9111 2222',
-      medicareNum: '3901 88124 1',
-      medicareRef: '3',
-      medicareExpiry: '11/2028',
-      phiProvider: 'Medibank Private',
-      phiMemberNum: 'MBI-98214112-L'
-    }
-  }
-
-  const currentProfile = fallbackProfilesData[activeProfileId]
-
+  // Use real profileData from DB directly — no more hardcoded fallback names
   useEffect(() => {
-    if (currentProfile) {
+    if (profileData) {
       profileForm.setFieldsValue({
-        fullName: currentProfile.fullName,
-        phone: currentProfile.phone,
-        email: currentProfile.email,
-        address: currentProfile.address,
-        emergencyName: currentProfile.emergencyName,
-        emergencyRelation: currentProfile.emergencyRelation,
-        emergencyPhone: currentProfile.emergencyPhone,
+        fullName: profileData.fullName || '',
+        phone: profileData.phone || '',
+        email: profileData.email || '',
+        address: profileData.address || '',
+        emergencyName: profileData.emergencyContactName || '',
+        emergencyRelation: profileData.emergencyRelation || '',
+        emergencyPhone: profileData.emergencyContactPhone || '',
       })
       gpForm.setFieldsValue({
-        gpName: currentProfile.gpName,
-        gpClinic: currentProfile.gpClinic,
-        gpPhone: currentProfile.gpPhone,
+        gpName: profileData.gpName || '',
+        gpClinic: profileData.gpClinic || '',
+        gpPhone: profileData.gpPhone || '',
       })
       insuranceForm.setFieldsValue({
-        medicareNum: currentProfile.medicareNum,
-        medicareRef: currentProfile.medicareRef,
-        medicareExpiry: currentProfile.medicareExpiry,
-        phiProvider: currentProfile.phiProvider,
-        phiMemberNum: currentProfile.phiMemberNum,
+        medicareNum: profileData.medicareNumber || '',
+        medicareRef: profileData.medicareRef || '',
+        medicareExpiry: profileData.medicareExpiry || '',
+        phiProvider: profileData.privateHealthFund || '',
+        phiMemberNum: profileData.phiMemberNum || '',
       })
     }
-  }, [currentProfile, profileData, activeProfileId, profileForm, gpForm, insuranceForm])
+  }, [profileData, profileForm, gpForm, insuranceForm])
 
   const handleSaveProfile = async () => {
     try {
