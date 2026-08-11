@@ -112,8 +112,8 @@ export default function PractitionerDashboard({ store, navigate }) {
   const todayStr = new Date().toISOString().split('T')[0]
   const todayAppts = store.appointments && store.appointments.length > 0
     ? (store.appointments.filter(a => a.date === todayStr).length > 0
-        ? store.appointments.filter(a => a.date === todayStr)
-        : store.appointments.slice(0, 5))
+      ? store.appointments.filter(a => a.date === todayStr)
+      : store.appointments.slice(0, 5))
     : []
 
   // Tasks due
@@ -143,7 +143,7 @@ export default function PractitionerDashboard({ store, navigate }) {
               <span className="text-[10px] uppercase font-black text-[#30D2BE] tracking-widest block">{activeSpecialty} Portal</span>
               <h3 className="text-sm font-extrabold text-white m-0">Dr. Sarah Jenkins</h3>
             </div>
-            <Button 
+            <Button
               size="small"
               onClick={() => setMobileMode(false)}
               className="bg-slate-800 text-slate-300 border-none font-bold text-[10px] rounded-lg"
@@ -156,17 +156,16 @@ export default function PractitionerDashboard({ store, navigate }) {
           <div>
             <h4 className="text-xs font-bold text-slate-400 mb-3 uppercase tracking-wider">Mobile Quick Actions</h4>
             <div className="grid grid-cols-2 gap-3">
-              <button 
+              <button
                 onClick={handleStartDictation}
-                className={`flex flex-col items-center justify-center p-4 rounded-2xl border-none cursor-pointer transition-all ${
-                  isDictating ? 'bg-red-550 text-white animate-pulse' : 'bg-slate-900 hover:bg-slate-850 text-white'
-                }`}
+                className={`flex flex-col items-center justify-center p-4 rounded-2xl border-none cursor-pointer transition-all ${isDictating ? 'bg-red-550 text-white animate-pulse' : 'bg-slate-900 hover:bg-slate-850 text-white'
+                  }`}
               >
                 <AudioOutlined style={{ fontSize: 22, color: isDictating ? 'white' : '#30D2BE' }} />
                 <span className="text-[10px] font-bold mt-2">{isDictating ? 'Stop Dictating' : 'Start Dictation'}</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => navigate('/practitioner/calendar')}
                 className="flex flex-col items-center justify-center p-4 bg-slate-900 hover:bg-slate-850 text-white rounded-2xl border-none cursor-pointer"
               >
@@ -174,7 +173,7 @@ export default function PractitionerDashboard({ store, navigate }) {
                 <span className="text-[10px] font-bold mt-2">View Calendar</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => navigate('/practitioner/patients')}
                 className="flex flex-col items-center justify-center p-4 bg-slate-900 hover:bg-slate-850 text-white rounded-2xl border-none cursor-pointer"
               >
@@ -182,7 +181,7 @@ export default function PractitionerDashboard({ store, navigate }) {
                 <span className="text-[10px] font-bold mt-2">Open Patients</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => navigate('/practitioner/consultations')}
                 className="flex flex-col items-center justify-center p-4 bg-slate-900 hover:bg-slate-850 text-white rounded-2xl border-none cursor-pointer"
               >
@@ -190,7 +189,7 @@ export default function PractitionerDashboard({ store, navigate }) {
                 <span className="text-[10px] font-bold mt-2">Create Notes</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => navigate('/practitioner/notes-reports?tab=reports')}
                 className="flex flex-col items-center justify-center p-4 bg-slate-900 hover:bg-slate-850 text-white rounded-2xl border-none cursor-pointer"
               >
@@ -237,7 +236,7 @@ export default function PractitionerDashboard({ store, navigate }) {
       <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-850 p-6 rounded-2xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-[#8C4BFF]/10 text-[#8C4BFF] mb-2 tracking-wider">
-             Treating Clinician Workspace
+            Treating Clinician Workspace
           </span>
           <h1 className="text-2xl font-black text-slate-800 dark:text-white m-0">
             Practitioner Control Board
@@ -260,10 +259,10 @@ export default function PractitionerDashboard({ store, navigate }) {
           {customiseOpen && (
             <div className="absolute right-0 top-full mt-2 bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 z-50 w-[280px] p-5 shadow-xl space-y-4">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Workspace Settings</span>
-              
+
               <div className="flex flex-col">
                 <span className="text-[10px] font-bold text-slate-500 uppercase mb-1.5">Simulate Specialty</span>
-                <Select 
+                <Select
                   value={activeSpecialty}
                   onChange={handleProfessionChange}
                   className="w-full font-bold text-xs"
@@ -284,7 +283,7 @@ export default function PractitionerDashboard({ store, navigate }) {
 
               <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg">
                 <span className="text-[10px] font-bold text-slate-500 uppercase">Mobile View</span>
-                <Switch 
+                <Switch
                   checked={mobileMode}
                   onChange={setMobileMode}
                   size="small"
@@ -301,33 +300,33 @@ export default function PractitionerDashboard({ store, navigate }) {
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {[
-          { 
-            label: "Today's Consultations", 
-            value: statsLoading ? '—' : `${dbStats?.todayAppointments ?? 0} Sessions`, 
-            icon: <CalendarOutlined />, 
-            color: '#30D2BE', 
-            desc: statsLoading ? 'Loading DB...' : `${dbStats?.todayCompleted ?? 0} completed, ${dbStats?.todayCancelled ?? 0} cancelled` 
+          {
+            label: "Today's Consultations",
+            value: statsLoading ? '—' : `${dbStats?.todayAppointments ?? 0} Sessions`,
+            icon: <CalendarOutlined />,
+            color: '#30D2BE',
+            desc: statsLoading ? 'Loading DB...' : `${dbStats?.todayCompleted ?? 0} completed, ${dbStats?.todayCancelled ?? 0} cancelled`
           },
-          { 
-            label: 'Uncompleted Notes Review', 
-            value: statsLoading ? '—' : `${dbStats?.pendingNotes ?? 0} Pending`, 
-            icon: <FileTextOutlined />, 
-            color: '#8C4BFF', 
-            desc: 'Requires validation / completion' 
+          {
+            label: 'Uncompleted Notes Review',
+            value: statsLoading ? '—' : `${dbStats?.pendingNotes ?? 0} Pending`,
+            icon: <FileTextOutlined />,
+            color: '#8C4BFF',
+            desc: 'Requires validation / completion'
           },
-          { 
-            label: 'Clinical Utilization Rate', 
-            value: statsLoading ? '—' : `${dbStats?.utilisation ?? 0}%`, 
-            icon: <CheckCircleOutlined />, 
-            color: '#10B981', 
-            desc: statsLoading ? 'Loading DB...' : `${dbStats?.monthUtilisation ?? 0}% monthly average` 
+          {
+            label: 'Clinical Utilization Rate',
+            value: statsLoading ? '—' : `${dbStats?.utilisation ?? 0}%`,
+            icon: <CheckCircleOutlined />,
+            color: '#10B981',
+            desc: statsLoading ? 'Loading DB...' : `${dbStats?.monthUtilisation ?? 0}% monthly average`
           }
         ].map((kpi, idx) => (
           <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-850 rounded-2xl p-5 shadow-sm">
             <div className="flex justify-between items-start">
               <span className="text-slate-400 dark:text-slate-500 text-[10px] uppercase font-black tracking-wider">{kpi.label}</span>
-              <div 
-                className="w-8 h-8 rounded-full flex items-center justify-center text-xs" 
+              <div
+                className="w-8 h-8 rounded-full flex items-center justify-center text-xs"
                 style={{ backgroundColor: kpi.color + '18', color: kpi.color }}
               >
                 {kpi.icon}
@@ -343,9 +342,9 @@ export default function PractitionerDashboard({ store, navigate }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Today's Appointments & Tasks */}
         <div className="lg:col-span-2 space-y-6">
-          
+
           {/* Today's Appointments Calendar Panel */}
-          <Card 
+          <Card
             className="border border-slate-150 dark:border-slate-850 dark:bg-slate-900 rounded-2xl shadow-sm overflow-hidden"
             title={
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
@@ -364,8 +363,8 @@ export default function PractitionerDashboard({ store, navigate }) {
                   const sessionsLeft = appt.patientId === 'p1' ? 6 : appt.patientId === 'p3' ? 1 : 8
                   const isLowFunding = sessionsLeft <= 2
                   return (
-                    <div 
-                      key={appt.id} 
+                    <div
+                      key={appt.id}
                       className="p-4 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-150 dark:border-slate-850 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-[#8C4BFF]/30 transition-all"
                     >
                       <div className="flex items-start gap-3">
@@ -388,14 +387,14 @@ export default function PractitionerDashboard({ store, navigate }) {
 
                       {/* Quick Actions */}
                       <div className="flex items-center gap-2 select-none">
-                        <Button 
+                        <Button
                           size="small"
                           onClick={() => navigate(`/practitioner/patients/${appt.patientId}`)}
                           className="rounded-xl font-bold text-[10px] bg-white dark:bg-slate-900 border-slate-200"
                         >
                           Open Patient
                         </Button>
-                        <Button 
+                        <Button
                           size="small"
                           type="primary"
                           onClick={() => navigate(`/practitioner/consultations?patientId=${appt.patientId}`)}
@@ -413,14 +412,14 @@ export default function PractitionerDashboard({ store, navigate }) {
           </Card>
 
           {/* Clinical Tasks Dashboard Checklist */}
-          <Card 
+          <Card
             className="border border-slate-150 dark:border-slate-850 dark:bg-slate-900 rounded-2xl shadow-sm"
             title={
               <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-2">
                 <span className="font-extrabold text-sm text-slate-700 dark:text-white flex items-center gap-2 whitespace-normal leading-tight">
                   <CheckCircleOutlined style={{ color: '#10B981' }} /> Clinical Checklist Tasks
                 </span>
-                <button 
+                <button
                   onClick={() => navigate('/practitioner/tasks')}
                   className="text-xs text-[#8C4BFF] font-bold border-none bg-transparent cursor-pointer hover:underline text-left sm:text-right"
                 >
@@ -433,13 +432,13 @@ export default function PractitionerDashboard({ store, navigate }) {
               {pendingTasks.slice(0, 4).map(task => (
                 <div key={task.id} className="p-3.5 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-150 dark:border-slate-850 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
                   <div className="flex items-start sm:items-center gap-3">
-                    <span 
-                      className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 sm:mt-0" 
-                      style={{ 
-                        backgroundColor: task.type === 'Report Due' ? '#F97316' : 
-                                         task.type === 'Funding Review Due' ? '#EF4444' : 
-                                         task.type === 'Referral Required' ? '#8C4BFF' : '#30D2BE'
-                      }} 
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0 mt-1 sm:mt-0"
+                      style={{
+                        backgroundColor: task.type === 'Report Due' ? '#F97316' :
+                          task.type === 'Funding Review Due' ? '#EF4444' :
+                            task.type === 'Referral Required' ? '#8C4BFF' : '#30D2BE'
+                      }}
                     />
                     <div>
                       <span className="font-bold text-slate-800 dark:text-slate-250 block whitespace-normal leading-tight">{task.title}</span>
@@ -473,11 +472,10 @@ export default function PractitionerDashboard({ store, navigate }) {
                       return (
                         <div
                           key={msg.id}
-                          className={`p-3.5 rounded-2xl border transition-all ${
-                            isAdmin
+                          className={`p-3.5 rounded-2xl border transition-all ${isAdmin
                               ? 'bg-slate-100/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700'
                               : 'bg-[#8C4BFF]/10 dark:bg-[#8C4BFF]/20 border-[#8C4BFF]/20'
-                          }`}
+                            }`}
                         >
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-1.5 gap-2">
                             <div className="flex flex-wrap items-center gap-2">
@@ -561,7 +559,7 @@ export default function PractitionerDashboard({ store, navigate }) {
         {/* Right Column: Uncompleted Notes Review & AI Dictation Assistant */}
         <div className="space-y-6">
           {/* Uncompleted Notes Review Queue */}
-          <Card 
+          <Card
             className="border border-slate-150 dark:border-slate-850 dark:bg-slate-900 rounded-2xl shadow-sm"
             styles={{ body: { padding: '16px' } }}
           >
@@ -573,15 +571,15 @@ export default function PractitionerDashboard({ store, navigate }) {
                 View All &rarr;
               </a>
             </div>
-            
+
             <div className="space-y-3">
               {(dbStats?.uncompletedNotes && dbStats.uncompletedNotes.length > 0
                 ? dbStats.uncompletedNotes
                 : [
-                    { id: '1', patientName: 'John Miller Notes', date: 'Yesterday' },
-                    { id: '2', patientName: 'Alice Smith Intake', date: 'Yesterday' },
-                    { id: '3', patientName: 'James Davis Review', date: 'Today' }
-                  ]
+                  { id: '1', patientName: 'John Miller Notes', date: 'Yesterday' },
+                  { id: '2', patientName: 'Alice Smith Intake', date: 'Yesterday' },
+                  { id: '3', patientName: 'James Davis Review', date: 'Today' }
+                ]
               ).map(item => (
                 <div key={item.id} className="p-4 bg-slate-50/50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-2xl flex justify-between items-center shadow-sm">
                   <div>
@@ -592,8 +590,8 @@ export default function PractitionerDashboard({ store, navigate }) {
                       {item.date || 'Draft'}
                     </span>
                   </div>
-                  
-                  <Button 
+
+                  <Button
                     size="small"
                     type="primary"
                     style={{ backgroundColor: '#0f172a', borderColor: '#0f172a' }}
@@ -618,7 +616,7 @@ export default function PractitionerDashboard({ store, navigate }) {
           </Card>
 
           {/* Reports Due Grid */}
-          <Card 
+          <Card
             className="border border-slate-150 dark:border-slate-850 dark:bg-slate-900 rounded-2xl shadow-sm"
           >
             <div className="space-y-3">
@@ -634,7 +632,7 @@ export default function PractitionerDashboard({ store, navigate }) {
                   </div>
                   <div className="text-right">
                     <span className="text-[10px] text-slate-400 block font-semibold">{rep.date || 'Pending'}</span>
-                    <button 
+                    <button
                       onClick={() => navigate(`/practitioner/notes-reports?generate=${rep.type || 'Report'}&patient=${rep.patientName || rep.patient}`)}
                       className="text-[9px] text-[#8C4BFF] border-none bg-transparent cursor-pointer font-bold mt-1 block"
                     >

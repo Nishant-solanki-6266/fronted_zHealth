@@ -144,7 +144,7 @@ export default function PractitionerConsultation() {
     const list = store.appointments
       .filter(a => a.patientId === patientId)
       .map(a => `${formatDateString(a.date)} - ${a.time} (${a.appointmentType || 'Follow-up'})`)
-    
+
     if (list.length === 0) {
       const todayStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
       return [`${todayStr} - 10:00 AM (Follow-up)`]
@@ -162,7 +162,7 @@ export default function PractitionerConsultation() {
     const selectedText = text.substring(start, end)
     const replacement = beforeVal + selectedText + afterVal
     setNoteText(text.substring(0, start) + replacement + text.substring(end))
-    
+
     setTimeout(() => {
       textarea.focus()
       textarea.setSelectionRange(start + beforeVal.length, start + beforeVal.length + selectedText.length)
@@ -210,20 +210,20 @@ export default function PractitionerConsultation() {
         const parsed = JSON.parse(uStr)
         if (parsed && (parsed.name || parsed.email)) return parsed
       }
-    } catch (e) {}
+    } catch (e) { }
     return store.user || null
   }
 
   const loggedInUser = getLoggedInUser()
   const selectedApptObj = getSelectedAppointmentObj()
 
-  const activeDoctorName = selectedApptObj?.practitionerName 
-    || loggedInUser?.name 
-    || store.user?.name 
+  const activeDoctorName = selectedApptObj?.practitionerName
+    || loggedInUser?.name
+    || store.user?.name
     || (store.userRole === 'clinic' ? 'Clinic Manager' : 'Dr. Treating Clinician')
 
-  const activeDoctorId = loggedInUser?.displayId 
-    || loggedInUser?.practitionerId 
+  const activeDoctorId = loggedInUser?.displayId
+    || loggedInUser?.practitionerId
     || (loggedInUser?.id ? `D-${String(loggedInUser.id).slice(-4).toUpperCase()}` : (store.userRole === 'clinic' ? 'A0912' : 'D-1001'))
 
   useEffect(() => {
@@ -295,18 +295,18 @@ export default function PractitionerConsultation() {
     const params = new URLSearchParams(location.search)
     const pId = params.get('patientId')
     const apptId = params.get('appointmentId')
-    
+
     if (pId) {
       setSelectedPatientId(pId)
     }
-    
+
     if (apptId) {
       const apptObj = store.appointments.find(a => a.id === apptId)
       if (apptObj) {
         const matchStr = `${formatDateString(apptObj.date)} - ${apptObj.time} (${apptObj.appointmentType || 'Follow-up'})`
         setSelectedAppointment(matchStr)
       }
-      
+
       const existingNoteObj = store.consultations.find(c => c.appointmentId === apptId)
       if (existingNoteObj) {
         setNoteText(existingNoteObj.notes || '')
@@ -399,8 +399,8 @@ export default function PractitionerConsultation() {
         <p className="text-slate-500 font-semibold text-sm max-w-md">
           Consultation dictation is now located inside the Client Profile tab for a better workflow.
         </p>
-        <Button 
-          type="primary" 
+        <Button
+          type="primary"
           onClick={() => navigate('/practitioner/patients')}
           className="mt-4 rounded-xl font-bold h-10 px-6 text-white border-none"
           style={{ backgroundColor: '#8C4BFF' }}
@@ -593,7 +593,7 @@ export default function PractitionerConsultation() {
     const item = store.services.find(s => s.name === values.serviceName) || store.services[0]
     const price = item ? item.price : 120
     const claim = values.fundingType || 'Private'
-    
+
     // Add invoice to store
     const newInv = {
       id: `INV-${Date.now().toString().slice(-4)}`,
@@ -607,7 +607,7 @@ export default function PractitionerConsultation() {
     }
     // Append to invoices array in store
     store.invoices = [newInv, ...store.invoices]
-    
+
     toast.success(`Invoice ${newInv.id} issued under ${claim} funding!`)
     invoiceForm.resetFields()
   }
@@ -782,7 +782,7 @@ export default function PractitionerConsultation() {
           {/* Patient Switcher Dropdown */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-400 font-bold uppercase tracking-wider">Treating Patient:</span>
-            <Select 
+            <Select
               value={selectedPatientId}
               onChange={setSelectedPatientId}
               style={{ width: 200, height: 38 }}
@@ -796,7 +796,7 @@ export default function PractitionerConsultation() {
         </div>
 
         {patient.alerts && (
-          <Alert 
+          <Alert
             message={<span className="font-extrabold text-red-550 text-xs">Patient Safety Alert:</span>}
             description={<span className="text-slate-500 font-semibold text-xs">{patient.alerts}</span>}
             type="error"
@@ -808,417 +808,408 @@ export default function PractitionerConsultation() {
       </div>
 
       <Card className="border border-slate-150 dark:border-slate-850 dark:bg-slate-900 rounded-2xl shadow-sm overflow-hidden select-none">
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 p-2">
-              <div className="xl:col-span-3 space-y-6">
+        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 p-2">
+          <div className="xl:col-span-3 space-y-6">
 
-                {/* Patient Selector List */}
-                  {/* Patient Search */}
-                  <div>
-                    <span className={`text-[10px] uppercase font-extrabold tracking-wider block mb-1.5 ${
-                      darkMode ? 'text-slate-400' : 'text-slate-500'
-                    }`}>Patient Search</span>
-                    <div className="relative">
-                      <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
-                      <input 
-                        type="text" 
-                        placeholder="Search for patients..." 
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-8 pr-3 py-2 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8C4BFF]/50 transition-all"
-                        style={{ 
-                          backgroundColor: darkMode ? '#1e293b' : '#ffffff', 
-                          border: darkMode ? '1px solid #334155' : '1px solid #cbd5e1', 
-                          color: darkMode ? '#ffffff' : '#1e293b'
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Patient Selector List */}
-                  <div>
-                    <span className={`text-[10px] uppercase font-extrabold tracking-wider block mb-1.5 ${
-                      darkMode ? 'text-slate-400' : 'text-slate-500'
-                    }`}>Patient Selector</span>
-                    <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
-                      {store.patients
-                        .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
-                        .map(p => {
-                          const isSelected = p.id === selectedPatientId
-                          return (
-                            <div 
-                              key={p.id}
-                              onClick={() => setSelectedPatientId(p.id)}
-                              className={`p-2 rounded-xl flex items-center gap-2 cursor-pointer transition-all ${
-                                isSelected 
-                                  ? 'bg-[#8C4BFF] shadow text-white font-bold' 
-                                  : darkMode 
-                                    ? 'bg-slate-800 hover:bg-slate-750 text-slate-350' 
-                                    : 'bg-white hover:bg-slate-100 border border-slate-200/60 text-slate-700 shadow-sm'
-                              }`}
-                            >
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 ${
-                                isSelected ? 'bg-white text-[#8C4BFF]' : 'bg-[#8C4BFF] text-white'
-                              }`}>
-                                {p.name.charAt(0)}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <span className="text-xs block truncate leading-none font-bold" style={{ color: isSelected ? '#ffffff' : darkMode ? '#ffffff' : '#1e293b' }}>{p.name}</span>
-                                <span className="text-[9px] block mt-1.5 leading-none" style={{ color: isSelected ? '#f3e8ff' : darkMode ? '#cbd5e1' : '#64748b' }}>DOB: {formatDateString(p.dob)}</span>
-                                <span className="text-[9px] block mt-1 leading-none" style={{ color: isSelected ? '#f3e8ff' : darkMode ? '#cbd5e1' : '#64748b' }}>ID: {getPatientDisplayId(p.id)}</span>
-                              </div>
-                            </div>
-                          )
-                        })
-                      }
-                    </div>
-                  </div>
-
-                  {/* Appointment Selector */}
-                  <div>
-                    <span className={`text-[10px] uppercase font-extrabold tracking-wider block mb-1.5 ${
-                      darkMode ? 'text-slate-400' : 'text-slate-500'
-                    }`}>Appointment Selector</span>
-                    <Select 
-                      value={selectedAppointment}
-                      onChange={setSelectedAppointment}
-                      className="w-full rounded-xl"
-                      style={{ width: '100%' }}
-                    >
-                      {getPatientAppointments(selectedPatientId).map((appt, idx) => (
-                        <Option key={idx} value={appt}>{appt}</Option>
-                      ))}
-                    </Select>
-                  </div>
-
-                  {/* Clinical Note Templates */}
-                  <div>
-                    <span className={`text-[10px] uppercase font-extrabold tracking-wider block mb-1.5 ${
-                      darkMode ? 'text-slate-400' : 'text-slate-500'
-                    }`}>Clinical Note Templates</span>
-                    <Select 
-                      value={selectedTemplate}
-                      onChange={setSelectedTemplate}
-                      className="w-full rounded-xl"
-                      style={{ width: '100%' }}
-                    >
-                      {isSoapSpecialty ? (
-                        <>
-                          <Option value="Default SOAP Template">Default SOAP Template</Option>
-                          <Option value="Initial Assessment">Initial Assessment Template</Option>
-                          <Option value="Discharge Summary">Discharge Summary Template</Option>
-                          <Option value="History and Physical (H&P)">History & Physical (H&P)</Option>
-                        </>
-                      ) : (
-                        <>
-                          <Option value="Clinical Progress Notes">Clinical Progress Notes</Option>
-                          <Option value="Initial Assessment">Initial Assessment Template</Option>
-                          <Option value="Discharge Summary">Discharge Summary Template</Option>
-                          <Option value="Functional Capacity Assessment">Functional Capacity Assessment</Option>
-                        </>
-                      )}
-                    </Select>
-                  </div>
-
-                  {/* Copy Actions */}
-                  <div className="grid grid-cols-2 gap-2 pt-2">
-                    <Button 
-                      onClick={handleCopyPrevious}
-                      icon={<CopyOutlined />}
-                      size="small"
-                      style={{
-                        backgroundColor: darkMode ? '#1e293b' : '#f1f5f9',
-                        color: darkMode ? '#ffffff' : '#1e293b',
-                        borderColor: darkMode ? '#475569' : '#cbd5e1'
-                      }}
-                      className={`rounded-lg text-[10px] font-bold w-full ${
-                        darkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-200'
-                      }`}
-                    >
-                      Copy Previous
-                    </Button>
-                    <Button 
-                      onClick={handleCopySelected}
-                      icon={<CopyOutlined />}
-                      disabled={!selectedHistoryNoteId}
-                      size="small"
-                      style={{
-                        backgroundColor: !selectedHistoryNoteId 
-                          ? (darkMode ? '#0f172a' : '#f8fafc') 
-                          : (darkMode ? '#1e293b' : '#f1f5f9'),
-                        color: !selectedHistoryNoteId 
-                          ? (darkMode ? '#475569' : '#94a3b8') 
-                          : (darkMode ? '#ffffff' : '#1e293b'),
-                        borderColor: !selectedHistoryNoteId 
-                          ? (darkMode ? '#1e293b' : '#e2e8f0') 
-                          : (darkMode ? '#475569' : '#cbd5e1'),
-                        opacity: !selectedHistoryNoteId ? 0.5 : 1
-                      }}
-                      className={`rounded-lg text-[10px] font-bold w-full ${
-                        darkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-200'
-                      }`}
-                    >
-                      Copy Selected
-                    </Button>
-                  </div>
-                </div>
-
-              {/* Middle editor panel (col-span-7) */}
-              <div className="xl:col-span-7 bg-white dark:bg-slate-900 p-6 flex flex-col justify-between space-y-4">
-                
-                {/* Header & Status Indicator */}
-                <div className="flex justify-between items-center pb-3 border-b border-slate-150 dark:border-slate-850">
-                  <div>
-                    <h3 className="text-base font-black text-slate-800 dark:text-white m-0">
-                      New Progress Note - {getNoteDateDisplay()}
-                    </h3>
-                    <div className="flex items-center gap-1.5 mt-1.5">
-                      <CheckCircleFilled className="text-emerald-500 text-xs" />
-                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">
-                        {isAutoSaving ? 'Auto-saving draft...' : `Draft auto-saved at ${lastSavedTime || '10:15 AM'}`}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Metadata Row */}
-                <div className="bg-slate-50 dark:bg-slate-950/40 border border-slate-150 dark:border-slate-850 rounded-xl p-3.5 flex flex-wrap justify-between items-center text-xs gap-3">
-                  <div>
-                    <span className="font-bold text-slate-400 dark:text-slate-500">Patient:</span>{' '}
-                    <span className="font-extrabold text-slate-800 dark:text-slate-200">{patient.name}</span>
-                    <span className="mx-2 text-slate-350">|</span>
-                    <span className="font-bold text-slate-400 dark:text-slate-500">DOB:</span>{' '}
-                    <span className="font-extrabold text-slate-800 dark:text-slate-200">{formatDateString(patient.dob)}</span>
-                    <span className="mx-2 text-slate-355">|</span>
-                    <span className="font-bold text-slate-400 dark:text-slate-500">ID:</span>{' '}
-                    <span className="font-extrabold text-slate-800 dark:text-slate-200">{getPatientDisplayId(selectedPatientId)}</span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-400 dark:text-slate-500">
-                      {store.userRole === 'clinic' ? 'Admin:' : 'Doctor:'}
-                    </span>{' '}
-                    <span className="font-extrabold text-slate-800 dark:text-slate-200">
-                      {activeDoctorName}
-                    </span>
-                    <span className="mx-2 text-slate-350">|</span>
-                    <span className="font-bold text-slate-400 dark:text-slate-500">ID:</span>{' '}
-                    <span className="font-extrabold text-slate-800 dark:text-slate-200">
-                      {activeDoctorId}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Voice Dictation Assistant Widget */}
-                <div className="bg-gradient-to-r from-[#8C4BFF]/5 to-[#30D2BE]/5 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="font-extrabold text-xs text-slate-700 dark:text-white flex items-center gap-2">
-                      <AudioOutlined style={{ color: '#8C4BFF' }} /> Voice Dictation Assistant
-                    </span>
-                    {isRecording && (
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-red-500/10 text-red-500">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> Recording
-                      </span>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-4">
-                    <Button
-                      onClick={toggleRecording}
-                      type={isRecording ? "primary" : "default"}
-                      danger={isRecording}
-                      icon={<AudioOutlined />}
-                      className="rounded-xl font-bold h-10 px-5 text-xs flex items-center gap-2"
-                      style={!isRecording ? { borderColor: '#cbd5e1' } : {}}
-                    >
-                      {isRecording ? 'Stop & Transcribe' : 'Start Live Dictation'}
-                    </Button>
-                    
-                    {isRecording && (
-                      <div className="flex items-center gap-1">
-                        <div className="w-1 bg-[#8C4BFF] h-6 rounded animate-pulse" style={{ animationDelay: '0.1s' }} />
-                        <div className="w-1 bg-[#30D2BE] h-4 rounded animate-pulse" style={{ animationDelay: '0.2s' }} />
-                        <div className="w-1 bg-[#8C4BFF] h-8 rounded animate-pulse" style={{ animationDelay: '0.3s' }} />
-                        <div className="w-1 bg-[#30D2BE] h-5 rounded animate-pulse" style={{ animationDelay: '0.4s' }} />
-                        <div className="w-1 bg-[#8C4BFF] h-3 rounded animate-pulse" style={{ animationDelay: '0.5s' }} />
-                      </div>
-                    )}
-                    
-                    {!isRecording && liveTranscription && liveTranscription !== 'Recording...' && (
-                      <Button
-                        onClick={handleAddTranscriptionToNote}
-                        type="primary"
-                        icon={<PlusOutlined />}
-                        style={{ backgroundColor: '#10B981', borderColor: '#10B981' }}
-                        className="rounded-xl font-bold h-10 px-5 text-xs text-white"
-                      >
-                        Add to Note
-                      </Button>
-                    )}
-                  </div>
-
-                  {liveTranscription && (
-                    <div className="p-3 bg-slate-50 dark:bg-slate-955 border border-slate-150 dark:border-slate-800 rounded-xl">
-                      <span className="text-[9px] uppercase font-black text-slate-400 block mb-1">Live Transcription Preview</span>
-                      <p className="text-slate-650 dark:text-slate-350 italic m-0 text-xs leading-relaxed">
-                        "{liveTranscription}"
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Rich Formatting Toolbar */}
-                <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-50 dark:bg-slate-950/20 border border-slate-150 dark:border-slate-850 rounded-xl select-none">
-                  <Button 
-                    type="text" 
-                    size="small" 
-                    icon={<BoldOutlined />} 
-                    onClick={() => insertAtCursor('**', '**')}
-                    className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
-                  />
-                  <Button 
-                    type="text" 
-                    size="small" 
-                    icon={<ItalicOutlined />} 
-                    onClick={() => insertAtCursor('*', '*')}
-                    className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
-                  />
-                  <Button 
-                    type="text" 
-                    size="small" 
-                    icon={<UnderlineOutlined />} 
-                    onClick={() => insertAtCursor('<u>', '</u>')}
-                    className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
-                  />
-                  <Button 
-                    type="text" 
-                    size="small" 
-                    icon={<StrikethroughOutlined />} 
-                    onClick={() => insertAtCursor('~~', '~~')}
-                    className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
-                  />
-                  <Divider type="vertical" className="border-slate-200 dark:border-slate-800 h-4 m-0 mx-1" />
-                  <Button 
-                    type="text" 
-                    size="small" 
-                    icon={<LinkOutlined />} 
-                    onClick={() => insertAtCursor('[', '](url)')}
-                    className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
-                  />
-                  <Button 
-                    type="text" 
-                    size="small" 
-                    icon={<UnorderedListOutlined />} 
-                    onClick={() => insertAtCursor('\n- ', '')}
-                    className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
-                  />
-                  <Button 
-                    type="text" 
-                    size="small" 
-                    icon={<OrderedListOutlined />} 
-                    onClick={() => insertAtCursor('\n1. ', '')}
-                    className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
-                  />
-                  <Divider type="vertical" className="border-slate-200 dark:border-slate-800 h-4 m-0 mx-1" />
-                  <Button 
-                    type="text" 
-                    size="small" 
-                    icon={<AlignLeftOutlined />} 
-                    onClick={() => toast.success('Paragraph alignment toggled')}
-                    className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
-                  />
-                </div>
-                       {/* Text Editor Area */}
-                <div className="flex-1 flex flex-col">
-                  <textarea
-                    id="progress-note-editor"
-                    value={noteText}
-                    onChange={e => setNoteText(e.target.value)}
-                    readOnly={isNoteFinal}
-                    className={`flex-1 w-full min-h-[350px] p-4 border rounded-2xl font-sans text-sm resize-none leading-relaxed transition-all focus:outline-none ${
-                      isNoteFinal 
-                        ? 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800/80 text-slate-400 dark:text-slate-500 cursor-not-allowed' 
-                        : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:ring-1 focus:ring-[#8C4BFF] focus:border-[#8C4BFF]'
-                    }`}
-                    placeholder="Start typing your progress notes here, or use the Voice Dictation Assistant above..."
-                  />
-                </div>
-
-                {/* Bottom Footer Actions */}
-                <div className="flex justify-end items-center gap-3 pt-3 border-t border-slate-150 dark:border-slate-850 select-none">
-                  {isNoteFinal ? (
-                    <Button 
-                      onClick={() => {
-                        store.updateConsultation(existingNoteForLock.id, { status: 'Draft' })
-                        toast.success('Note reopened for editing!')
-                      }}
-                      style={{ backgroundColor: '#F59E0B', borderColor: '#F59E0B' }}
-                      className="rounded-xl font-bold h-10 px-6 text-white hover:opacity-90 animate-pulse-subtle"
-                    >
-                      Reopen Note
-                    </Button>
-                  ) : (
-                    <>
-                      <div className="flex-1">
-                        <Button 
-                          onClick={handleFormatToSOAP}
-                          icon={<ThunderboltOutlined />}
-                          style={{ color: '#8C4BFF', borderColor: '#8C4BFF', backgroundColor: 'transparent' }}
-                          className="rounded-xl font-bold h-10 px-4 hover:bg-[#8C4BFF]/5"
-                        >
-                          {selectedTemplate && selectedTemplate.includes('SOAP') ? 'AI Format SOAP' : `AI Format ${selectedTemplate || 'Note'}`}
-                        </Button>
-                      </div>
-                      <Button 
-                        onClick={handleSaveDraft}
-                        className="rounded-xl font-bold h-10 px-5 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-750 dark:hover:bg-slate-700"
-                      >
-                        Save Draft
-                      </Button>
-                      <Button 
-                        type="primary" 
-                        onClick={handleSaveFinal}
-                        style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }}
-                        className="rounded-xl font-bold h-10 px-6 text-white hover:opacity-90"
-                      >
-                        Save as Final
-                      </Button>
-                    </>
-                  )}
-                </div>
+            {/* Patient Selector List */}
+            {/* Patient Search */}
+            <div>
+              <span className={`text-[10px] uppercase font-extrabold tracking-wider block mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-500'
+                }`}>Patient Search</span>
+              <div className="relative">
+                <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs" />
+                <input
+                  type="text"
+                  placeholder="Search for patients..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-2 text-xs rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8C4BFF]/50 transition-all"
+                  style={{
+                    backgroundColor: darkMode ? '#1e293b' : '#ffffff',
+                    border: darkMode ? '1px solid #334155' : '1px solid #cbd5e1',
+                    color: darkMode ? '#ffffff' : '#1e293b'
+                  }}
+                />
               </div>
-
-              {/* Right Sidebar for Past Notes (col-span-2) */}
-              <div className="xl:col-span-2 bg-slate-50 dark:bg-slate-900 border-l border-slate-150 dark:border-slate-850 p-4 flex flex-col space-y-4">
-                <span className={`text-[10px] uppercase font-extrabold tracking-wider block mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Past Session Notes</span>
-                <div className="space-y-3 overflow-y-auto pr-1 flex-1">
-                  {getPatientNotesHistory(selectedPatientId).length === 0 ? (
-                    <div className="text-[10px] text-slate-500 italic text-center py-2">No note history found.</div>
-                  ) : (
-                    getPatientNotesHistory(selectedPatientId).map((note, idx) => (
-                      <div key={note.id || idx} className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-sm space-y-2">
-                        <div className="flex justify-between items-center">
-                          <span className="font-bold text-[10px] text-slate-800 dark:text-slate-200">{note.date}</span>
-                          <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${note.status === 'Draft' ? 'bg-amber-500/20 text-amber-500' : 'bg-emerald-500/20 text-emerald-450'}`}>{note.status}</span>
-                        </div>
-                        <span className="block text-[9px] font-bold text-[#8C4BFF]">{note.title}</span>
-                        <div className="text-[10px] text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed">
-                          {note.content}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
             </div>
+
+            {/* Patient Selector List */}
+            <div>
+              <span className={`text-[10px] uppercase font-extrabold tracking-wider block mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-500'
+                }`}>Patient Selector</span>
+              <div className="space-y-2 max-h-[160px] overflow-y-auto pr-1">
+                {store.patients
+                  .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                  .map(p => {
+                    const isSelected = p.id === selectedPatientId
+                    return (
+                      <div
+                        key={p.id}
+                        onClick={() => setSelectedPatientId(p.id)}
+                        className={`p-2 rounded-xl flex items-center gap-2 cursor-pointer transition-all ${isSelected
+                            ? 'bg-[#8C4BFF] shadow text-white font-bold'
+                            : darkMode
+                              ? 'bg-slate-800 hover:bg-slate-750 text-slate-350'
+                              : 'bg-white hover:bg-slate-100 border border-slate-200/60 text-slate-700 shadow-sm'
+                          }`}
+                      >
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs flex-shrink-0 ${isSelected ? 'bg-white text-[#8C4BFF]' : 'bg-[#8C4BFF] text-white'
+                          }`}>
+                          {p.name.charAt(0)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-xs block truncate leading-none font-bold" style={{ color: isSelected ? '#ffffff' : darkMode ? '#ffffff' : '#1e293b' }}>{p.name}</span>
+                          <span className="text-[9px] block mt-1.5 leading-none" style={{ color: isSelected ? '#f3e8ff' : darkMode ? '#cbd5e1' : '#64748b' }}>DOB: {formatDateString(p.dob)}</span>
+                          <span className="text-[9px] block mt-1 leading-none" style={{ color: isSelected ? '#f3e8ff' : darkMode ? '#cbd5e1' : '#64748b' }}>ID: {getPatientDisplayId(p.id)}</span>
+                        </div>
+                      </div>
+                    )
+                  })
+                }
+              </div>
+            </div>
+
+            {/* Appointment Selector */}
+            <div>
+              <span className={`text-[10px] uppercase font-extrabold tracking-wider block mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-500'
+                }`}>Appointment Selector</span>
+              <Select
+                value={selectedAppointment}
+                onChange={setSelectedAppointment}
+                className="w-full rounded-xl"
+                style={{ width: '100%' }}
+              >
+                {getPatientAppointments(selectedPatientId).map((appt, idx) => (
+                  <Option key={idx} value={appt}>{appt}</Option>
+                ))}
+              </Select>
+            </div>
+
+            {/* Clinical Note Templates */}
+            <div>
+              <span className={`text-[10px] uppercase font-extrabold tracking-wider block mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-500'
+                }`}>Clinical Note Templates</span>
+              <Select
+                value={selectedTemplate}
+                onChange={setSelectedTemplate}
+                className="w-full rounded-xl"
+                style={{ width: '100%' }}
+              >
+                {isSoapSpecialty ? (
+                  <>
+                    <Option value="Default SOAP Template">Default SOAP Template</Option>
+                    <Option value="Initial Assessment">Initial Assessment Template</Option>
+                    <Option value="Discharge Summary">Discharge Summary Template</Option>
+                    <Option value="History and Physical (H&P)">History & Physical (H&P)</Option>
+                  </>
+                ) : (
+                  <>
+                    <Option value="Clinical Progress Notes">Clinical Progress Notes</Option>
+                    <Option value="Initial Assessment">Initial Assessment Template</Option>
+                    <Option value="Discharge Summary">Discharge Summary Template</Option>
+                    <Option value="Functional Capacity Assessment">Functional Capacity Assessment</Option>
+                  </>
+                )}
+              </Select>
+            </div>
+
+            {/* Copy Actions */}
+            <div className="grid grid-cols-2 gap-2 pt-2">
+              <Button
+                onClick={handleCopyPrevious}
+                icon={<CopyOutlined />}
+                size="small"
+                style={{
+                  backgroundColor: darkMode ? '#1e293b' : '#f1f5f9',
+                  color: darkMode ? '#ffffff' : '#1e293b',
+                  borderColor: darkMode ? '#475569' : '#cbd5e1'
+                }}
+                className={`rounded-lg text-[10px] font-bold w-full ${darkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-200'
+                  }`}
+              >
+                Copy Previous
+              </Button>
+              <Button
+                onClick={handleCopySelected}
+                icon={<CopyOutlined />}
+                disabled={!selectedHistoryNoteId}
+                size="small"
+                style={{
+                  backgroundColor: !selectedHistoryNoteId
+                    ? (darkMode ? '#0f172a' : '#f8fafc')
+                    : (darkMode ? '#1e293b' : '#f1f5f9'),
+                  color: !selectedHistoryNoteId
+                    ? (darkMode ? '#475569' : '#94a3b8')
+                    : (darkMode ? '#ffffff' : '#1e293b'),
+                  borderColor: !selectedHistoryNoteId
+                    ? (darkMode ? '#1e293b' : '#e2e8f0')
+                    : (darkMode ? '#475569' : '#cbd5e1'),
+                  opacity: !selectedHistoryNoteId ? 0.5 : 1
+                }}
+                className={`rounded-lg text-[10px] font-bold w-full ${darkMode ? 'hover:bg-slate-800' : 'hover:bg-slate-200'
+                  }`}
+              >
+                Copy Selected
+              </Button>
+            </div>
+          </div>
+
+          {/* Middle editor panel (col-span-7) */}
+          <div className="xl:col-span-7 bg-white dark:bg-slate-900 p-6 flex flex-col justify-between space-y-4">
+
+            {/* Header & Status Indicator */}
+            <div className="flex justify-between items-center pb-3 border-b border-slate-150 dark:border-slate-850">
+              <div>
+                <h3 className="text-base font-black text-slate-800 dark:text-white m-0">
+                  New Progress Note - {getNoteDateDisplay()}
+                </h3>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <CheckCircleFilled className="text-emerald-500 text-xs" />
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">
+                    {isAutoSaving ? 'Auto-saving draft...' : `Draft auto-saved at ${lastSavedTime || '10:15 AM'}`}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Metadata Row */}
+            <div className="bg-slate-50 dark:bg-slate-950/40 border border-slate-150 dark:border-slate-850 rounded-xl p-3.5 flex flex-wrap justify-between items-center text-xs gap-3">
+              <div>
+                <span className="font-bold text-slate-400 dark:text-slate-500">Patient:</span>{' '}
+                <span className="font-extrabold text-slate-800 dark:text-slate-200">{patient.name}</span>
+                <span className="mx-2 text-slate-350">|</span>
+                <span className="font-bold text-slate-400 dark:text-slate-500">DOB:</span>{' '}
+                <span className="font-extrabold text-slate-800 dark:text-slate-200">{formatDateString(patient.dob)}</span>
+                <span className="mx-2 text-slate-355">|</span>
+                <span className="font-bold text-slate-400 dark:text-slate-500">ID:</span>{' '}
+                <span className="font-extrabold text-slate-800 dark:text-slate-200">{getPatientDisplayId(selectedPatientId)}</span>
+              </div>
+              <div>
+                <span className="font-bold text-slate-400 dark:text-slate-500">
+                  {store.userRole === 'clinic' ? 'Admin:' : 'Doctor:'}
+                </span>{' '}
+                <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                  {activeDoctorName}
+                </span>
+                <span className="mx-2 text-slate-350">|</span>
+                <span className="font-bold text-slate-400 dark:text-slate-500">ID:</span>{' '}
+                <span className="font-extrabold text-slate-800 dark:text-slate-200">
+                  {activeDoctorId}
+                </span>
+              </div>
+            </div>
+
+            {/* Voice Dictation Assistant Widget */}
+            <div className="bg-gradient-to-r from-[#8C4BFF]/5 to-[#30D2BE]/5 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="font-extrabold text-xs text-slate-700 dark:text-white flex items-center gap-2">
+                  <AudioOutlined style={{ color: '#8C4BFF' }} /> Voice Dictation Assistant
+                </span>
+                {isRecording && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase bg-red-500/10 text-red-500">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" /> Recording
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-4">
+                <Button
+                  onClick={toggleRecording}
+                  type={isRecording ? "primary" : "default"}
+                  danger={isRecording}
+                  icon={<AudioOutlined />}
+                  className="rounded-xl font-bold h-10 px-5 text-xs flex items-center gap-2"
+                  style={!isRecording ? { borderColor: '#cbd5e1' } : {}}
+                >
+                  {isRecording ? 'Stop & Transcribe' : 'Start Live Dictation'}
+                </Button>
+
+                {isRecording && (
+                  <div className="flex items-center gap-1">
+                    <div className="w-1 bg-[#8C4BFF] h-6 rounded animate-pulse" style={{ animationDelay: '0.1s' }} />
+                    <div className="w-1 bg-[#30D2BE] h-4 rounded animate-pulse" style={{ animationDelay: '0.2s' }} />
+                    <div className="w-1 bg-[#8C4BFF] h-8 rounded animate-pulse" style={{ animationDelay: '0.3s' }} />
+                    <div className="w-1 bg-[#30D2BE] h-5 rounded animate-pulse" style={{ animationDelay: '0.4s' }} />
+                    <div className="w-1 bg-[#8C4BFF] h-3 rounded animate-pulse" style={{ animationDelay: '0.5s' }} />
+                  </div>
+                )}
+
+                {!isRecording && liveTranscription && liveTranscription !== 'Recording...' && (
+                  <Button
+                    onClick={handleAddTranscriptionToNote}
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    style={{ backgroundColor: '#10B981', borderColor: '#10B981' }}
+                    className="rounded-xl font-bold h-10 px-5 text-xs text-white"
+                  >
+                    Add to Note
+                  </Button>
+                )}
+              </div>
+
+              {liveTranscription && (
+                <div className="p-3 bg-slate-50 dark:bg-slate-955 border border-slate-150 dark:border-slate-800 rounded-xl">
+                  <span className="text-[9px] uppercase font-black text-slate-400 block mb-1">Live Transcription Preview</span>
+                  <p className="text-slate-650 dark:text-slate-350 italic m-0 text-xs leading-relaxed">
+                    "{liveTranscription}"
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Rich Formatting Toolbar */}
+            <div className="flex flex-wrap items-center gap-1.5 p-1.5 bg-slate-50 dark:bg-slate-950/20 border border-slate-150 dark:border-slate-850 rounded-xl select-none">
+              <Button
+                type="text"
+                size="small"
+                icon={<BoldOutlined />}
+                onClick={() => insertAtCursor('**', '**')}
+                className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+              />
+              <Button
+                type="text"
+                size="small"
+                icon={<ItalicOutlined />}
+                onClick={() => insertAtCursor('*', '*')}
+                className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+              />
+              <Button
+                type="text"
+                size="small"
+                icon={<UnderlineOutlined />}
+                onClick={() => insertAtCursor('<u>', '</u>')}
+                className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+              />
+              <Button
+                type="text"
+                size="small"
+                icon={<StrikethroughOutlined />}
+                onClick={() => insertAtCursor('~~', '~~')}
+                className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+              />
+              <Divider type="vertical" className="border-slate-200 dark:border-slate-800 h-4 m-0 mx-1" />
+              <Button
+                type="text"
+                size="small"
+                icon={<LinkOutlined />}
+                onClick={() => insertAtCursor('[', '](url)')}
+                className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+              />
+              <Button
+                type="text"
+                size="small"
+                icon={<UnorderedListOutlined />}
+                onClick={() => insertAtCursor('\n- ', '')}
+                className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+              />
+              <Button
+                type="text"
+                size="small"
+                icon={<OrderedListOutlined />}
+                onClick={() => insertAtCursor('\n1. ', '')}
+                className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+              />
+              <Divider type="vertical" className="border-slate-200 dark:border-slate-800 h-4 m-0 mx-1" />
+              <Button
+                type="text"
+                size="small"
+                icon={<AlignLeftOutlined />}
+                onClick={() => toast.success('Paragraph alignment toggled')}
+                className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+              />
+            </div>
+            {/* Text Editor Area */}
+            <div className="flex-1 flex flex-col">
+              <textarea
+                id="progress-note-editor"
+                value={noteText}
+                onChange={e => setNoteText(e.target.value)}
+                readOnly={isNoteFinal}
+                className={`flex-1 w-full min-h-[350px] p-4 border rounded-2xl font-sans text-sm resize-none leading-relaxed transition-all focus:outline-none ${isNoteFinal
+                    ? 'bg-slate-50 dark:bg-slate-950/60 border-slate-200 dark:border-slate-800/80 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                    : 'bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 placeholder-slate-400 focus:ring-1 focus:ring-[#8C4BFF] focus:border-[#8C4BFF]'
+                  }`}
+                placeholder="Start typing your progress notes here, or use the Voice Dictation Assistant above..."
+              />
+            </div>
+
+            {/* Bottom Footer Actions */}
+            <div className="flex justify-end items-center gap-3 pt-3 border-t border-slate-150 dark:border-slate-850 select-none">
+              {isNoteFinal ? (
+                <Button
+                  onClick={() => {
+                    store.updateConsultation(existingNoteForLock.id, { status: 'Draft' })
+                    toast.success('Note reopened for editing!')
+                  }}
+                  style={{ backgroundColor: '#F59E0B', borderColor: '#F59E0B' }}
+                  className="rounded-xl font-bold h-10 px-6 text-white hover:opacity-90 animate-pulse-subtle"
+                >
+                  Reopen Note
+                </Button>
+              ) : (
+                <>
+                  <div className="flex-1">
+                    <Button
+                      onClick={handleFormatToSOAP}
+                      icon={<ThunderboltOutlined />}
+                      style={{ color: '#8C4BFF', borderColor: '#8C4BFF', backgroundColor: 'transparent' }}
+                      className="rounded-xl font-bold h-10 px-4 hover:bg-[#8C4BFF]/5"
+                    >
+                      {selectedTemplate && selectedTemplate.includes('SOAP') ? 'AI Format SOAP' : `AI Format ${selectedTemplate || 'Note'}`}
+                    </Button>
+                  </div>
+                  <Button
+                    onClick={handleSaveDraft}
+                    className="rounded-xl font-bold h-10 px-5 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-750 dark:hover:bg-slate-700"
+                  >
+                    Save Draft
+                  </Button>
+                  <Button
+                    type="primary"
+                    onClick={handleSaveFinal}
+                    style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }}
+                    className="rounded-xl font-bold h-10 px-6 text-white hover:opacity-90"
+                  >
+                    Save as Final
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Right Sidebar for Past Notes (col-span-2) */}
+          <div className="xl:col-span-2 bg-slate-50 dark:bg-slate-900 border-l border-slate-150 dark:border-slate-850 p-4 flex flex-col space-y-4">
+            <span className={`text-[10px] uppercase font-extrabold tracking-wider block mb-1.5 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Past Session Notes</span>
+            <div className="space-y-3 overflow-y-auto pr-1 flex-1">
+              {getPatientNotesHistory(selectedPatientId).length === 0 ? (
+                <div className="text-[10px] text-slate-500 italic text-center py-2">No note history found.</div>
+              ) : (
+                getPatientNotesHistory(selectedPatientId).map((note, idx) => (
+                  <div key={note.id || idx} className="p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-sm space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-[10px] text-slate-800 dark:text-slate-200">{note.date}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${note.status === 'Draft' ? 'bg-amber-500/20 text-amber-500' : 'bg-emerald-500/20 text-emerald-450'}`}>{note.status}</span>
+                    </div>
+                    <span className="block text-[9px] font-bold text-[#8C4BFF]">{note.title}</span>
+                    <div className="text-[10px] text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed">
+                      {note.content}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+        </div>
       </Card>
       {/* AI Template Generation Modal */}
       <Modal
         title={
           <div className="flex items-center px-2 py-1">
             <SearchOutlined className="text-slate-500 text-lg mr-3" />
-            <input 
+            <input
               type="text"
-              placeholder="Search or generate anything" 
+              placeholder="Search or generate anything"
               className="flex-1 bg-transparent border-none outline-none font-bold text-[17px] text-slate-800 dark:text-white placeholder-slate-400"
             />
           </div>
@@ -1236,8 +1227,8 @@ export default function PractitionerConsultation() {
           </div>
         }
         width={650}
-        styles={{ 
-          content: { 
+        styles={{
+          content: {
             backgroundColor: darkMode ? '#0f172a' : '#ffffff',
             border: darkMode ? '1px solid #1e293b' : '1px solid #f1f5f9',
             borderRadius: '20px',
@@ -1269,7 +1260,7 @@ export default function PractitionerConsultation() {
           </div>
 
           <div className="space-y-1">
-            <div 
+            <div
               onClick={() => {
                 setAiModalVisible(false)
                 toast.loading('AI is analyzing session and generating progress note...', { id: 'ai-gen' })
@@ -1291,7 +1282,7 @@ export default function PractitionerConsultation() {
               </div>
             </div>
 
-            <div 
+            <div
               onClick={() => {
                 setAiModalVisible(false)
                 toast.loading('AI is crafting a home exercise program...', { id: 'ai-gen' })
@@ -1313,7 +1304,7 @@ export default function PractitionerConsultation() {
               </div>
             </div>
 
-            <div 
+            <div
               onClick={() => {
                 setAiModalVisible(false)
                 toast.loading('AI is drafting a referral letter...', { id: 'ai-gen' })
@@ -1334,16 +1325,16 @@ export default function PractitionerConsultation() {
                 <ThunderboltOutlined className="text-[10px]" />
               </div>
             </div>
-            
+
             <div className="text-[10px] text-slate-500 mt-1 px-3">
               Created by Heidi <span className="font-bold text-slate-700 dark:text-slate-300 ml-1 cursor-pointer hover:underline">See more</span>
             </div>
           </div>
-          
+
           <div className="space-y-1 pt-2">
             <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-2 px-3">Templates</span>
-            
-            <div 
+
+            <div
               onClick={() => {
                 setSelectedTemplate('Physiotherapist\'s Note')
                 setNoteText(liveTranscription ? liveTranscription : 'Generated from template: Physiotherapist\'s Note')
@@ -1357,7 +1348,7 @@ export default function PractitionerConsultation() {
               </div>
             </div>
 
-            <div 
+            <div
               onClick={() => {
                 setSelectedTemplate('SOAP Note')
                 setNoteText(liveTranscription ? liveTranscription : 'Generated from template: SOAP Note')
@@ -1371,7 +1362,7 @@ export default function PractitionerConsultation() {
               </div>
             </div>
 
-            <div 
+            <div
               onClick={() => {
                 setSelectedTemplate('Physio Initial MSK outpatient')
                 setNoteText(liveTranscription ? liveTranscription : 'Generated from template: Physio Initial MSK outpatient')
