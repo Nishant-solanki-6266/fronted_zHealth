@@ -127,12 +127,16 @@ export default function ClientProgressNotes({ patientId: embeddedPatientId = nul
     return [...realNotes, ...(mockNotes[patientId] || [])]
   }
 
-  // Get display patient ID (e.g. p1 -> 88412)
+  // Get display patient ID (clean & dynamic)
   const getPatientDisplayId = (id) => {
-    if (id === 'p1') return '88412'
-    if (id === 'p2') return '88413'
-    if (id === 'p3') return '88414'
-    return id ? id.replace(/[a-zA-Z]/g, '88') : '88415'
+    if (!id) return 'P-88415'
+    const targetPatient = store.patients?.find(p => p.id === id)
+    if (targetPatient?.displayId) return targetPatient.displayId
+    if (id === 'p1') return 'P-88412'
+    if (id === 'p2') return 'P-88413'
+    if (id === 'p3') return 'P-88414'
+    const cleanId = String(id).replace(/[^a-zA-Z0-9]/g, '')
+    return `P-${cleanId.slice(-5).toUpperCase()}`
   }
 
   // Get list of appointments for a patient
@@ -198,6 +202,30 @@ export default function ClientProgressNotes({ patientId: embeddedPatientId = nul
     })
   }
 
+  // Get active logged-in user dynamically from localStorage or store
+  const getLoggedInUser = () => {
+    try {
+      const uStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+      if (uStr) {
+        const parsed = JSON.parse(uStr)
+        if (parsed && (parsed.name || parsed.email)) return parsed
+      }
+    } catch (e) {}
+    return store.user || null
+  }
+
+  const loggedInUser = getLoggedInUser()
+  const selectedApptObj = getSelectedAppointmentObj()
+
+  const activeDoctorName = selectedApptObj?.practitionerName 
+    || loggedInUser?.name 
+    || store.user?.name 
+    || (store.userRole === 'clinic' ? 'Clinic Manager' : 'Dr. Treating Clinician')
+
+  const activeDoctorId = loggedInUser?.displayId 
+    || loggedInUser?.practitionerId 
+    || (loggedInUser?.id ? `D-${String(loggedInUser.id).slice(-4).toUpperCase()}` : (store.userRole === 'clinic' ? 'A0912' : 'D-1001'))
+
   // Save as Draft
   const handleSaveDraft = () => {
     const apptObj = getSelectedAppointmentObj()
@@ -216,7 +244,7 @@ export default function ClientProgressNotes({ patientId: embeddedPatientId = nul
         patientName: patient.name,
         notes: noteText,
         status: 'Draft',
-        practitionerName: store.userRole === 'clinic' ? 'Clinic Manager' : 'Dr. Sarah Jenkins',
+        practitionerName: activeDoctorName,
         profession: activeSpecialty,
         appointmentId: apptObj ? apptObj.id : undefined
       }
@@ -243,7 +271,7 @@ export default function ClientProgressNotes({ patientId: embeddedPatientId = nul
         patientName: patient.name,
         notes: noteText,
         status: 'Completed',
-        practitionerName: store.userRole === 'clinic' ? 'Clinic Manager' : 'Dr. Sarah Jenkins',
+        practitionerName: activeDoctorName,
         profession: activeSpecialty,
         appointmentId: apptObj ? apptObj.id : undefined
       }
@@ -841,12 +869,12 @@ export default function ClientProgressNotes({ patientId: embeddedPatientId = nul
                       {store.userRole === 'clinic' ? 'Admin:' : 'Doctor:'}
                     </span>{' '}
                     <span className="font-extrabold text-slate-800 dark:text-slate-200">
-                      {store.userRole === 'clinic' ? 'Clinic Manager' : 'Dr. Sarah Jenkins, MD'}
+                      {activeDoctorName}
                     </span>
                     <span className="mx-2 text-slate-350">|</span>
                     <span className="font-bold text-slate-400 dark:text-slate-500">ID:</span>{' '}
                     <span className="font-extrabold text-slate-800 dark:text-slate-200">
-                      {store.userRole === 'clinic' ? 'A0912' : 'D0451'}
+                      {activeDoctorId}
                     </span>
                   </div>
                 </div>

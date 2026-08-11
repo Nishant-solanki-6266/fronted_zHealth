@@ -109,3 +109,4 @@ pids/
 .vercel
 .netlify
 .turbo
+*.zip

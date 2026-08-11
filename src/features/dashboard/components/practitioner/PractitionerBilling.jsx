@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, Table, Tag, Button, Select, Form, Input, InputNumber, Switch, Divider } from 'antd'
 import {
   DollarOutlined,
@@ -17,31 +17,54 @@ export default function PractitionerBilling() {
   const store = useClinicStore()
   const [invoiceForm] = Form.useForm()
 
-  const [invoicesList, setInvoicesList] = useState(store.invoices || [])
   const billingPerm = store.practitionerBillingEnabled
+  const [creatingInv, setCreatingInv] = useState(false)
+  const [processingId, setProcessingId] = useState(null)
+
+  // Fetch real data on mount
+  useEffect(() => {
+    if (store.initStoreData) store.initStoreData()
+    if (store.fetchInvoices) store.fetchInvoices()
+  }, [])
 
   const toggleBillingPermission = (checked) => {
     store.setPractitionerBillingEnabled(checked)
     toast.success(`Clinic Invoicing Permission: ${checked ? 'ENABLED' : 'DISABLED'}`)
   }
 
-  const handleCreateInvoice = (values) => {
+  const handleCreateInvoice = async (values) => {
     const item = store.services.find(s => s.name === values.serviceName) || store.services[0]
     const price = item ? item.price : 120
-    const newInv = {
-      id: `INV-${Date.now().toString().slice(-4)}`,
-      clientName: values.clientName,
-      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-      amount: price,
-      due: price,
-      status: 'Sent',
-      serviceType: item.name
+    
+    const uStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+    let practitionerName = 'Dr. Sarah Jenkins'
+    if (uStr) {
+      const parsed = JSON.parse(uStr)
+      if (parsed?.name) practitionerName = parsed.name.startsWith('Dr.') ? parsed.name : `Dr. ${parsed.name}`
+    } else if (store.user?.name) {
+      practitionerName = store.user.name.startsWith('Dr.') ? store.user.name : `Dr. ${store.user.name}`
     }
-    // Update local and store lists
-    setInvoicesList([newInv, ...invoicesList])
-    store.invoices = [newInv, ...store.invoices]
-    toast.success(`Invoice ${newInv.id} issued successfully!`)
-    invoiceForm.resetFields()
+
+    try {
+      setCreatingInv(true)
+      const newInvData = {
+        clientName: values.clientName,
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        amount: price,
+        due: price,
+        status: 'Sent',
+        service: item?.name || 'Physiotherapy Session',
+        practitionerName
+      }
+      
+      const created = await store.addInvoice(newInvData)
+      toast.success(`Invoice ${created?.invoiceNumber || created?.id} issued successfully!`)
+      invoiceForm.resetFields()
+    } catch (err) {
+      toast.error('Failed to issue invoice. Please try again.')
+    } finally {
+      setCreatingInv(false)
+    }
   }
 
   const columns = [
@@ -49,7 +72,7 @@ export default function PractitionerBilling() {
       title: <span className="text-[10px] uppercase font-bold text-slate-400">Invoice ID</span>,
       dataIndex: 'id',
       key: 'id',
-      render: text => <span className="font-bold text-slate-800 dark:text-slate-250">{text}</span>
+      render: (text, record) => <span className="font-bold text-slate-800 dark:text-slate-250">{record.invoiceNumber || text?.slice(-6) || text}</span>
     },
     {
       title: <span className="text-[10px] uppercase font-bold text-slate-400">Patient</span>,
@@ -58,15 +81,15 @@ export default function PractitionerBilling() {
     },
     {
       title: <span className="text-[10px] uppercase font-bold text-slate-400">Service Description</span>,
-      dataIndex: 'serviceType',
-      key: 'serviceType',
+      dataIndex: 'service',
+      key: 'service',
       render: text => <span className="text-slate-500 font-semibold">{text || 'Physiotherapy Session'}</span>
     },
     {
       title: <span className="text-[10px] uppercase font-bold text-slate-400">Total Price</span>,
       dataIndex: 'amount',
       key: 'amount',
-      render: val => <span className="font-bold text-slate-800 dark:text-slate-200">${val ? val.toFixed(2) : '0.00'}</span>
+      render: val => <span className="font-bold text-slate-800 dark:text-slate-200">${val ? parseFloat(val).toFixed(2) : '0.00'}</span>
     },
     {
       title: <span className="text-[10px] uppercase font-bold text-slate-400">Status</span>,
@@ -74,9 +97,9 @@ export default function PractitionerBilling() {
       key: 'status',
       render: stat => {
         let col = 'default'
-        if (stat === 'Paid') col = 'success'
-        if (stat === 'Sent') col = 'processing'
-        if (stat === 'Draft') col = 'warning'
+        if ((stat || '').toLowerCase() === 'paid') col = 'success'
+        if ((stat || '').toLowerCase() === 'sent') col = 'processing'
+        if ((stat || '').toLowerCase() === 'draft') col = 'warning'
         return <Tag color={col} className="m-0 border-none font-bold text-[9px] uppercase">{stat}</Tag>
       }
     },
@@ -84,29 +107,39 @@ export default function PractitionerBilling() {
       title: <span className="text-[10px] uppercase font-bold text-slate-400">Action</span>,
       key: 'action',
       align: 'right',
-      render: (_, record) => (
-        <Button 
-          size="small" 
-          onClick={() => {
-            const list = invoicesList.map(inv => inv.id === record.id ? { ...inv, status: 'Paid', due: 0 } : inv)
-            setInvoicesList(list)
-            toast.success(`Payment processed for ${record.id}!`)
-          }}
-          disabled={record.status === 'Paid'}
-          className="rounded-lg font-semibold border-slate-200"
-        >
-          {record.status === 'Paid' ? 'Paid' : 'Process Payment'}
-        </Button>
-      )
+      render: (_, record) => {
+        const isPaid = (record.status || '').toLowerCase() === 'paid'
+        return (
+          <Button 
+            size="small" 
+            loading={processingId === record.id}
+            onClick={async () => {
+              try {
+                setProcessingId(record.id)
+                await store.updateInvoiceStatus(record.id, 'Paid', 0)
+                toast.success(`Payment processed for ${record.invoiceNumber || record.id}!`)
+              } catch(e) {
+                toast.error('Failed to process payment.')
+              } finally {
+                setProcessingId(null)
+              }
+            }}
+            disabled={isPaid}
+            className="rounded-lg font-semibold border-slate-200"
+          >
+            {isPaid ? 'Paid' : 'Process Payment'}
+          </Button>
+        )
+      }
     }
   ]
 
-  // Filter invoices to match patient lists
-  const myInvoices = invoicesList.filter(i => store.patients.some(p => p.name === i.clientName))
+  // Filter invoices to match practitioner's patients
+  const myInvoices = (store.invoices || []).filter(i => store.patients.some(p => p.name === i.clientName) || store.patients.some(p => p.name === i.patientName))
 
   // Calculated Stats
-  const totalRevenue = myInvoices.reduce((sum, item) => sum + (item.status === 'Paid' ? item.amount : 0), 0)
-  const outstandingBalance = myInvoices.reduce((sum, item) => sum + (item.status !== 'Paid' ? item.amount : 0), 0)
+  const totalRevenue = myInvoices.reduce((sum, item) => sum + ((item.status || '').toLowerCase() === 'paid' ? parseFloat(item.amount) : 0), 0)
+  const outstandingBalance = myInvoices.reduce((sum, item) => sum + ((item.status || '').toLowerCase() !== 'paid' ? parseFloat(item.amount) : 0), 0)
 
   return (
     <div className="space-y-6 font-sans select-none">
@@ -237,7 +270,7 @@ export default function PractitionerBilling() {
                 </div>
 
                 <div className="pt-2">
-                  <Button type="primary" htmlType="submit" style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }} className="w-full rounded-xl font-bold h-10 text-white shadow">
+                  <Button loading={creatingInv} type="primary" htmlType="submit" style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }} className="w-full rounded-xl font-bold h-10 text-white shadow">
                     Generate & Sent Invoice
                   </Button>
                 </div>

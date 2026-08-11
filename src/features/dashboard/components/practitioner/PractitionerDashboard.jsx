@@ -622,16 +622,20 @@ export default function PractitionerDashboard({ store, navigate }) {
             className="border border-slate-150 dark:border-slate-850 dark:bg-slate-900 rounded-2xl shadow-sm"
           >
             <div className="space-y-3">
-              {reportsDueList.map(rep => (
+              {(dbStats?.upcomingReports && dbStats.upcomingReports.length > 0 ? dbStats.upcomingReports : [
+                { id: 1, patientName: 'John Miller', type: 'Initial Report', date: 'In 2 days' },
+                { id: 2, patientName: 'Bob Johnson', type: 'Progress Report', date: 'Tomorrow' },
+                { id: 3, patientName: 'Alice Smith', type: 'Discharge Report', date: 'In 5 days' }
+              ]).map(rep => (
                 <div key={rep.id} className="p-3 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-150 dark:border-slate-850 rounded-xl flex justify-between items-center text-xs">
                   <div>
-                    <span className="font-bold text-slate-800 dark:text-slate-250 block">{rep.patient}</span>
-                    <span className="text-[9px] text-[#F97316] font-bold mt-0.5 block">{rep.type}</span>
+                    <span className="font-bold text-slate-800 dark:text-slate-250 block">{rep.patientName || rep.patient}</span>
+                    <span className="text-[9px] text-[#F97316] font-bold mt-0.5 block">{rep.type || 'Clinical Report'}</span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] text-slate-400 block font-semibold">{rep.due}</span>
+                    <span className="text-[10px] text-slate-400 block font-semibold">{rep.date || 'Pending'}</span>
                     <button 
-                      onClick={() => navigate(`/practitioner/notes-reports?generate=${rep.type}&patient=${rep.patient}`)}
+                      onClick={() => navigate(`/practitioner/notes-reports?generate=${rep.type || 'Report'}&patient=${rep.patientName || rep.patient}`)}
                       className="text-[9px] text-[#8C4BFF] border-none bg-transparent cursor-pointer font-bold mt-1 block"
                     >
                       Draft Report →

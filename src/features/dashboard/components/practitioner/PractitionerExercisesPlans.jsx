@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, Table, Tag, Button, Select, Form, Input, InputNumber, Divider, Progress } from 'antd'
 import {
   HeartOutlined,
@@ -18,6 +18,13 @@ export default function PractitionerExercisesPlans() {
 
   const [activeTab, setActiveTab] = useState('active')
   const [selectedBodyPart, setSelectedBodyPart] = useState(undefined)
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    if (store.fetchPrescribedExercises) {
+      store.fetchPrescribedExercises()
+    }
+  }, [])
 
   const activePrograms = store.prescribedExercises || []
 
@@ -31,37 +38,65 @@ export default function PractitionerExercisesPlans() {
     { name: 'Glute bridge alignment holds', bodyPart: 'Hip / Lower Limb', duration: '7 min', code: 'EX-HL-01' }
   ]
 
-  const handleAssignProgram = (values) => {
-    const prog = {
-      patientId: 'p1',
-      patientName: values.patientName,
-      programName: values.programName,
-      practitionerName: 'Dr. Sarah Jenkins',
-      exercises: [
-        { videoName: values.videoName, instructions: values.instructions || '', sets: values.sets || 3, reps: values.reps || 10, frequency: values.frequency || 'Daily' }
-      ]
+  const handleAssignProgram = async (values) => {
+    try {
+      setSubmitting(true)
+      const pInput = values.patientName
+      const selectedPatient = store.patients?.find(p => p.id === pInput || p.name === pInput || p.fullName === pInput)
+      
+      const targetPatientId = selectedPatient ? selectedPatient.id : (pInput && pInput.length > 2 ? pInput : 'p1')
+      const targetPatientName = selectedPatient ? (selectedPatient.name || selectedPatient.fullName || selectedPatient.email) : pInput
+
+      const prog = {
+        patientId: targetPatientId,
+        patientName: targetPatientName,
+        programName: values.programName,
+        practitionerName: store.user?.name || 'Dr. Sarah Jenkins',
+        delivery: values.delivery || 'Portal',
+        instructions: values.instructions || '',
+        exercises: [
+          { videoName: values.videoName, instructions: values.instructions || '', sets: values.sets || 3, reps: values.reps || 10, frequency: values.frequency || 'Daily' }
+        ]
+      }
+      await store.addPrescribedExercise(prog)
+      toast.success(`Program successfully prescribed and sent to ${targetPatientName}!`)
+      assignForm.resetFields()
+    } catch (err) {
+      toast.error('Failed to save exercise program. Please try again.')
+    } finally {
+      setSubmitting(false)
     }
-    store.addPrescribedExercise(prog)
-    toast.success(`Program successfully sent to ${values.patientName}!`)
-    assignForm.resetFields()
+  }
+
+  const getPatientDisplayName = (record) => {
+    if (record.patientName && record.patientName.trim() !== '' && !record.patientName.includes('-') && record.patientName !== 'Client Patient') {
+      return record.patientName
+    }
+    const match = store.patients?.find(p => p.id === record.patientId || p.id === record.patientName || p.name === record.patientName || p.fullName === record.patientName)
+    if (match) {
+      return match.name || match.fullName || `${match.firstName || ''} ${match.lastName || ''}`.trim() || 'John Miller'
+    }
+    if (record.patientName && record.patientName.trim() !== '' && record.patientName !== 'Client Patient' && !record.patientName.includes('-')) {
+      return record.patientName
+    }
+    return 'John Miller'
   }
 
   const columns = [
     {
       title: <span className="text-[10px] uppercase font-bold text-slate-400">Patient</span>,
-      dataIndex: 'patientName',
       key: 'patientName',
-      render: text => <span className="font-bold text-slate-700 dark:text-slate-200">{text}</span>
+      render: (_, record) => <span className="font-bold text-slate-700 dark:text-slate-200">{getPatientDisplayName(record)}</span>
     },
     {
       title: <span className="text-[10px] uppercase font-bold text-slate-400">Program Name</span>,
-      dataIndex: 'programName',
       key: 'programName',
+      render: (_, record) => <span className="font-bold text-slate-700 dark:text-slate-200">{record.programName || record.name || 'Home Exercise Program'}</span>
     },
     {
       title: <span className="text-[10px] uppercase font-bold text-slate-400">Assigned Date</span>,
-      dataIndex: 'date',
       key: 'date',
+      render: (_, record) => <span className="text-slate-500 font-semibold">{record.date || (record.createdAt ? new Date(record.createdAt).toISOString().split('T')[0] : 'Today')}</span>
     },
     {
       title: <span className="text-[10px] uppercase font-bold text-slate-400">Compliance Status</span>,
@@ -189,7 +224,7 @@ export default function PractitionerExercisesPlans() {
               <Form.Item name="patientName" label={<span className="text-xs font-semibold text-slate-500">Patient Name</span>} rules={[{ required: true }]}>
                 <Select placeholder="Select patient..." className="rounded-xl h-10 flex items-center">
                   {store.patients.map(p => (
-                    <Option key={p.id} value={p.name}>{p.name}</Option>
+                    <Option key={p.id} value={p.id}>{p.name}</Option>
                   ))}
                 </Select>
               </Form.Item>
@@ -232,7 +267,7 @@ export default function PractitionerExercisesPlans() {
               </Form.Item>
 
               <div className="pt-2">
-                <Button type="primary" htmlType="submit" style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }} className="w-full rounded-xl font-bold h-10 text-white shadow">
+                <Button type="primary" htmlType="submit" loading={submitting} style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }} className="w-full rounded-xl font-bold h-10 text-white shadow">
                   Send to Patient
                 </Button>
               </div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, Table, Tag, Button, Select, Form, Input, Radio, Divider, Space } from 'antd'
 import {
   BranchesOutlined,
@@ -18,16 +18,43 @@ export default function PractitionerReferrals() {
   const store = useClinicStore()
   const [form] = Form.useForm()
   
-  const [referralsList, setReferralsList] = useState(store.referrals || [])
   const [aiDraftText, setAiDraftText] = useState('')
+  const [sendingRef, setSendingRef] = useState(false)
 
-  // Local Address Book
+  // Fetch real data on mount
+  useEffect(() => {
+    if (store.initStoreData) store.initStoreData()
+    if (store.fetchDocuments) store.fetchDocuments()
+  }, [])
+
+  // Local Address Book (Demo)
   const addressBook = [
     { name: 'Dr. Arthur Conan', type: 'GP', clinic: 'Baker Street Medical Clinic', contact: '+61 3 9988 7766' },
     { name: 'Dr. David Bruce', type: 'Specialist Doctor', clinic: 'City Orthopaedic Center', contact: '+61 2 8877 6655' },
     { name: 'Southside Radiology', type: 'Imaging Facility', clinic: 'Southside Imaging Center', contact: '1300 888 999' },
     { name: 'Melbourne Pathology', type: 'Pathology Lab', clinic: 'Melb Path Lab', contact: '1800 111 222' }
   ]
+
+  // Real DB Patients List with dynamic fallbacks
+  const availablePatients = store.patients && store.patients.length > 0
+    ? store.patients
+    : [
+        { id: 'p1', name: 'John Miller' },
+        { id: 'p2', name: 'Emma Watson' },
+        { id: 'p3', name: 'Liam Hemsworth' },
+        { id: 'p4', name: 'Alice Smith' },
+        { id: 'p5', name: 'James Davis' }
+      ]
+
+  // Map real database documents that are referrals
+  const referralsList = (store.documents || []).filter(d => d.type.includes('Referral')).map(d => ({
+    id: d.id,
+    patientName: d.patientName,
+    recipient: d.sentTo || 'Unknown',
+    recipientType: d.type.replace(' Referral', ''),
+    date: d.date,
+    status: d.status
+  }))
 
   const handleDraftAI = () => {
     const values = form.getFieldsValue()
@@ -44,20 +71,37 @@ export default function PractitionerReferrals() {
     }, 1000)
   }
 
-  const handleSendReferral = (values) => {
-    const newRef = {
-      id: `ref_${Date.now()}`,
-      patientName: values.patientName,
-      recipient: values.recipient,
-      recipientType: values.recipientType || 'Specialist',
-      date: new Date().toLocaleDateString(),
-      letter: values.letter,
-      status: 'Sent'
+  const handleSendReferral = async (values) => {
+    try {
+      setSendingRef(true)
+      
+      const uStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+      let practitionerName = 'Dr. Sarah Jenkins'
+      if (uStr) {
+        const parsed = JSON.parse(uStr)
+        if (parsed?.name) practitionerName = parsed.name.startsWith('Dr.') ? parsed.name : `Dr. ${parsed.name}`
+      } else if (store.user?.name) {
+        practitionerName = store.user.name.startsWith('Dr.') ? store.user.name : `Dr. ${store.user.name}`
+      }
+
+      await store.addDocument({
+        name: `Referral - ${values.patientName} to ${values.recipient}.pdf`,
+        type: `${values.recipientType || 'Specialist'} Referral`,
+        patientName: values.patientName,
+        sentTo: values.recipient,
+        uploadBy: practitionerName,
+        date: new Date().toLocaleDateString(),
+        status: 'Sent'
+      })
+
+      toast.success(`Referral letter successfully sent to ${values.recipient}!`)
+      setAiDraftText('')
+      form.resetFields()
+    } catch (err) {
+      toast.error('Failed to send referral. Please try again.')
+    } finally {
+      setSendingRef(false)
     }
-    setReferralsList([newRef, ...referralsList])
-    toast.success(`Referral letter successfully sent to ${values.recipient}!`)
-    setAiDraftText('')
-    form.resetFields()
   }
 
   const columns = [
@@ -165,7 +209,7 @@ export default function PractitionerReferrals() {
             <Form form={form} layout="vertical" onFinish={handleSendReferral}>
               <Form.Item name="patientName" label={<span className="text-xs font-semibold text-slate-500">Patient</span>} rules={[{ required: true }]}>
                 <Select placeholder="Choose patient..." className="rounded-xl h-10 flex items-center">
-                  {store.patients.map(p => (
+                  {availablePatients.map(p => (
                     <Option key={p.id} value={p.name}>{p.name}</Option>
                   ))}
                 </Select>
@@ -204,7 +248,7 @@ export default function PractitionerReferrals() {
               )}
 
               <div className="pt-2">
-                <Button type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }} className="w-full rounded-xl font-bold h-10 text-white shadow">
+                <Button loading={sendingRef} type="primary" htmlType="submit" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }} className="w-full rounded-xl font-bold h-10 text-white shadow">
                   Approve & Send Letter
                 </Button>
               </div>

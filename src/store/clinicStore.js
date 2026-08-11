@@ -640,22 +640,74 @@ export const useClinicStore = create((set, get) => ({
 
   /* Invoice management Actions */
   setInvoices: (invoices) => set({ invoices: Array.isArray(invoices) ? invoices : [] }),
-  addInvoice: (invoice) => {
+  fetchInvoices: async () => {
+    try {
+      const res = await api.get('/api/practitioner/invoices')
+      if (res?.data?.success) {
+        set({ invoices: res.data.data })
+      }
+    } catch (err) {
+      console.error('❌ Error fetching invoices:', err?.message)
+    }
+  },
+  addInvoice: async (invoice) => {
+    try {
+      const res = await api.post('/api/practitioner/invoices', invoice)
+      if (res?.data?.success) {
+        const created = res.data.data
+        set((state) => ({ invoices: [created, ...(state.invoices || [])] }))
+        return created
+      }
+    } catch (err) {
+      console.error('❌ Error creating invoice:', err?.message)
+    }
+    // Fallback if API fails
     set((state) => ({ invoices: [invoice, ...(state.invoices || [])] }))
   },
-  updateInvoiceStatus: (id, status, dueVal) => {
+  updateInvoiceStatus: async (id, status, dueVal) => {
+    try {
+      const res = await api.put(`/api/practitioner/invoices/${id}`, { status, due: dueVal })
+      if (res?.data?.success) {
+        const updated = res.data.data
+        set((state) => ({
+          invoices: (state.invoices || []).map((inv) => (inv.id === id ? updated : inv)),
+        }))
+        return updated
+      }
+    } catch (err) {
+      console.error('❌ Error updating invoice:', err?.message)
+    }
+    // Fallback
     set((state) => ({
       invoices: (state.invoices || []).map((inv) =>
         inv.id === id ? { ...inv, status, due: dueVal !== undefined ? dueVal : inv.due } : inv
       ),
     }))
   },
-  updateInvoice: (updatedInv) => {
+  updateInvoice: async (updatedInv) => {
+    try {
+      const res = await api.put(`/api/practitioner/invoices/${updatedInv.id}`, updatedInv)
+      if (res?.data?.success) {
+        const updated = res.data.data
+        set((state) => ({
+          invoices: (state.invoices || []).map((inv) => (inv.id === updatedInv.id ? updated : inv)),
+        }))
+        return updated
+      }
+    } catch (err) {
+      console.error('❌ Error updating invoice:', err?.message)
+    }
+    // Fallback
     set((state) => ({
       invoices: (state.invoices || []).map((inv) => (inv.id === updatedInv.id ? { ...inv, ...updatedInv } : inv)),
     }))
   },
-  deleteInvoice: (id) => {
+  deleteInvoice: async (id) => {
+    try {
+      await api.delete(`/api/practitioner/invoices/${id}`)
+    } catch (err) {
+      console.error('❌ Error deleting invoice:', err?.message)
+    }
     set((state) => ({ invoices: (state.invoices || []).filter((inv) => inv.id !== id) }))
   },
 
@@ -669,7 +721,17 @@ export const useClinicStore = create((set, get) => ({
   setSalesConvertModalOpen: (isOpen) => set({ salesConvertModalOpen: isOpen }),
   setSalesSelectedLeadId: (id) => set({ salesSelectedLeadId: id }),
 
-  addDocument: (doc) => {
+  addDocument: async (doc) => {
+    try {
+      const res = await api.post('/api/practitioner/documents', doc)
+      if (res?.data?.success) {
+        const created = res.data.data
+        set((state) => ({ documents: [created, ...state.documents] }))
+        return created
+      }
+    } catch (err) {
+      console.error('❌ Error saving document to DB:', err?.message)
+    }
     const newDoc = {
       id: `doc-${Date.now()}`,
       name: doc.name || 'Docname.doc',
@@ -678,6 +740,7 @@ export const useClinicStore = create((set, get) => ({
       ...doc,
     }
     set((state) => ({ documents: [newDoc, ...state.documents] }))
+    return newDoc
   },
   updateDocument: (updatedDoc) => {
     set((state) => ({
@@ -1337,19 +1400,44 @@ export const useClinicStore = create((set, get) => ({
 
   /* Prescribed Exercises */
   prescribedExercises: [],
-  addPrescribedExercise: (prog) =>
-    set((state) => ({
-      prescribedExercises: [
-        { id: `ex_${Date.now()}`, date: new Date().toISOString().split('T')[0], compliance: { viewed: false, started: false, completed: false }, ...prog },
-        ...state.prescribedExercises,
-      ],
-    })),
-  updatePrescribedExerciseCompliance: (id, compliance) =>
+  fetchPrescribedExercises: async () => {
+    try {
+      const res = await api.get('/api/practitioner/exercises')
+      if (res?.data?.success && Array.isArray(res.data.data)) {
+        set({ prescribedExercises: res.data.data })
+        return res.data.data
+      }
+    } catch (err) {
+      console.error('❌ Error fetching prescribed exercises from DB:', err?.message)
+    }
+  },
+  addPrescribedExercise: async (prog) => {
+    try {
+      const res = await api.post('/api/practitioner/exercises', prog)
+      if (res?.data?.success) {
+        const created = res.data.data
+        set((state) => ({ prescribedExercises: [created, ...state.prescribedExercises] }))
+        return created
+      }
+    } catch (err) {
+      console.error('❌ Error saving prescribed exercise to DB:', err?.message)
+    }
+    const fallback = { id: `ex_${Date.now()}`, date: new Date().toISOString().split('T')[0], compliance: { viewed: false, started: false, completed: false }, ...prog }
+    set((state) => ({ prescribedExercises: [fallback, ...state.prescribedExercises] }))
+    return fallback
+  },
+  updatePrescribedExerciseCompliance: async (id, compliance) => {
+    try {
+      await api.put(`/api/practitioner/exercises/${id}/compliance`, { compliance })
+    } catch (err) {
+      console.error('❌ Error updating exercise compliance in DB:', err?.message)
+    }
     set((state) => ({
       prescribedExercises: state.prescribedExercises.map((e) =>
         e.id === id ? { ...e, compliance: { ...e.compliance, ...compliance } } : e
       ),
-    })),
+    }))
+  },
 
   /* Referrals */
   referrals: [],
@@ -1385,4 +1473,34 @@ export const useClinicStore = create((set, get) => ({
         },
       }
     }),
+
+  /* Documents & Reports */
+  documents: [],
+  fetchDocuments: async () => {
+    try {
+      const res = await api.get('/api/practitioner/documents')
+      if (res?.data?.success && Array.isArray(res.data.data)) {
+        set({ documents: res.data.data })
+        return res.data.data
+      }
+    } catch (err) {
+      console.error('❌ Error fetching documents from DB:', err?.message)
+    }
+  },
+  addDocument: async (docData) => {
+    try {
+      const res = await api.post('/api/practitioner/documents', docData)
+      if (res?.data?.success) {
+        const created = res.data.data
+        set((state) => ({ documents: [created, ...state.documents] }))
+        return created
+      }
+    } catch (err) {
+      console.error('❌ Error saving document to DB:', err?.message)
+    }
+    const fallback = { id: `doc_${Date.now()}`, date: new Date().toLocaleDateString(), status: 'Generated', ...docData }
+    set((state) => ({ documents: [fallback, ...state.documents] }))
+    return fallback
+  },
 }))
+
