@@ -15,13 +15,29 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
 
   // Set initial default date/time when clicked on grid
   useEffect(() => {
+    let parsedUser = null
+    try {
+      const uStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+      if (uStr) parsedUser = JSON.parse(uStr)
+    } catch (e) {}
+    const uId = parsedUser?.id || (typeof window !== 'undefined' ? localStorage.getItem('userId') || '' : '')
+    const uEmail = (parsedUser?.email || (typeof window !== 'undefined' ? localStorage.getItem('userEmail') || '' : '')).toLowerCase().trim()
+    const uName = (parsedUser?.name || (typeof window !== 'undefined' ? localStorage.getItem('userName') || '' : '')).toLowerCase().trim()
+
+    const loggedInPrac = (store.practitioners || []).find(p => p.userId === uId || p.id === uId) ||
+                         (store.practitioners || []).find(p => p.email && p.email.toLowerCase().trim() === uEmail) ||
+                         (store.practitioners || []).find(p => p.name && p.name.toLowerCase().replace(/dr\.?\s*/g, '').includes(uName.replace(/dr\.?\s*/g, ''))) ||
+                         store.practitioners[0]
+
+    const defaultPracId = defaultTimeSlot?.practitionerId || loggedInPrac?.id || store.practitioners[0]?.id
+
     if (open) {
       if (defaultTimeSlot) {
         form.setFieldsValue({
           date: dayjs(defaultTimeSlot.date),
           time: dayjs(`2026-06-09T${defaultTimeSlot.time}`),
           endTime: dayjs(`2026-06-09T${defaultTimeSlot.time}`).add(1, 'hour'),
-          practitionerId: defaultTimeSlot.practitionerId || store.practitioners[0]?.id,
+          practitionerId: defaultPracId,
           repeat: 'None',
           customRepeatText: '',
           providerTravel: false,
@@ -37,7 +53,7 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
           date: dayjs(),
           time: dayjs('09:00', 'HH:mm'),
           endTime: dayjs('10:00', 'HH:mm'),
-          practitionerId: store.practitioners[0]?.id,
+          practitionerId: defaultPracId,
           repeat: 'None',
           customRepeatText: '',
           providerTravel: false,
@@ -50,7 +66,7 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
         setSelectedRepeat('None')
       }
     }
-  }, [open, defaultTimeSlot])
+  }, [open, defaultTimeSlot, store.practitioners])
 
   const onFinish = async (values) => {
     const patientObj = store.patients.find(p => p.id === values.patientId)

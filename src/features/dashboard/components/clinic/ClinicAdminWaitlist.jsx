@@ -23,7 +23,7 @@ export default function ClinicAdminWaitlist() {
       if (res && res.success && res.data && res.data.name) {
         setClinicName(res.data.name)
       }
-    }).catch(() => {})
+    }).catch(() => { })
   }, [])
 
   const fetchWaitlistData = async () => {
@@ -337,7 +337,7 @@ export default function ClinicAdminWaitlist() {
             >
               <Input />
             </Form.Item>
-            
+
             <Form.Item
               name="dob"
               label={<span className="text-slate-500 font-semibold text-[11px]">Date of birth</span>}

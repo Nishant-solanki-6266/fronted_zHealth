@@ -97,40 +97,90 @@ export default function PatientsPage() {
     loadPatientsFromDB()
   }, [searchText])
 
+  const isPractitioner = React.useMemo(() => {
+    const role = (store.userRole || (typeof window !== 'undefined' ? localStorage.getItem('userRole') : '') || '').toLowerCase()
+    return role === 'practitioner' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/practitioner'))
+  }, [store.userRole])
+
+  const [activeClientTab, setActiveClientTab] = useState(() => isPractitioner ? 'my_clients' : 'all_clients')
+
+  // Find logged-in practitioner object dynamically
+  const loggedInPractitioner = React.useMemo(() => {
+    if (!Array.isArray(store.practitioners) || store.practitioners.length === 0) return null
+    let parsedUser = null
+    try {
+      const uStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null
+      if (uStr) parsedUser = JSON.parse(uStr)
+    } catch (e) {}
+    const uId = parsedUser?.id || (typeof window !== 'undefined' ? localStorage.getItem('userId') || '' : '')
+    const uEmail = (parsedUser?.email || (typeof window !== 'undefined' ? localStorage.getItem('userEmail') || '' : '')).toLowerCase().trim()
+    const uName = (parsedUser?.name || (typeof window !== 'undefined' ? localStorage.getItem('userName') || '' : '')).toLowerCase().trim()
+
+    return store.practitioners.find(p => p.userId === uId || p.id === uId) ||
+           store.practitioners.find(p => p.email && p.email.toLowerCase().trim() === uEmail) ||
+           store.practitioners.find(p => p.name && p.name.toLowerCase().replace(/dr\.?\s*/g, '').includes(uName.replace(/dr\.?\s*/g, ''))) ||
+           store.practitioners[0] || null
+  }, [store.practitioners])
+
+  // Set of patient IDs with existing appointment or consultation history with the logged-in practitioner
+  const myPatientIds = React.useMemo(() => {
+    if (!loggedInPractitioner) return new Set()
+    const ids = new Set()
+    const pracId = loggedInPractitioner.id
+    const pracName = (loggedInPractitioner.name || '').toLowerCase().replace(/dr\.?\s*/g, '').trim()
+
+    if (Array.isArray(store.appointments)) {
+      store.appointments.forEach(a => {
+        const apptPracName = (a.practitionerName || '').toLowerCase().replace(/dr\.?\s*/g, '').trim()
+        if (a.patientId && (a.practitionerId === pracId || (pracName && apptPracName && (apptPracName.includes(pracName) || pracName.includes(apptPracName))))) {
+          ids.add(a.patientId)
+        }
+      })
+    }
+    if (Array.isArray(store.consultations)) {
+      store.consultations.forEach(c => {
+        const consPracName = (c.practitionerName || '').toLowerCase().replace(/dr\.?\s*/g, '').trim()
+        if (c.patientId && (c.practitionerId === pracId || (pracName && consPracName && (consPracName.includes(pracName) || pracName.includes(consPracName))))) {
+          ids.add(c.patientId)
+        }
+      })
+    }
+    return ids
+  }, [loggedInPractitioner, store.appointments, store.consultations])
+
   const allPats = React.useMemo(() => {
     const map = new Map()
-    if (Array.isArray(store.patients)) {
-      store.patients.forEach(p => {
-        if (p && p.id) {
-          map.set(p.id, {
-            ...p,
-            name: p.fullName || p.name || 'Unknown Client',
-            dob: p.dob || '',
-            phone: p.phone || '',
-            email: p.email || '',
-            tags: Array.isArray(p.tags) ? p.tags : (p.tags ? [p.tags] : [])
-          })
-        }
-      })
+    const processPatient = (p) => {
+      if (p && p.id) {
+        // Exclude staff/admin accounts mistakenly linked to Patient table (preserve valid patients with userId === null)
+        if (p.user && p.user.role && p.user.role !== 'PATIENT') return
+        map.set(p.id, {
+          ...p,
+          name: p.fullName || p.name || 'Unknown Client',
+          dob: p.dob || '',
+          phone: p.phone || '',
+          email: p.email || '',
+          tags: Array.isArray(p.tags) ? p.tags : (p.tags ? [p.tags] : [])
+        })
+      }
     }
-    if (Array.isArray(patientsList)) {
-      patientsList.forEach(p => {
-        if (p && p.id) {
-          map.set(p.id, {
-            ...p,
-            name: p.fullName || p.name || 'Unknown Client',
-            dob: p.dob || '',
-            phone: p.phone || '',
-            email: p.email || '',
-            tags: Array.isArray(p.tags) ? p.tags : (p.tags ? [p.tags] : [])
-          })
-        }
-      })
-    }
+    if (Array.isArray(store.patients)) store.patients.forEach(processPatient)
+    if (Array.isArray(patientsList)) patientsList.forEach(processPatient)
     return Array.from(map.values())
   }, [patientsList, store.patients])
 
-  const filteredPatients = allPats.filter((p) => {
+  const myClientsList = React.useMemo(() => {
+    return allPats.filter(p => myPatientIds.has(p.id))
+  }, [allPats, myPatientIds])
+
+  const baseList = React.useMemo(() => {
+    if (isPractitioner && activeClientTab === 'my_clients') {
+      return myClientsList
+    }
+    return allPats
+  }, [isPractitioner, activeClientTab, myClientsList, allPats])
+
+  const filteredPatients = baseList.filter((p) => {
     const search = (searchText || '').trim().toLowerCase()
     const matchesSearch = !search ||
       (p.name || '').toLowerCase().includes(search) ||
@@ -154,6 +204,34 @@ export default function PatientsPage() {
         <div>
           <h2 className="text-xl font-extrabold text-slate-800 dark:text-white m-0">Clients Details</h2>
           <p className="text-slate-400 text-xs mt-0.5 font-semibold">Manage your all registered patients</p>
+          
+          {/* Dual View Mode Tabs for Practitioner */}
+          {isPractitioner && (
+            <div className="flex items-center gap-2 mt-3 bg-slate-100 dark:bg-slate-800/60 p-1 rounded-xl w-fit border border-slate-200 dark:border-slate-700">
+              <button
+                type="button"
+                onClick={() => { setActiveClientTab('my_clients'); setPage(1); }}
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer border-none ${
+                  activeClientTab === 'my_clients'
+                    ? 'bg-[#8C4BFF] text-white shadow-sm'
+                    : 'bg-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                My Clients ({myClientsList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => { setActiveClientTab('all_clients'); setPage(1); }}
+                className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer border-none ${
+                  activeClientTab === 'all_clients'
+                    ? 'bg-[#8C4BFF] text-white shadow-sm'
+                    : 'bg-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+              >
+                All Clinic Clients ({allPats.length})
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
