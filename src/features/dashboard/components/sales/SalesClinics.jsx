@@ -37,6 +37,8 @@ export default function SalesClinics({ store: propStore }) {
     if (!currentRepName) return true
     const sp = salespersonField.toLowerCase().trim()
     const cur = currentRepName.toLowerCase().trim()
+    // Also show clinics with generic "sales executive" default (set during conversion)
+    if (sp === 'sales executive') return true
     return sp.includes(cur) || cur.includes(sp)
   }
 
