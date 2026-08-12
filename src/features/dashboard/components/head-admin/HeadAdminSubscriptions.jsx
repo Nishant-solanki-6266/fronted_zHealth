@@ -259,7 +259,7 @@ export default function HeadAdminSubscriptions() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-wrap gap-2 pb-2">
-        {['Subscription Management', 'Tier Management', 'Coupons & Promotions', 'Automated Billing', 'White-Label Controls'].map(tab => (
+        {['Subscription Management', 'Tier Management'].map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}

@@ -195,7 +195,7 @@ export default function ClinicAdminPaymentsCentre() {
         />
       </div>
 
-      <style jsx global>{`
+      <style>{`
         .payments-table .ant-table-thead > tr > th {
           background-color: #F1F3F5 !important;
           border-bottom: 1px solid #e8e8e8 !important;
@@ -263,7 +263,7 @@ export default function ClinicAdminPaymentsCentre() {
         open={modalOpen} 
         onCancel={() => { setModalOpen(false); form.resetFields() }} 
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleAddPayment} className="mt-4">
           <Form.Item name="from" label="Client Name" rules={[{ required: true, message: 'Please enter client name' }]}>

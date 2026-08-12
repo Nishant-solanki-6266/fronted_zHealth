@@ -227,7 +227,7 @@ Confidential & HIPAA Compliant Export Data
 
       {/* ── Sub-tabs ── */}
       <div className="flex flex-wrap gap-2 pb-2">
-        {['Audit Logs', 'Compliance Alerts', 'Data Governance'].map(tab => (
+        {['Audit Logs'].map(tab => (
           <button
             key={tab}
             onClick={() => setActiveSubTab(tab)}

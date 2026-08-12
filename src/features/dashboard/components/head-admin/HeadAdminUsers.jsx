@@ -35,10 +35,15 @@ export default function HeadAdminUsers() {
 
   const backendFetch = async (endpoint, options = {}) => {
     const mainBase = API_BASE_URL
+    const authHeaders = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('accessToken') || ''}`,
+      ...(options.headers || {}),
+    }
     try {
       const res = await fetch(`${mainBase}/api${endpoint}`, {
-        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-        ...options
+        ...options,
+        headers: authHeaders,
       })
       if (res.ok) {
         return await res.json()
@@ -51,8 +56,8 @@ export default function HeadAdminUsers() {
     for (const port of PORTS) {
       try {
         const res = await fetch(`http://localhost:${port}/api${endpoint}`, {
-          headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-          ...options
+          ...options,
+          headers: authHeaders,
         })
         if (res.ok) {
           window._activeBackendPort = port
@@ -635,7 +640,7 @@ export default function HeadAdminUsers() {
               dataIndex: 'name',
               render: (name, record) => (
                 <div className="flex items-center gap-2">
-                  <Avatar src={record.avatar} size={28} style={{ background: 'linear-gradient(135deg, #8C4BFF, #0E1B33)' }}>
+                  <Avatar src={record.avatar || null} size={28} style={{ background: 'linear-gradient(135deg, #8C4BFF, #0E1B33)' }}>
                     {name.charAt(0)}
                   </Avatar>
                   <span className="font-bold text-slate-808 text-xs">{name}</span>

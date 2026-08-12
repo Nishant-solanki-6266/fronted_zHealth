@@ -265,7 +265,7 @@ export default function HeadAdminSupportCentre() {
 
       {/* Navigation Sub-tabs */}
       <div className="flex flex-wrap gap-2 pb-2">
-        {['Tickets', 'Priority Queue', 'Live Chat', 'Bug Reports', 'Feature Requests', 'Clinic History'].map(tab => (
+        {['Tickets', 'Priority Queue', 'Live Chat', 'Bug Reports', 'Clinic History'].map(tab => (
           <button
             key={tab}
             onClick={() => setActiveSubTab(tab)}

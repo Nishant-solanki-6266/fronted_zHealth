@@ -299,7 +299,7 @@ export default function ClinicAdminDocuments() {
         open={detailVisible}
         onCancel={() => { setDetailVisible(false); setSelectedDoc(null); }}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         width={600}
         className="rounded-2xl overflow-hidden"
       >

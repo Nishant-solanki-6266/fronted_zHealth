@@ -341,7 +341,7 @@ export default function ClinicAdminProducts() {
             />
           </div>
 
-          <style jsx global>{`
+          <style>{`
             .products-table .ant-table-thead > tr > th {
               background-color: #F1F3F5 !important;
               border-bottom: 1px solid #e8e8e8 !important;

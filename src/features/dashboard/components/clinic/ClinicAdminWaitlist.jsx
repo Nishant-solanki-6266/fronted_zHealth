@@ -313,7 +313,7 @@ export default function ClinicAdminWaitlist() {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         width={650}
       >
         <Form

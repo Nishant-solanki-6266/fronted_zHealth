@@ -429,18 +429,6 @@ export default function HeadAdminDashboard({ store, navigate }) {
           <p className="text-slate-450 dark:text-slate-400 text-xs font-semibold mt-0.5">Platform AI consumption and cost vs revenue</p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {aiStats.map((item, idx) => (
-            <div key={idx} className="bg-white dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 p-4 shadow-sm">
-              <span className="text-slate-400 dark:text-slate-500 text-[9px] font-bold block uppercase tracking-wider">{item.label}</span>
-              <h4 className="text-lg font-black text-slate-800 dark:text-white m-0 mt-2">{item.value}</h4>
-              <div className="flex items-center gap-1 mt-1 text-[9px] font-bold">
-                <span className={item.pos ? 'text-emerald-500' : 'text-slate-500'}>{item.change}</span>
-              </div>
-            </div>
-          ))}
-        </div>
-
         <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-white">Top AI-consuming clinics</span>}>
           <div className="space-y-4">
             {topAiClinics.map((c, idx) => (
