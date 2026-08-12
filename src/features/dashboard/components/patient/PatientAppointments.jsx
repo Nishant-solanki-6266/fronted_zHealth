@@ -30,28 +30,22 @@ export default function PatientAppointments() {
   const [rescheduleTime, setRescheduleTime] = useState('')
   const [rescheduleNotes, setRescheduleNotes] = useState('')
 
-  const [appointmentsList, setAppointmentsList] = useState([
-    { id: 'app_1', date: '2026-06-19', time: '10:00 AM', practitioner: 'Dr. Sarah Jenkins', clinic: 'Melbourne Allied Health', type: 'Initial Physiotherapy Assessment', funding: 'NDIS', status: 'Upcoming' },
-    { id: 'app_2', date: '2026-06-26', time: '11:30 AM', practitioner: 'Dr. Emily Smith', clinic: 'Sydney Allied Hub', type: 'Speech Pathology Review', funding: 'EPC', status: 'Upcoming' },
-    { id: 'app_3', date: '2026-05-12', time: '09:00 AM', practitioner: 'Dr. Sarah Jenkins', clinic: 'Melbourne Allied Health', type: 'MSK Progress Review', funding: 'Private', status: 'Completed' },
-    { id: 'app_4', date: '2026-04-18', time: '02:00 PM', practitioner: 'Dr. James Carter', clinic: 'Melbourne Allied Health', type: 'OT Assessment', funding: 'WorkCover', status: 'Completed' },
-    { id: 'app_5', date: '2026-03-05', time: '10:00 AM', practitioner: 'Dr. Sarah Jenkins', clinic: 'Melbourne Allied Health', type: 'Calf Strength Exercise Session', funding: 'NDIS', status: 'Missed' }
-  ])
+  const [appointmentsList, setAppointmentsList] = useState([])
 
   // Fetch live data from backend
   const fetchAppointments = async () => {
     setLoading(true)
     try {
       const res = await api.get('/api/patient/appointments')
-      if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+      if (res.data?.success && Array.isArray(res.data.data)) {
         const formatted = res.data.data.map(app => ({
           id: app.id,
           date: app.date || new Date(app.createdAt).toISOString().split('T')[0],
           time: app.startTime || '10:00 AM',
-          practitioner: app.practitionerName || 'Dr. Sarah Jenkins',
-          clinic: app.branchName || 'Melbourne Allied Health',
-          type: app.serviceName || 'Initial Physiotherapy Assessment',
-          funding: 'NDIS',
+          practitioner: app.practitionerName || 'Dr. Practitioner',
+          clinic: app.branchName || 'Allied Health Clinic',
+          type: app.serviceName || 'Consultation',
+          funding: 'Private',
           status: app.status === 'Scheduled' ? 'Upcoming' : app.status,
           rawStatus: app.status
         }))

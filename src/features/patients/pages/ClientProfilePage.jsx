@@ -1232,19 +1232,9 @@ export default function ClientProfilePage() {
       },
     ]
 
-    const mockExercises = [
-      {
-        id: 'ex1',
-        name: 'Lumbar Spine Strengths & Core Stability v2',
-        date: '02/06/2026',
-        clinician: 'Dr. Sarah Jenkins',
-        compliance: '92%',
-      },
-    ]
-
     return (
       <Table
-        dataSource={patient.id === 'p1' ? mockExercises : []}
+        dataSource={[]}
         columns={columns}
         rowKey="id"
         pagination={false}
@@ -1324,16 +1314,7 @@ export default function ClientProfilePage() {
         content: c.notes || (c.soap ? `S: ${c.soap.subjective}\nO: ${c.soap.objective}\nA: ${c.soap.assessment}\nP: ${c.soap.plan}` : '')
       }))
 
-    const mockNotesMap = {
-      'p1': [
-        { id: 'mock_h1', date: '24/04/2026', practitionerName: 'Dr. Sarah Jenkins', title: 'SOAP Note', status: 'Draft', content: 'S: Patient reports mild lower back soreness after doing lumbar flexion movements. Rating pain at 4/10.\n\nO: Active lumbar flexion is limited to 60 degrees. Tenderness noted over L4-L5 vertebrae.\n\nA: Muscular strain overlaying mild chronic discogenic low back pain. Condition stable.\n\nP: Prescribed home core stabilizer workouts. Follow up scheduled next week.' },
-        { id: 'mock_h2', date: '18/04/2026', practitionerName: 'Dr. Sarah Jenkins', title: 'Discharge Summary', status: 'Signed', content: 'Reason for Treatment: Lower back pain rehabilitation.\n\nSummary of Treatment: Completed 6 sessions of physiotherapy and core stability training.\n\nCondition at Discharge: Patient reports zero back pain and 100% recovery of flexion range.\n\nDischarge Plan: Discharge to home exercise plan. No follow-up scheduled.' },
-        { id: 'mock_h3', date: '10/04/2026', practitionerName: 'Dr. Sarah Jenkins', title: 'SOAP Note', status: 'Signed', content: 'S: Mild back tightness. O: Tenderness noted over L4-L5 vertebrae. A: Discogenic pain. P: Soft tissue massage and stability exercises.' },
-        { id: 'mock_h4', date: '28/03/2026', practitionerName: 'Dr. Sarah Jenkins', title: 'H&P', status: 'Signed', content: 'History & Physical: Patient presents with history of chronic lower back pain. Assessment indicates range of motion is normal with minor discomfort.' }
-      ]
-    }
-    const mockNotes = mockNotesMap[patient.id] || []
-    const allNotes = [...realNotes, ...mockNotes]
+    const allNotes = realNotes
 
     const columns = [
       {

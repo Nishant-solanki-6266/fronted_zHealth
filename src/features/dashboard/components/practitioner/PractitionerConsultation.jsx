@@ -33,6 +33,7 @@ import {
 import { toast } from 'react-hot-toast'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useClinicStore } from '../../../../store/clinicStore'
+import BodyChartDiagram from './BodyChartDiagram'
 
 const { Option } = Select
 const { TextArea } = Input
@@ -74,6 +75,7 @@ export default function PractitionerConsultation() {
   const [selectedHistoryNoteId, setSelectedHistoryNoteId] = useState(null)
   const [lastSavedTime, setLastSavedTime] = useState('')
   const [isAutoSaving, setIsAutoSaving] = useState(false)
+  const [bodyChartFindings, setBodyChartFindings] = useState([])
   const [aiModalVisible, setAiModalVisible] = useState(false)
 
   // Format YYYY-MM-DD date to "Apr 26, 2024" format
@@ -96,9 +98,9 @@ export default function PractitionerConsultation() {
     return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   }
 
-  // Get combined history (real + mock) for a patient
+  // Get history for a patient from DB
   const getPatientNotesHistory = (patientId) => {
-    const realNotes = store.consultations
+    return store.consultations
       .filter(c => c.patientId === patientId)
       .map(c => ({
         id: c.id,
@@ -107,24 +109,6 @@ export default function PractitionerConsultation() {
         status: c.status === 'Completed' ? 'Final' : c.status,
         content: c.notes || (c.soap ? `S: ${c.soap.subjective}\n\nO: ${c.soap.objective}\n\nA: ${c.soap.assessment}\n\nP: ${c.soap.plan}` : '')
       }))
-
-    const mockNotes = {
-      'p1': [
-        { id: 'mock_h1', date: 'Apr 24, 2024', title: 'SOAP Note', status: 'Draft', content: 'S: Patient reports mild lower back soreness after doing lumbar flexion movements. Rating pain at 4/10.\n\nO: Active lumbar flexion is limited to 60 degrees. Tenderness noted over L4-L5 vertebrae.\n\nA: Muscular strain overlaying mild chronic discogenic low back pain. Condition stable.\n\nP: Prescribed home core stabilizer workouts. Follow up scheduled next week.' },
-        { id: 'mock_h2', date: 'Apr 18, 2024', title: 'Discharge Summary', status: 'Final', content: 'Reason for Treatment: Lower back pain rehabilitation.\n\nSummary of Treatment: Completed 6 sessions of physiotherapy and core stability training.\n\nCondition at Discharge: Patient reports zero back pain and 100% recovery of flexion range.\n\nDischarge Plan: Discharge to home exercise plan. No follow-up scheduled.' },
-        { id: 'mock_h3', date: 'Apr 10, 2024', title: 'SOAP Note', status: 'Final', content: 'S: Mild back tightness. O: Tenderness noted over L4-L5 vertebrae. A: Discogenic pain. P: Soft tissue massage and stability exercises.' },
-        { id: 'mock_h4', date: 'Mar 28, 2024', title: 'H&P', status: 'Final', content: 'History & Physical: Patient presents with history of chronic lower back pain. Assessment indicates range of motion is normal with minor discomfort.' }
-      ],
-      'p2': [
-        { id: 'mock_h5', date: 'Apr 20, 2024', title: 'SOAP Note', status: 'Draft', content: 'S: Child is cooperative. Articulation is improving. O: Named 8/10 sibilants correctly. A: Improving language skills. P: Tongue worksheets.' },
-        { id: 'mock_h6', date: 'Apr 02, 2024', title: 'Clinical Assessment', status: 'Final', content: 'Speech evaluation. Articulation errors noted on sibilants. Recommendation is 2x weekly therapy.' }
-      ],
-      'p3': [
-        { id: 'mock_h7', date: 'Apr 14, 2024', title: 'SOAP Note', status: 'Final', content: 'S: Post-stroke left arm tightness. O: Range of motion flex is limited to 45 deg. A: Shoulder stiffness. P: Stretching exercises.' }
-      ]
-    }
-
-    return [...realNotes, ...(mockNotes[patientId] || [])]
   }
 
   // Get display patient ID (clean & dynamic)
@@ -232,14 +216,24 @@ export default function PractitionerConsultation() {
     }
   }, [selectedPatientId])
 
+  const getSoapPayload = () => {
+    const fields = soapForm.getFieldsValue() || {}
+    return {
+      ...fields,
+      bodyChart: bodyChartFindings
+    }
+  }
+
   // Save as Draft
   const handleSaveDraft = async () => {
     const apptObj = getSelectedAppointmentObj()
     const existingNoteObj = apptObj ? store.consultations.find(c => c.appointmentId === apptObj.id) : null
+    const soapData = getSoapPayload()
 
     if (existingNoteObj) {
       await store.updateConsultation(existingNoteObj.id, {
         notes: noteText,
+        soap: soapData,
         status: 'Draft',
         date: new Date().toISOString().split('T')[0]
       })
@@ -249,6 +243,7 @@ export default function PractitionerConsultation() {
         patientId: selectedPatientId,
         patientName: patient.name,
         notes: noteText,
+        soap: soapData,
         status: 'Draft',
         practitionerName: activeDoctorName,
         profession: activeSpecialty,
@@ -265,10 +260,12 @@ export default function PractitionerConsultation() {
   const handleSaveFinal = async () => {
     const apptObj = getSelectedAppointmentObj()
     const existingNoteObj = apptObj ? store.consultations.find(c => c.appointmentId === apptObj.id) : null
+    const soapData = getSoapPayload()
 
     if (existingNoteObj) {
       await store.updateConsultation(existingNoteObj.id, {
         notes: noteText,
+        soap: soapData,
         status: 'Completed',
         date: new Date().toISOString().split('T')[0]
       })
@@ -278,6 +275,7 @@ export default function PractitionerConsultation() {
         patientId: selectedPatientId,
         patientName: patient.name,
         notes: noteText,
+        soap: soapData,
         status: 'Completed',
         practitionerName: activeDoctorName,
         profession: activeSpecialty,
@@ -327,6 +325,12 @@ export default function PractitionerConsultation() {
       const existingNoteObj = store.consultations.find(c => c.appointmentId === apptObj.id)
       if (existingNoteObj) {
         setNoteText(existingNoteObj.notes || '')
+        if (existingNoteObj.soap && typeof existingNoteObj.soap === 'object') {
+          if (Array.isArray(existingNoteObj.soap.bodyChart)) {
+            setBodyChartFindings(existingNoteObj.soap.bodyChart)
+          }
+          soapForm.setFieldsValue(existingNoteObj.soap)
+        }
         return // Bypass template loading because there's already a saved note
       }
     }
@@ -1118,6 +1122,11 @@ export default function PractitionerConsultation() {
                 className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
               />
             </div>
+            {/* Interactive Body Chart Diagram */}
+            <div className="mb-4">
+              <BodyChartDiagram value={bodyChartFindings} onChange={setBodyChartFindings} readOnly={isNoteFinal} />
+            </div>
+
             {/* Text Editor Area */}
             <div className="flex-1 flex flex-col">
               <textarea

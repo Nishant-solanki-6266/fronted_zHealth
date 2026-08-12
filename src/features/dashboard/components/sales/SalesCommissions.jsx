@@ -18,17 +18,20 @@ export default function SalesCommissions({ store: propStore }) {
   }, [])
 
   const getLoggedInSalesName = () => {
-    if (typeof window === 'undefined') return ''
-    const storedName = localStorage.getItem('userName')
-    if (storedName) return storedName
-    const storedUser = localStorage.getItem('user')
-    if (storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser)
-        if (parsed?.name) return parsed.name
-      } catch (e) {}
+    if (store.user?.name) return store.user.name
+    if (store.salesProfile?.name) return store.salesProfile.name
+    if (typeof window !== 'undefined') {
+      const storedName = localStorage.getItem('userName')
+      if (storedName) return storedName
+      const storedUser = localStorage.getItem('user')
+      if (storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser)
+          if (parsed?.name) return parsed.name
+        } catch (e) {}
+      }
     }
-    return store.salesProfile?.name || 'Colin Edegbe'
+    return store.userRole === 'sales' ? 'Sales Executive' : ''
   }
 
   const currentRepName = getLoggedInSalesName()
@@ -72,19 +75,21 @@ export default function SalesCommissions({ store: propStore }) {
   const leadIds = new Set(convertedLeadsFormatted.map(l => l.id))
   const filteredDbClinics = dbClinicsFormatted.filter(c => !leadIds.has(c.id))
 
+  const repCommissionRate = (parseFloat(store.user?.profileData?.commissionRate || store.salesProfile?.commissionRate) || 10.0) / 100
+
   const colinClinics = [...filteredDbClinics, ...convertedLeadsFormatted]
 
   const paidCommissionSum = colinClinics
     .filter(c => c.commissionStatus === 'Paid')
-    .reduce((sum, c) => sum + (parseFloat(c.revenue) * 0.12), 0)
+    .reduce((sum, c) => sum + (parseFloat(c.revenue) * repCommissionRate), 0)
 
   const pendingCommissionSum = colinClinics
     .filter(c => c.commissionStatus === 'Pending')
-    .reduce((sum, c) => sum + (parseFloat(c.revenue) * 0.12), 0)
+    .reduce((sum, c) => sum + (parseFloat(c.revenue) * repCommissionRate), 0)
 
   const lifetimeCommissions = paidCommissionSum + pendingCommissionSum
   const totalMrr = colinClinics.reduce((sum, c) => sum + (parseFloat(c.revenue) || 0), 0)
-  const thisMonthCommission = totalMrr * 0.12
+  const thisMonthCommission = totalMrr * repCommissionRate
 
   const stats = [
     { label: 'This Month', value: `$${Math.round(thisMonthCommission).toLocaleString()}`, icon: <PercentageOutlined />, color: '#8C4BFF', sub: 'Current month earnings' },

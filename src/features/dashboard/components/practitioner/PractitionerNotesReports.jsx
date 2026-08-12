@@ -37,27 +37,17 @@ export default function PractitionerNotesReports() {
     if (store.fetchDocuments) store.fetchDocuments()
   }, [])
 
-  // State
-  const [notesReviewList, setNotesReviewList] = useState([
-    { id: 'mock_1', client: 'John Miller', service: 'Initial Assessment notes', date: 'Yesterday', status: 'Pending Review' },
-    { id: 'mock_2', client: 'Alice Smith', service: 'Pediatric Intake review', date: 'Yesterday', status: 'Pending Review' },
-    { id: 'mock_3', client: 'James Davis', service: 'Lumbar adjustment notes', date: 'Today', status: 'Pending Review' }
-  ])
+  // Real DB dynamic lists
+  const notesReviewList = store.consultations
+    ? store.consultations.filter(c => c.status === 'Draft' || c.status === 'Pending Review' || c.status === 'Pending')
+    : []
 
   const [reportPreviewText, setReportPreviewText] = useState('')
   const [generatedReportMeta, setGeneratedReportMeta] = useState(null)
   const [savingDoc, setSavingDoc] = useState(false)
 
-  // Real DB Patients List with dynamic fallbacks
-  const availablePatients = store.patients && store.patients.length > 0
-    ? store.patients
-    : [
-        { id: 'p1', name: 'John Miller' },
-        { id: 'p2', name: 'Emma Watson' },
-        { id: 'p3', name: 'Liam Hemsworth' },
-        { id: 'p4', name: 'Alice Smith' },
-        { id: 'p5', name: 'James Davis' }
-      ]
+  // Real DB Patients List
+  const availablePatients = store.patients || []
 
   // Real DB Draft Consultations + Mock Review items
   const realDraftNotes = (store.consultations || [])
@@ -70,15 +60,12 @@ export default function PractitionerNotesReports() {
       status: 'Draft Note'
     }))
 
-  const combinedReviewList = [...realDraftNotes, ...notesReviewList]
+  const combinedReviewList = realDraftNotes
 
   const handleApproveNote = async (id, client) => {
     try {
-      const isRealConsultation = store.consultations.some(c => c.id === id)
-      if (isRealConsultation) {
+      if (store.updateConsultation) {
         await store.updateConsultation(id, { status: 'Completed' })
-      } else {
-        setNotesReviewList(prev => prev.filter(item => item.id !== id))
       }
       toast.success(`Notes approved & signed for ${client}!`)
     } catch (err) {

@@ -450,23 +450,7 @@ export default function HeadAdminClinics({ store: propStore }) {
     )
   }
   if (showProfile && selectedClinic) {
-    const suffix = selectedClinic.id.replace(/\D/g, '') || '8118'
-    const mockInvoices = [
-      { id: `INV-${suffix}-200`, date: '2026-06-12', amount: 199.00, status: 'Failed' },
-      { id: `INV-${suffix}-201`, date: '2026-05-12', amount: 349.00, status: 'Paid' },
-      { id: `INV-${suffix}-202`, date: '2026-04-17', amount: 99.00, status: 'Paid' },
-      { id: `INV-${suffix}-203`, date: '2026-03-12', amount: 149.00, status: 'Paid' },
-      { id: `INV-${suffix}-204`, date: '2026-02-12', amount: 299.00, status: 'Pending' },
-      { id: `INV-${suffix}-205`, date: '2026-01-12', amount: 499.00, status: 'Failed' },
-      { id: `INV-${suffix}-206`, date: '2025-12-12', amount: 199.00, status: 'Paid' },
-      { id: `INV-${suffix}-207`, date: '2025-11-12', amount: 349.00, status: 'Paid' },
-      { id: `INV-${suffix}-208`, date: '2025-10-12', amount: 99.00, status: 'Paid' },
-      { id: `INV-${suffix}-209`, date: '2025-09-12', amount: 149.00, status: 'Pending' },
-      { id: `INV-${suffix}-210`, date: '2025-08-12', amount: 299.00, status: 'Failed' },
-      { id: `INV-${suffix}-211`, date: '2025-07-12', amount: 499.00, status: 'Paid' }
-    ]
-
-    const displayInvoicesList = liveInvoices.length > 0 ? liveInvoices : mockInvoices
+    const displayInvoicesList = liveInvoices
 
     // Invoice filtering logic
     const filteredInvoices = displayInvoicesList.filter(inv => {

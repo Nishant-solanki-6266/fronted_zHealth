@@ -16,19 +16,14 @@ export default function PatientCareTeam() {
   const [searchTerm, setSearchTerm] = useState('')
   const [specialtyFilter, setSpecialtyFilter] = useState('ALL')
 
-  const [practitioners, setPractitioners] = useState([
-    { id: 'prac_1', name: 'Dr. Sarah Jenkins', specialty: 'Physiotherapist', clinic: 'Melbourne Allied Health', contact: '+61 412 100 001', email: 'sarah.jenkins@clinic.com', lastAppt: '12 Jun 2026', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150' },
-    { id: 'prac_2', name: 'Dr. James Carter', specialty: 'Occupational Therapist', clinic: 'Melbourne Allied Health', contact: '+61 422 200 002', email: 'james.carter@clinic.com', lastAppt: '18 May 2026', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150' },
-    { id: 'prac_3', name: 'Dr. Emily Smith', specialty: 'Speech Pathologist', clinic: 'Sydney Allied Hub', contact: '+61 433 300 003', email: 'emily.smith@clinic.com', lastAppt: '04 Jun 2026', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150' },
-    { id: 'prac_4', name: 'Dr. Arthur Conan', specialty: 'General Practitioner (GP)', clinic: 'City Central GP Care', contact: '+61 3 9000 8000', email: 'david.bruce@healthclinic.gov.au', lastAppt: '10 Jan 2026', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150' }
-  ])
+  const [practitioners, setPractitioners] = useState([])
 
   // Fetch live care team from backend
   const fetchCareTeam = async () => {
     setLoading(true)
     try {
       const res = await api.get('/api/patient/care-team')
-      if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
+      if (res.data?.success && Array.isArray(res.data.data)) {
         setPractitioners(res.data.data)
       }
     } catch (err) {

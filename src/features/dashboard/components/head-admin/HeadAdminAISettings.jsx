@@ -28,20 +28,8 @@ import { toast } from 'react-hot-toast'
 export default function HeadAdminAISettings() {
   const [activeTab, setActiveTab] = useState('AI Governance')
 
-  const aiTrendData = [
-    { name: 'Jan', requests: 40000, cost: 800 },
-    { name: 'Feb', requests: 65000, cost: 1200 },
-    { name: 'Mar', requests: 90000, cost: 1650 },
-    { name: 'Apr', requests: 115000, cost: 2100 },
-    { name: 'May', requests: 140000, cost: 2500 },
-    { name: 'Jun', requests: 170000, cost: 3000 },
-    { name: 'Jul', requests: 200000, cost: 3600 },
-    { name: 'Aug', requests: 22000, cost: 4000 }, // corrected from original mock values
-    { name: 'Sep', requests: 245000, cost: 4400 },
-    { name: 'Oct', requests: 270000, cost: 4900 },
-    { name: 'Nov', requests: 295000, cost: 5300 },
-    { name: 'Dec', requests: 318000, cost: 5724 }
-  ]
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const aiTrendData = months.map(name => ({ name, requests: 0, cost: 0 }))
 
   const promptCatalog = [
     { id: 'PR-2101', name: 'soap_summary_v3', feature: 'Clinical Note Summarization', version: '3.2.1', owner: 'Dr. Amelia Park', date: 'May 09, 2026, 04:54 PM', status: 'Active' },

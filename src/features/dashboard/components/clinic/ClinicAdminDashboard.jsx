@@ -33,15 +33,9 @@ import {
 } from 'recharts'
 import { useClinicStore } from '../../../../store/clinicStore'
 
-const activityData = []
-const revenueData = []
-const DUMMY_ACTIVITY_DATA = [
-  { name: 'Jan', value: 2200 }, { name: 'Feb', value: 3200 }, { name: 'Mar', value: 2800 },
-  { name: 'Apr', value: 5800 }, { name: 'May', value: 5000 }, { name: 'Jun', value: 7800 },
-]
-const DUMMY_REVENUE_DATA = [
-  { name: 'Jan', value: 8000 },  { name: 'Feb', value: 12000 }, { name: 'Mar', value: 10000 },
-  { name: 'Apr', value: 22000 }, { name: 'May', value: 20000 }, { name: 'Jun', value: 28000 },
+const defaultMonths = [
+  { name: 'Jan', value: 0 }, { name: 'Feb', value: 0 }, { name: 'Mar', value: 0 },
+  { name: 'Apr', value: 0 }, { name: 'May', value: 0 }, { name: 'Jun', value: 0 },
 ]
 
 export default function ClinicAdminDashboard({ store: propStore }) {
@@ -176,9 +170,9 @@ export default function ClinicAdminDashboard({ store: propStore }) {
   const dbWaitlist       = dbStats?.waitlistCount ?? 0
   const dbUtilisation    = dbStats?.avgUtilisation ?? 0
 
-  // Chart data from DB (last 6 months), fallback to dummy if empty
-  const chartActivityData = (dbStats?.activityByMonth?.length > 0) ? dbStats.activityByMonth : DUMMY_ACTIVITY_DATA
-  const chartRevenueData  = (dbStats?.revenueByMonth?.length > 0)  ? dbStats.revenueByMonth  : DUMMY_REVENUE_DATA
+  // Chart data from DB (last 6 months), fallback to 0 defaults if empty
+  const chartActivityData = (dbStats?.activityByMonth?.length > 0) ? dbStats.activityByMonth : defaultMonths
+  const chartRevenueData  = (dbStats?.revenueByMonth?.length > 0)  ? dbStats.revenueByMonth  : defaultMonths
 
   const statsList = [
     { 

@@ -107,41 +107,17 @@ export default function HeadAdminDashboard({ store, navigate }) {
     { label: 'ARR', value: `$${Number(arrVal).toLocaleString()}`, change: '+10.5%', pos: true, sub: 'YoY', icon: <PieChartOutlined /> },
   ]
 
-  // Revenue Trend Chart Data (derived from Live DB or fallback curve)
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+  // Revenue Trend Chart Data (derived from Live DB)
   const revenueTrendData = analyticsData?.trendData && analyticsData.trendData.length > 0
     ? analyticsData.trendData.map(t => ({ name: t.name, value: t.MRR || t.value || 0 }))
-    : [
-        { name: 'Jan', value: 12000 },
-        { name: 'Feb', value: 15000 },
-        { name: 'Mar', value: 24000 },
-        { name: 'Apr', value: 18000 },
-        { name: 'May', value: 22000 },
-        { name: 'Jun', value: 32000 },
-        { name: 'Jul', value: 48000 },
-        { name: 'Aug', value: 42000 },
-        { name: 'Sep', value: 38000 },
-        { name: 'Oct', value: 46000 },
-        { name: 'Nov', value: 44000 },
-        { name: 'Dec', value: 55000 },
-      ]
+    : months.map(name => ({ name, value: 0 }))
 
   // Subscription Monthly Distribution (1 year bar chart)
   const subMonthlyData = analyticsData?.customerGrowthData && analyticsData.customerGrowthData.length > 0
-    ? analyticsData.customerGrowthData.map(c => ({ name: c.name, value: c.activeClinics * 35 }))
-    : [
-        { name: 'Jan', value: 80 },
-        { name: 'Feb', value: 140 },
-        { name: 'Mar', value: 180 },
-        { name: 'Apr', value: 130 },
-        { name: 'May', value: 280 },
-        { name: 'Jun', value: 310 },
-        { name: 'Jul', value: 240 },
-        { name: 'Aug', value: 410 },
-        { name: 'Sep', value: 360 },
-        { name: 'Oct', value: 200 },
-        { name: 'Nov', value: 180 },
-        { name: 'Dec', value: 360 },
-      ]
+    ? analyticsData.customerGrowthData.map(c => ({ name: c.name, value: (c.activeClinics || 0) * 35 }))
+    : months.map(name => ({ name, value: 0 }))
 
   // Live Activity Log
   const liveActivities = auditLogsList && auditLogsList.length > 0

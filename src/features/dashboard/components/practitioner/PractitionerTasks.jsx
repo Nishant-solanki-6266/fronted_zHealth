@@ -17,7 +17,7 @@ export default function PractitionerTasks() {
   const store = useClinicStore()
   const [taskForm] = Form.useForm()
 
-  const [tasksList, setTasksList] = useState(store.tasks || [])
+  const tasksList = store.tasks || []
   const [modalOpen, setModalOpen] = useState(false)
 
   const handleAddTask = (values) => {
@@ -29,7 +29,6 @@ export default function PractitionerTasks() {
       dueDate: values.dueDate ? values.dueDate.format('YYYY-MM-DD') : '2026-06-20',
       status: 'Pending'
     }
-    setTasksList([newTask, ...tasksList])
     store.addTask(newTask)
     toast.success('Checklist task created!')
     setModalOpen(false)
@@ -37,8 +36,6 @@ export default function PractitionerTasks() {
   }
 
   const handleStatusChange = (id, newStatus) => {
-    const list = tasksList.map(t => t.id === id ? { ...t, status: newStatus } : t)
-    setTasksList(list)
     store.updateTaskStatus(id, newStatus)
     toast.success(`Task status updated to ${newStatus}`)
   }

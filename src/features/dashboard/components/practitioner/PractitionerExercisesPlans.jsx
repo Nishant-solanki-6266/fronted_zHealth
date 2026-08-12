@@ -74,12 +74,12 @@ export default function PractitionerExercisesPlans() {
     }
     const match = store.patients?.find(p => p.id === record.patientId || p.id === record.patientName || p.name === record.patientName || p.fullName === record.patientName)
     if (match) {
-      return match.name || match.fullName || `${match.firstName || ''} ${match.lastName || ''}`.trim() || 'John Miller'
+      return match.name || match.fullName || `${match.firstName || ''} ${match.lastName || ''}`.trim() || 'Unknown Patient'
     }
     if (record.patientName && record.patientName.trim() !== '' && record.patientName !== 'Client Patient' && !record.patientName.includes('-')) {
       return record.patientName
     }
-    return 'John Miller'
+    return 'Unknown Patient'
   }
 
   const columns = [

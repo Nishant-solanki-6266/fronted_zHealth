@@ -18,17 +18,20 @@ export default function SalesLeads({ store, modalContext }) {
   }, [])
 
   const getLoggedInSalesName = () => {
-    if (typeof window === 'undefined') return ''
-    const storedName = localStorage.getItem('userName')
-    if (storedName) return storedName
-    const storedUser = localStorage.getItem('user')
-    if (storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser)
-        if (parsed?.name) return parsed.name
-      } catch (e) {}
+    if (store.user?.name) return store.user.name
+    if (store.salesProfile?.name) return store.salesProfile.name
+    if (typeof window !== 'undefined') {
+      const storedName = localStorage.getItem('userName')
+      if (storedName) return storedName
+      const storedUser = localStorage.getItem('user')
+      if (storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser)
+          if (parsed?.name) return parsed.name
+        } catch (e) {}
+      }
     }
-    return store.salesProfile?.name || ''
+    return store.userRole === 'sales' ? 'Sales Executive' : ''
   }
 
   const currentRepName = getLoggedInSalesName()

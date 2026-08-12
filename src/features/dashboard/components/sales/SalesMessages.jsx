@@ -17,6 +17,25 @@ export default function SalesMessages({ store: propStore }) {
     if (store.fetchSalesMessages) store.fetchSalesMessages()
   }, [])
 
+  const getLoggedInSalesName = () => {
+    if (store.user?.name) return store.user.name
+    if (store.salesProfile?.name) return store.salesProfile.name
+    if (typeof window !== 'undefined') {
+      const storedName = localStorage.getItem('userName')
+      if (storedName) return storedName
+      const storedUser = localStorage.getItem('user')
+      if (storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser)
+          if (parsed?.name) return parsed.name
+        } catch (e) {}
+      }
+    }
+    return store.userRole === 'sales' ? 'Sales Executive' : ''
+  }
+
+  const currentRepName = getLoggedInSalesName() || 'Sales Executive'
+
   const channels = [
     { name: 'Head Admin', role: 'Platform Owner', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150' },
     { name: 'Support Team', role: 'Technical Desk', avatar: '' },
@@ -24,13 +43,11 @@ export default function SalesMessages({ store: propStore }) {
   ]
 
   // Filter messages belonging to active thread
-  // For 'Sales Reps Group', show all group chats. For individuals, match sender/recipient
   const filteredMessages = salesMessages.filter(m => {
     if (activeChannel === 'Sales Reps Group') {
       return m.recipient === 'Sales Reps Group' || m.sender === 'Sales Reps Group'
     } else {
-      return (m.sender === activeChannel && m.recipient === 'Colin Edegbe') ||
-             (m.sender === 'Colin Edegbe' && m.recipient === activeChannel)
+      return (m.sender === activeChannel || m.recipient === activeChannel)
     }
   })
 
@@ -38,22 +55,13 @@ export default function SalesMessages({ store: propStore }) {
     if (!textInput.trim()) return
     
     store.addSalesMessage({
-      sender: 'Colin Edegbe',
+      sender: currentRepName,
       recipient: activeChannel,
       text: textInput
     })
 
     setTextInput('')
     toast.success('Message sent!')
-
-    // Auto-reply simulation for demo
-    setTimeout(() => {
-      store.addSalesMessage({
-        sender: activeChannel,
-        recipient: 'Colin Edegbe',
-        text: textInput
-      })
-    }, 1500)
   }
 
   // Scroll to bottom on new messages
@@ -114,7 +122,7 @@ export default function SalesMessages({ store: propStore }) {
         {/* Message Logs */}
         <div ref={scrollRef} className="flex-grow p-4 overflow-y-auto space-y-3.5">
           {filteredMessages.map(msg => {
-            const isMe = msg.sender === 'Colin Edegbe'
+            const isMe = msg.sender === currentRepName || msg.sender === 'Sales Executive'
             return (
               <div 
                 key={msg.id} 

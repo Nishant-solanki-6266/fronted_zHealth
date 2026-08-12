@@ -21,17 +21,20 @@ export default function SalesDashboard({ store, navigate, modalContext }) {
   }, [])
 
   const getLoggedInSalesName = () => {
-    if (typeof window === 'undefined') return ''
-    const storedName = localStorage.getItem('userName')
-    if (storedName) return storedName
-    const storedUser = localStorage.getItem('user')
-    if (storedUser) {
-      try {
-        const parsed = JSON.parse(storedUser)
-        if (parsed?.name) return parsed.name
-      } catch (e) {}
+    if (store.user?.name) return store.user.name
+    if (store.salesProfile?.name) return store.salesProfile.name
+    if (typeof window !== 'undefined') {
+      const storedName = localStorage.getItem('userName')
+      if (storedName) return storedName
+      const storedUser = localStorage.getItem('user')
+      if (storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser)
+          if (parsed?.name) return parsed.name
+        } catch (e) {}
+      }
     }
-    return store.salesProfile?.name || 'Colin Edegbe'
+    return store.userRole === 'sales' ? 'Sales Executive' : ''
   }
 
   const currentRepName = getLoggedInSalesName()
@@ -44,17 +47,18 @@ export default function SalesDashboard({ store, navigate, modalContext }) {
     return sp.includes(cur) || cur.includes(sp) || sp === 'unassigned' || sp === 'sales executive'
   }
 
+  const repCommissionRate = (parseFloat(store.user?.profileData?.commissionRate || store.salesProfile?.commissionRate) || 10.0) / 100
   const colinClinics = (clinics || []).filter(c => isMatchingRep(c.salesperson))
   const myLeads = (leads || []).filter(l => isMatchingRep(l.assignedTo || l.salesperson))
   const totalLeads = myLeads.length
   const demosBooked = salesCalendarEvents.filter(e => e.type === 'Demos' || e.type === 'Demo Scheduled').length
   const clinicsConverted = colinClinics.length
   const totalMrr = colinClinics.reduce((sum, c) => sum + (parseFloat(c.revenue) || 0), 0)
-  const pendingCommissions = colinClinics.filter(c => c.commissionStatus === 'Pending').reduce((sum, c) => sum + (parseFloat(c.revenue) * 0.12), 0)
-  const paidCommissions = colinClinics.filter(c => c.commissionStatus === 'Paid').reduce((sum, c) => sum + (parseFloat(c.revenue) * 0.12), 0)
+  const pendingCommissions = colinClinics.filter(c => c.commissionStatus === 'Pending').reduce((sum, c) => sum + (parseFloat(c.revenue) * repCommissionRate), 0)
+  const paidCommissions = colinClinics.filter(c => c.commissionStatus === 'Paid').reduce((sum, c) => sum + (parseFloat(c.revenue) * repCommissionRate), 0)
   const totalCommissionsEarned = pendingCommissions + paidCommissions
   const activeClinicsCount = colinClinics.filter(c => c.status === 'Active').length
-  const thisMonthCommission = totalMrr * 0.12
+  const thisMonthCommission = totalMrr * repCommissionRate
   const pendingTasks = salesTasks.filter(t => t.status !== 'Completed')
   const trialClinics = colinClinics.filter(c => c.status === 'Trial')
   const today = new Date()
@@ -107,7 +111,7 @@ export default function SalesDashboard({ store, navigate, modalContext }) {
         <div>
           <span className="text-[10px] font-black uppercase tracking-widest text-[#8C4BFF] block mb-1">Sales Executive</span>
           <h1 className="text-2xl font-black m-0 tracking-tight" style={{ color: darkMode ? '#FFFFFF' : '#0F172A' }}>
-            Hello, Colin Edegbe! 👋
+            Hello, {currentRepName || 'Sales Executive'}! 👋
           </h1>
           <p className="text-xs mt-1 font-semibold" style={{ color: darkMode ? '#94A3B8' : '#64748B' }}>
             {new Date().toLocaleDateString('en-AU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} &bull; {pendingTasks.length} tasks pending &bull; {activeClinicsCount} active clinics
@@ -141,7 +145,7 @@ export default function SalesDashboard({ store, navigate, modalContext }) {
               <div className="flex justify-between items-center">
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 block">SALES APP</span>
-                  <h2 className="text-sm font-black text-slate-800 m-0">Colin Edegbe</h2>
+                  <h2 className="text-sm font-black text-slate-800 m-0">{currentRepName || 'Sales Executive'}</h2>
                 </div>
                 <Badge count={pendingTasks.length} size="small">
                   <Button shape="circle" size="small" icon={<BellOutlined />} />

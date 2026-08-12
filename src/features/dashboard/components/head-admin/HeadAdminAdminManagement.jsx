@@ -451,12 +451,7 @@ export default function HeadAdminAdminManagement() {
       setConfirmPassword('')
       await fetchAdminsFromBackend()
     }
-
-    const mockLogs = [
-      { time: '12:45 PM', date: 'Jun 12, 2026', action: 'Logged in to the dashboard', details: 'Successful session established' },
-      { time: '11:20 AM', date: 'Jun 12, 2026', action: 'Updated permissions', details: 'Adjusted permissions for ' + selectedAdmin.name },
-      { time: 'Yesterday', date: 'Jun 11, 2026', action: 'Account created', details: 'Created admin profile in database' },
-    ]
+    const userActivityLogs = selectedAdmin?.auditLogs || []
 
     return (
       <div className="bg-[#F8FAFC] dark:bg-slate-950 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-6">
@@ -685,20 +680,24 @@ export default function HeadAdminAdminManagement() {
         {activeProfileTab === 'Activity log' && (
           <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-705 dark:text-white">Admin Activity log</span>}>
             <div className="p-2">
-              <Timeline
-                items={mockLogs.map((log, idx) => ({
-                  color: idx === 0 ? 'blue' : 'gray',
-                  children: (
-                    <div className="text-xs">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-bold text-slate-800 dark:text-white text-xs">{log.action}</span>
-                        <span className="text-[10px] text-slate-400 font-semibold">{log.date} &bull; {log.time}</span>
+              {userActivityLogs.length > 0 ? (
+                <Timeline
+                  items={userActivityLogs.map((log, idx) => ({
+                    color: idx === 0 ? 'blue' : 'gray',
+                    children: (
+                      <div className="text-xs">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-bold text-slate-800 dark:text-white text-xs">{log.action}</span>
+                          <span className="text-[10px] text-slate-400 font-semibold">{log.timestamp ? new Date(log.timestamp).toLocaleString() : 'Recently'}</span>
+                        </div>
+                        <p className="text-slate-500 m-0">{log.details || log.target || 'No additional details'}</p>
                       </div>
-                      <p className="text-slate-500 m-0">{log.details}</p>
-                    </div>
-                  )
-                }))}
-              />
+                    )
+                  }))}
+                />
+              ) : (
+                <p className="text-slate-400 text-xs py-4 text-center m-0">No activity logged for this account.</p>
+              )}
             </div>
           </Card>
         )}
