@@ -18,10 +18,32 @@ import { getAdmins, createAdmin, updateAdmin, deleteAdmin, getBranches } from '.
 
 const { Option } = Select
 
-const ROLES = ['Super Admin', 'Manager', 'Receptionist', 'Billing Admin', 'View Only']
+const ROLES = ['Super Admin', 'Clinic Admin', 'Admin', 'Manager', 'Receptionist', 'Billing Admin', 'View Only']
 
 const ROLE_PRESETS = {
   'Super Admin': {
+    manageAdmins: true,
+    manageBranches: true,
+    managePatients: true,
+    manageDoctors: true,
+    manageAppointments: true,
+    manageInvoices: true,
+    manageReports: true,
+    manageSettings: true,
+    viewOnly: false,
+  },
+  'Clinic Admin': {
+    manageAdmins: true,
+    manageBranches: true,
+    managePatients: true,
+    manageDoctors: true,
+    manageAppointments: true,
+    manageInvoices: true,
+    manageReports: true,
+    manageSettings: true,
+    viewOnly: false,
+  },
+  Admin: {
     manageAdmins: true,
     manageBranches: true,
     managePatients: true,
@@ -92,6 +114,8 @@ const PERMISSION_LABELS = {
 
 const ROLE_COLORS = {
   'Super Admin': { bg: '#1E293B', text: '#E2E8F0', border: '#475569', darkBg: 'rgba(255, 255, 255, 0.1)', darkText: '#FFFFFF', darkBorder: 'rgba(255, 255, 255, 0.2)' },
+  'Clinic Admin': { bg: '#F3EEFF', text: '#8C4BFF', border: '#8C4BFF', darkBg: 'rgba(140, 75, 255, 0.2)', darkText: '#A855F7', darkBorder: 'rgba(168, 85, 247, 0.3)' },
+  Admin: { bg: '#F3EEFF', text: '#8C4BFF', border: '#8C4BFF', darkBg: 'rgba(140, 75, 255, 0.2)', darkText: '#A855F7', darkBorder: 'rgba(168, 85, 247, 0.3)' },
   Manager: { bg: '#E8F0FE', text: '#1A73E8', border: '#1A73E8', darkBg: 'rgba(26, 115, 232, 0.2)', darkText: '#60A5FA', darkBorder: 'rgba(96, 165, 250, 0.3)' },
   Receptionist: { bg: '#E6F7FF', text: '#0EA5E9', border: '#0EA5E9', darkBg: 'rgba(14, 165, 233, 0.2)', darkText: '#38BDF8', darkBorder: 'rgba(56, 189, 248, 0.3)' },
   'Billing Admin': { bg: '#FEF3C7', text: '#D97706', border: '#D97706', darkBg: 'rgba(217, 119, 6, 0.2)', darkText: '#FBBF24', darkBorder: 'rgba(251, 191, 36, 0.3)' },
@@ -157,16 +181,16 @@ export default function AdminPage() {
   const openAdd = () => {
     setCurrentAdmin(null)
     setModalMode('add')
-    setPermissions({ ...ROLE_PRESETS.Manager })
+    setPermissions({ ...ROLE_PRESETS['Clinic Admin'] })
     form.resetFields()
-    form.setFieldsValue({ role: 'Manager', status: 'Active' })
+    form.setFieldsValue({ role: 'Clinic Admin', status: 'Active' })
     setModalOpen(true)
   }
 
   const openEdit = (record) => {
     setCurrentAdmin(record)
     setModalMode('edit')
-    setPermissions(record.permissions || { ...ROLE_PRESETS.Manager })
+    setPermissions(record.permissions || { ...ROLE_PRESETS[record.role] || ROLE_PRESETS['Clinic Admin'] })
     form.setFieldsValue({
       name: record.name,
       email: record.email,
@@ -503,14 +527,10 @@ export default function AdminPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <Form.Item name="role" label={<span className="text-slate-555 font-bold text-[11px] uppercase tracking-wider">Role *</span>} rules={[{ required: true }]} className="mb-0">
-                <Select className="rounded-xl h-10 flex items-center dark:bg-slate-900 border-slate-200 dark:border-slate-850" onChange={handleRoleChange}>
-                  {ROLES.map((r) => (
-                    <Option key={r} value={r}>{r}</Option>
-                  ))}
-                </Select>
+              <Form.Item name="role" hidden initialValue="Clinic Admin">
+                <Input />
               </Form.Item>
-              <Form.Item name="status" label={<span className="text-slate-555 font-bold text-[11px] uppercase tracking-wider">Status *</span>} rules={[{ required: true }]} className="mb-0">
+              <Form.Item name="status" label={<span className="text-slate-555 font-bold text-[11px] uppercase tracking-wider">Status *</span>} rules={[{ required: true }]} className="mb-0 col-span-2">
                 <Select className="rounded-xl h-10 flex items-center dark:bg-slate-900 border-slate-200 dark:border-slate-850">
                   <Option value="Active">Active</Option>
                   <Option value="Inactive">Inactive</Option>
@@ -932,17 +952,9 @@ export default function AdminPage() {
                 </Form.Item>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <Form.Item
-                  name="role"
-                  label="Role"
-                  rules={[{ required: true, message: 'Select role' }]}
-                >
-                  <Select onChange={handleRoleChange}>
-                    {ROLES.map((r) => (
-                      <Option key={r} value={r}>{r}</Option>
-                    ))}
-                  </Select>
+              <div className="grid grid-cols-1 gap-4">
+                <Form.Item name="role" hidden initialValue="Clinic Admin">
+                  <Input />
                 </Form.Item>
                 <Form.Item
                   name="status"

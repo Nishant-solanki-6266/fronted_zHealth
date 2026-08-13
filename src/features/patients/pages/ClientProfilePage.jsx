@@ -34,7 +34,7 @@ import {
   ThunderboltOutlined
 } from '@ant-design/icons'
 import { useClinicStore } from '../../../store/clinicStore'
-import { createPatient, updatePatient, deletePatient as apiDeletePatient, getBranches } from '../../calendar/api/clinicAdminApi'
+import { getPatients, createPatient, updatePatient, deletePatient as apiDeletePatient, getBranches } from '../../calendar/api/clinicAdminApi'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
 import ClientProgressNotes from '../components/ClientProgressNotes'
@@ -1603,17 +1603,6 @@ export default function ClientProfilePage() {
       disabled: isNew,
     },
     {
-      key: 'outcome_measures',
-      label: (
-        <span>
-          <BarChartOutlined style={{ color: '#8C4BFF' }} /> Outcome Measures
-        </span>
-      ),
-      children: renderOutcomeMeasuresTab(),
-      disabled: isNew,
-    },
-
-    {
       key: 'appointments',
       label: (
         <span>
@@ -1621,16 +1610,6 @@ export default function ClientProfilePage() {
         </span>
       ),
       children: renderAppointmentsTab(),
-      disabled: isNew,
-    },
-    {
-      key: 'funding',
-      label: (
-        <span>
-          <DollarOutlined style={{ color: '#10B981' }} /> Funding
-        </span>
-      ),
-      children: renderFundingTab(),
       disabled: isNew,
     },
     {

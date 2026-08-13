@@ -11,8 +11,8 @@ const CREDENTIALS = [
   {
     label: 'Super Admin',
     role: 'head_admin',
-    email: 'superadminfirst@gmail.com',
-    password: '12345678',
+    email: 'admin@zhealth.com',
+    password: 'Password123!',
     description: 'Platform Owner Control',
     color: '#0E1B33',
     bg: '#EEF2F6',
@@ -20,8 +20,8 @@ const CREDENTIALS = [
   {
     label: 'Sales Executive',
     role: 'sales',
-    email: 'sales@gmail.com',
-    password: '12345678',
+    email: '',
+    password: '',
     description: 'CRM & Pipeline Leads',
     color: '#F59E0B',
     bg: '#FEF3C7',
@@ -29,7 +29,7 @@ const CREDENTIALS = [
   {
     label: 'Clinic Admin',
     role: 'clinic',
-    email: 'clinicadmin@gmail.com',
+    email: 'jupiter@gmail.com',
     password: '12345678',
     description: 'Clinic Operations Manager',
     color: '#8C4BFF',
@@ -38,7 +38,7 @@ const CREDENTIALS = [
   {
     label: 'Practitioner',
     role: 'practitioner',
-    email: 'practitioners@gmail.com',
+    email: 'sun@gmail.com',
     password: 'password123',
     description: 'Doctor / Treatment Board',
     color: '#30D2BE',
@@ -47,7 +47,7 @@ const CREDENTIALS = [
   {
     label: 'Patient Portal',
     role: 'patient',
-    email: 'patinent@gmail.com',
+    email: 'vijay@gmail.com',
     password: '12345678',
     description: 'Client Personal Bookings',
     color: '#3B82F6',
@@ -214,7 +214,7 @@ export default function LoginForm() {
       <div className="flex flex-wrap justify-center gap-2">
         {CREDENTIALS.map((cred) => (
           <div
-            key={cred.email}
+            key={cred.label}
             onClick={() => fillCredentials(cred.email, cred.password)}
             className="cursor-pointer px-3.5 py-1.5 rounded-full border border-slate-200 dark:border-slate-800 hover:border-[#8C4BFF] bg-white dark:bg-slate-900 hover:bg-[#8C4BFF]/5 text-slate-700 dark:text-slate-300 hover:text-[#8C4BFF] transition-all text-xs font-semibold flex items-center gap-2 shadow-sm"
           >

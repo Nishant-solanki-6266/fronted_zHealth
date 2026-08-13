@@ -801,7 +801,7 @@ export default function PractitionerConsultation() {
 
         {patient.alerts && (
           <Alert
-            message={<span className="font-extrabold text-red-550 text-xs">Patient Safety Alert:</span>}
+            title={<span className="font-extrabold text-red-550 text-xs">Patient Safety Alert:</span>}
             description={<span className="text-slate-500 font-semibold text-xs">{patient.alerts}</span>}
             type="error"
             showIcon
@@ -1091,7 +1091,7 @@ export default function PractitionerConsultation() {
                 onClick={() => insertAtCursor('~~', '~~')}
                 className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
               />
-              <Divider type="vertical" className="border-slate-200 dark:border-slate-800 h-4 m-0 mx-1" />
+              <Divider orientation="vertical" className="border-slate-200 dark:border-slate-800 h-4 m-0 mx-1" />
               <Button
                 type="text"
                 size="small"
@@ -1113,7 +1113,7 @@ export default function PractitionerConsultation() {
                 onClick={() => insertAtCursor('\n1. ', '')}
                 className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
               />
-              <Divider type="vertical" className="border-slate-200 dark:border-slate-800 h-4 m-0 mx-1" />
+              <Divider orientation="vertical" className="border-slate-200 dark:border-slate-800 h-4 m-0 mx-1" />
               <Button
                 type="text"
                 size="small"

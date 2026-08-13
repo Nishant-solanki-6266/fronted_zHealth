@@ -1035,7 +1035,7 @@ export default function PractitionerSettingsPage() {
                           open={recordLoginModalOpen}
                           onCancel={() => { recordLoginForm.resetFields(); setRecordLoginModalOpen(false); }}
                           footer={null}
-                          destroyOnClose
+                          destroyOnHidden
                         >
                           <Form
                             form={recordLoginForm}
@@ -1585,7 +1585,7 @@ export default function PractitionerSettingsPage() {
               open={addIntegrationModalOpen}
               onCancel={() => { addIntegrationForm.resetFields(); setAddIntegrationModalOpen(false); }}
               footer={null}
-              destroyOnClose
+              destroyOnHidden
             >
               <Form
                 form={addIntegrationForm}

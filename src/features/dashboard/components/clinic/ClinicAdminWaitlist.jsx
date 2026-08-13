@@ -15,6 +15,7 @@ export default function ClinicAdminWaitlist() {
   const [typeFilter, setTypeFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [loading, setLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [clinicName, setClinicName] = useState('')
   const [form] = Form.useForm()
 
@@ -157,7 +158,7 @@ export default function ClinicAdminWaitlist() {
             <Select
               value={safeStatus}
               onChange={(val) => handleStatusChange(record.id, val)}
-              bordered={false}
+              variant="borderless"
               className="waitlist-status-select"
             >
               <Option value="Waiting">Waiting</Option>
@@ -447,10 +448,11 @@ export default function ClinicAdminWaitlist() {
             </Button>
             <button
               type="submit"
-              className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 text-white border-none font-bold rounded-xl h-10 px-5 cursor-pointer flex items-center justify-center transition-colors shadow-sm"
+              disabled={submitting}
+              className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 text-white border-none font-bold rounded-xl h-10 px-5 cursor-pointer flex items-center justify-center transition-colors shadow-sm disabled:opacity-50"
               style={{ outline: 'none' }}
             >
-              Add to waitlist
+              {submitting ? 'Adding...' : 'Add to waitlist'}
             </button>
           </div>
         </Form>

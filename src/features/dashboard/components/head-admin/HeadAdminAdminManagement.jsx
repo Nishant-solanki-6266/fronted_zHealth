@@ -109,7 +109,7 @@ export default function HeadAdminAdminManagement() {
         email: item.email,
         clinic: item.clinic || 'General Platform',
         phone: item.phone || '—',
-        role: item.role === 'SUPER_ADMIN' ? 'Admin' : item.role === 'CLINIC_ADMIN' ? 'ClinicAdmin' : 'Manager',
+        role: item.role === 'SUPER_ADMIN' ? 'Super Admin' : item.role === 'CLINIC_ADMIN' ? 'Clinic Admin' : (item.roleTitle || 'Clinic Admin'),
         joinDate: item.createdAt ? new Date(item.createdAt).toISOString().split('T')[0] : 'Today',
         lastLogin: 'Never',
         status: item.status === 'SUSPENDED' ? 'Suspended' : item.status === 'INACTIVE' ? 'Inactive' : 'Active',

@@ -372,7 +372,7 @@ function SalesCalendarView({ store, navigate }) {
         onCancel={() => setSelectedEvent(null)}
         title={<span className="font-bold text-slate-850 dark:text-white text-base">Calendar Event details</span>}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         className="dark:bg-slate-900 rounded-2xl"
       >
         {selectedEvent && (
@@ -442,7 +442,7 @@ function SalesCalendarView({ store, navigate }) {
         onCancel={() => setBookModalVisible(false)}
         title={<span className="font-bold text-slate-850 dark:text-white text-base">Book Demo / Meeting Slot</span>}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleBookDemo} initialValues={{ type: 'Demos', stage: 'Demo Scheduled' }}>
           <Form.Item

@@ -156,7 +156,7 @@ export default function PatientTreatmentPlans() {
 
                 {loading ? (
                   <div className="text-center py-12">
-                    <Spin size="large" tip="Loading treatment plans..." />
+                    <Spin size="large" description="Loading treatment plans..." />
                   </div>
                 ) : treatmentPlans.length === 0 ? (
                   <Card className="text-center py-8 rounded-2xl">
@@ -279,7 +279,7 @@ export default function PatientTreatmentPlans() {
         open={modalOpen}
         onCancel={() => setModalOpen(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleSavePlan} className="mt-4">
           <Form.Item name="condition" label="Assigned Condition / Program" rules={[{ required: true, message: 'Please enter condition' }]}>

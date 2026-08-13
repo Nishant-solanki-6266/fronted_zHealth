@@ -189,7 +189,7 @@ export default function ClinicDetailsTab() {
             label={labelWithTooltip('Patient terminology', true)}
             className="mb-4"
           >
-            <Select className="rounded-lg h-9" popupClassName="dark:bg-slate-800">
+            <Select className="rounded-lg h-9" classNames={{ popup: { root: 'dark:bg-slate-800' } }}>
               <Option value="Client">Client</Option>
               <Option value="Patient">Patient</Option>
             </Select>
@@ -208,7 +208,7 @@ export default function ClinicDetailsTab() {
             label={normalLabel('Country', true)}
             className="mb-4"
           >
-            <Select className="rounded-lg h-9" popupClassName="dark:bg-slate-800">
+            <Select className="rounded-lg h-9" classNames={{ popup: { root: 'dark:bg-slate-800' } }}>
               <Option value="Australia">Australia</Option>
               <Option value="New Zealand">New Zealand</Option>
             </Select>
@@ -228,7 +228,7 @@ export default function ClinicDetailsTab() {
               label={labelWithTooltip('Default appointment communication preferences', true)}
               className="mb-2"
             >
-              <Select className="rounded-lg h-9" popupClassName="dark:bg-slate-800">
+              <Select className="rounded-lg h-9" classNames={{ popup: { root: 'dark:bg-slate-800' } }}>
                 <Option value="SMS & Email">SMS & Email</Option>
                 <Option value="SMS Only">SMS Only</Option>
               </Select>

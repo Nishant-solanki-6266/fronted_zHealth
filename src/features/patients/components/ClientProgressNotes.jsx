@@ -48,12 +48,18 @@ export default function ClientProgressNotes({ patientId: embeddedPatientId = nul
   const activeSpecialty = store.simulatedSpecialty || 'Physiotherapist'
   const isSoapSpecialty = activeSpecialty !== 'Speech Pathologist' && activeSpecialty !== 'Speech Therapist' && activeSpecialty !== 'Occupational Therapist'
 
-  // Extract patientId from URL query parameters if present
+  // Extract patientId from URL query parameters or embedded prop
   const queryParams = new URLSearchParams(location.search)
   const isNew = queryParams.get('new') === 'true'
-  const initialPatientId = isNew ? null : (queryParams.get('patientId') || 'p1')
+  const initialPatientId = isNew ? null : (embeddedPatientId || queryParams.get('patientId') || 'p1')
 
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId)
+
+  useEffect(() => {
+    if (embeddedPatientId && embeddedPatientId !== selectedPatientId) {
+      setSelectedPatientId(embeddedPatientId)
+    }
+  }, [embeddedPatientId])
   const [activeTab, setActiveTab] = useState('notes')
 
   // Forms
@@ -72,6 +78,7 @@ export default function ClientProgressNotes({ patientId: embeddedPatientId = nul
   const [selectedAppointment, setSelectedAppointment] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState(isSoapSpecialty ? 'Default SOAP Template' : 'Clinical Progress Notes')
   const [noteText, setNoteText] = useState('')
+  const [bodyChartFindings, setBodyChartFindings] = useState([])
   const [selectedHistoryNoteId, setSelectedHistoryNoteId] = useState(null)
   const [lastSavedTime, setLastSavedTime] = useState('')
   const [isAutoSaving, setIsAutoSaving] = useState(false)
@@ -950,7 +957,7 @@ export default function ClientProgressNotes({ patientId: embeddedPatientId = nul
                     onClick={() => insertAtCursor('~~', '~~')}
                     className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
                   />
-                  <Divider type="vertical" className="border-slate-200 dark:border-slate-800 h-4 m-0 mx-1" />
+                  <Divider orientation="vertical" className="border-slate-200 dark:border-slate-800 h-4 m-0 mx-1" />
                   <Button 
                     type="text" 
                     size="small" 
@@ -972,7 +979,7 @@ export default function ClientProgressNotes({ patientId: embeddedPatientId = nul
                     onClick={() => insertAtCursor('\n1. ', '')}
                     className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
                   />
-                  <Divider type="vertical" className="border-slate-200 dark:border-slate-800 h-4 m-0 mx-1" />
+                  <Divider orientation="vertical" className="border-slate-200 dark:border-slate-800 h-4 m-0 mx-1" />
                   <Button 
                     type="text" 
                     size="small" 
@@ -981,7 +988,11 @@ export default function ClientProgressNotes({ patientId: embeddedPatientId = nul
                     className="font-bold text-slate-650 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
                   />
                 </div>
-                       {/* Text Editor Area */}
+                {/* Interactive Body Chart Diagram */}
+                <div className="mb-4">
+                  <BodyChartDiagram value={bodyChartFindings} onChange={setBodyChartFindings} readOnly={isNoteFinal} />
+                </div>
+                {/* Text Editor Area */}
                 <div className="flex-1 flex flex-col">
                   <textarea
                     id="progress-note-editor"

@@ -483,7 +483,7 @@ Sent Status:    ${invoice.sentStatus || 'Sent'}
         open={createVisible}
         onCancel={() => setCreateVisible(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form layout="vertical" form={createForm} onFinish={handleCreateInvoice} className="mt-4">
           <Form.Item name="clientName" label="Client Patient Name" rules={[{ required: true }]}>
@@ -533,7 +533,7 @@ Sent Status:    ${invoice.sentStatus || 'Sent'}
         open={detailVisible}
         onCancel={() => { setDetailVisible(false); setSelectedInvoice(null); }}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         width={650}
         className="rounded-2xl overflow-hidden"
       >

@@ -374,7 +374,7 @@ function SalesCalendarView({ store, navigate }) {
         onCancel={() => setSelectedEvent(null)}
         title={<span className="font-bold text-slate-850 dark:text-white text-base">Calendar Event details</span>}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         className="dark:bg-slate-900 rounded-2xl"
       >
         {selectedEvent && (
@@ -444,7 +444,7 @@ function SalesCalendarView({ store, navigate }) {
         onCancel={() => setBookModalVisible(false)}
         title={<span className="font-bold text-slate-850 dark:text-white text-base">Book Demo / Meeting Slot</span>}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleBookDemo} initialValues={{ type: 'Demos', stage: 'Demo Scheduled' }}>
           <Form.Item
@@ -755,8 +755,10 @@ export default function PatientPortalCalendarPage() {
 
   // Filter appointments
   const filteredAppts = useMemo(() => {
-    return store.appointments.filter(appt => {
-      if (!selectedPractitioners.includes(appt.practitionerId)) return false
+    return (store.appointments || []).filter(appt => {
+      if (selectedPractitioners && selectedPractitioners.length > 0) {
+        if (appt.practitionerId && !selectedPractitioners.includes(appt.practitionerId)) return false
+      }
       if (!searchVal) return true
       const q = searchVal.toLowerCase()
       return appt.patientName?.toLowerCase().includes(q) ||
@@ -806,6 +808,9 @@ export default function PatientPortalCalendarPage() {
   const [activeIndicationBanner, setActiveIndicationBanner] = useState(null)
 
   useEffect(() => {
+    if (store.fetchAppointments) {
+      store.fetchAppointments()
+    }
     const params = new URLSearchParams(location.search);
     const newAppointment = params.get('newAppointment');
     const rescheduleApptId = params.get('rescheduleApptId');

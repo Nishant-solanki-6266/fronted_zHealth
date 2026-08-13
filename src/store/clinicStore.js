@@ -26,10 +26,12 @@ export const useClinicStore = create((set, get) => ({
   initStoreData: async () => {
     try {
       const role = (get().userRole || (typeof window !== 'undefined' ? localStorage.getItem('userRole') : '') || '').toLowerCase()
-      const isSalesOrHeadAdmin = role === 'sales' || role === 'head_admin' || (typeof window !== 'undefined' && (window.location.pathname.startsWith('/sales') || window.location.pathname.startsWith('/head-admin')))
+      const path = typeof window !== 'undefined' ? window.location.pathname : ''
       
-      // If user is sales or super admin on sales dashboard, skip clinic-admin specific endpoint calls to prevent 403 Forbidden console errors
-      if (role === 'sales' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/sales'))) {
+      // Skip clinic-admin specific endpoint calls for non-admin roles (patient, practitioner, sales) to prevent 403 Forbidden console errors
+      const isClinicOrSuperAdmin = role === 'clinic' || role === 'head_admin' || role === 'super_admin' || path.startsWith('/clinic-admin') || path.startsWith('/head-admin')
+      
+      if (!isClinicOrSuperAdmin) {
         return
       }
 

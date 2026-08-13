@@ -13,54 +13,7 @@ import api from '../../../../api/axios'
 
 const { Option } = Select
 
-// Dynamic mock notifications database by role
-const getMockNotifications = (role) => {
-  switch (role) {
-    case 'sales':
-      return [
-        { id: 'sales_1', title: 'Lead Assigned', message: 'Hobart Spinal Adjustments lead has been assigned to Colin Edegbe.', target: 'Colin Edegbe', date: 'Today, 10:15 AM', type: 'inbox' },
-        { id: 'sales_2', title: 'Demo Reminder', message: 'Upcoming Product Demo with Brisbane Kids OT Clinic starts in 2 hours.', target: 'Colin Edegbe', date: 'Today, 12:00 PM', type: 'inbox' },
-        { id: 'sales_3', title: 'Commission Paid', message: 'Commission for Zoya Clinic ($2,400) has been approved and paid.', target: 'Colin Edegbe', date: '5 Jun 2026', type: 'inbox' },
-        { id: 'sales_4', title: 'Follow-up Task Due', message: 'Task "Call Melbourne Physio back" is marked high-priority and due today.', target: 'Colin Edegbe', date: 'Today, 09:00 AM', type: 'inbox' },
-        { id: 's1', title: 'Demo Scheduled Feedback', message: 'Submitted demo session notes for Star Medical onboarding.', target: 'Support Team', date: 'Yesterday, 04:45 PM', type: 'sent' },
-        { id: 's2', title: 'Proposal Dispatched', message: 'Pricing proposal PDF sent to Apex Allied Health Network.', target: 'Apex Allied Health Network', date: 'Yesterday, 09:00 AM', type: 'sent' }
-      ]
-    case 'practitioner':
-      return [
-        { id: 'prac_1', title: 'New Appointment Booked', message: 'Patient John Miller scheduled a Consultation for Monday, Jun 8 at 9:00 AM.', target: 'Dr. Sarah Jenkins', date: 'Today, 11:30 AM', type: 'inbox' },
-        { id: 'prac_2', title: 'Clinical Notes Pending', message: 'SOAP Notes for Bob Johnson (Administrative OT review) are due.', target: 'Dr. Sarah Jenkins', date: 'Yesterday, 06:15 PM', type: 'inbox' },
-        { id: 'prac_3', title: 'Patient Uploaded File', message: 'John Miller uploaded "Diagnostic Scan 2026.pdf" to patient records.', target: 'Dr. Sarah Jenkins', date: '2 Jan 2026', type: 'inbox' },
-        { id: 'prac_4', title: 'System Broadcast Alert', message: 'Global Assessment Templates updated by Super Admin.', target: 'All Practitioners', date: '1 Jan 2026', type: 'inbox' },
-        { id: 's1', title: 'Referral Update', message: 'Shared clinical discharge notes for John Miller with Brisbane OT.', target: 'Brisbane Kids OT Clinic', date: '3 Jan 2026', type: 'sent' }
-      ]
-    case 'patient':
-      return [
-        { id: 'pat_1', title: 'Booking Confirmed', message: 'Your Consultation with Dr. Sarah Jenkins is confirmed for Monday, Jun 8 at 9:00 AM.', target: 'John Miller', date: 'Today, 11:30 AM', type: 'inbox' },
-        { id: 'pat_2', title: 'New Invoice Issued', message: 'Invoice INV-20831 for $1,200.00 has been generated for NDIS funding.', target: 'John Miller', date: 'Yesterday, 02:00 PM', type: 'inbox' },
-        { id: 'pat_3', title: 'Exercise Prescribed', message: 'Dr. Sarah Jenkins assigned a new exercise plan: "Lower Back Stretch".', target: 'John Miller', date: 'Yesterday, 04:30 PM', type: 'inbox' },
-        { id: 'pat_4', title: 'Clinic Receptionist Message', message: 'Please bring your copy of the diagnostic scan for Monday\'s visit.', target: 'John Miller', date: '2 Jan 2026', type: 'inbox' },
-        { id: 's1', title: 'Payment Receipt Logged', message: 'Submitted online copayment of $120.00 for physiotherapy.', target: 'Billing Admin', date: 'Today, 01:15 PM', type: 'sent' }
-      ]
-    case 'clinic':
-      return [
-        { id: 'cli_1', title: 'Outstanding Invoice Warning', message: 'Lakeside Medical invoice INV-20831 ($1,200) is now 8 days overdue.', target: 'Clinic Admin', date: 'Today, 08:30 AM', type: 'inbox' },
-        { id: 'cli_2', title: 'New Patient Registration', message: 'Alice Smith registered as a new clinic patient.', target: 'Clinic Admin', date: 'Today, 09:00 AM', type: 'inbox' },
-        { id: 'cli_3', title: 'Waitlist Alert', message: 'Patient with Falls Risk added to the waitlist.', target: 'Clinic Admin', date: 'Yesterday, 04:15 PM', type: 'inbox' },
-        { id: 'cli_4', title: 'Stripe Integration Active', message: 'Stripe webhook payments sync completed successfully.', target: 'Clinic Admin', date: '2 Jan 2026', type: 'inbox' },
-        { id: 's1', title: 'Practitioner Invitation', message: 'Sent branch 3 onboarding invitation to Dr. Aiden Park.', target: 'Dr. Aiden Park', date: '3 Jan 2026', type: 'sent' }
-      ]
-    case 'head_admin':
-    default:
-      return [
-        { id: 'admin_1', title: 'New Clinic Onboarded', message: 'West Coast Family Care joined on the Advanced plan', target: 'Super Admin', date: 'Today, 08:00 AM', type: 'inbox' },
-        { id: 'admin_2', title: 'Subscription Upgraded', message: 'Bayview Family Clinic upgraded from Advanced to Enterprise', target: 'Super Admin', date: 'Yesterday, 04:30 PM', type: 'inbox' },
-        { id: 'admin_3', title: 'Failed payment alert', message: 'Admin session: Card ending in 4321 declined (insufficient funds)', target: 'Super Admin', date: 'Yesterday, 02:00 PM', type: 'inbox' },
-        { id: 'admin_4', title: 'Compliance Logs Flushed', message: 'System log backup has completed successfully.', target: 'Super Admin', date: '1 Jan 2026', type: 'inbox' },
-        { id: 's1', title: 'System Notification Broadcast', message: 'Global system maintenance scheduled for Sunday at 02:00 AM UTC.', target: 'All Clinics', date: 'Yesterday, 10:00 AM', type: 'sent' },
-        { id: 's2', title: 'Welcome Invitation', message: 'Welcome packet and onboarding link sent to Wynwood Wellness.', target: 'Wynwood Wellness', date: '2 Jan 2026', type: 'sent' }
-      ]
-  }
-}
+
 
 export default function HeadAdminNotifications() {
   const store = useClinicStore()

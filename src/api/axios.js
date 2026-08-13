@@ -30,5 +30,17 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response && error.response.status === 401) {
+      // Clear stale token on 401 unauthorized
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('token')
+    }
+    return Promise.reject(error)
+  }
+)
+
 export default api
 export { API_BASE_URL }

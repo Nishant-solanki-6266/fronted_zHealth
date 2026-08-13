@@ -39,36 +39,7 @@ import { getReports } from '../../calendar/api/clinicAdminApi'
 const { RangePicker } = DatePicker
 const { Option } = Select
 
-// Mock Data
-const MOCK_MONTHLY_REVENUE = [
-  { name: 'Jan', current: 12000, previous: 10500 },
-  { name: 'Feb', current: 14000, previous: 11000 },
-  { name: 'Mar', current: 13500, previous: 12500 },
-  { name: 'Apr', current: 15800, previous: 13000 },
-  { name: 'May', current: 14250, previous: 12800 },
-  { name: 'Jun', current: 16900, previous: 14200 },
-]
 
-const MOCK_PRACTITIONER_DATA = [
-  { name: 'Dr. Sarah Jenkins', Appointments: 84, Revenue: 15120 },
-  { name: 'Dr. James Carter', Appointments: 62, Revenue: 11160 },
-  { name: 'Dr. Emily Smith', Appointments: 38, Revenue: 6080 },
-]
-
-const MOCK_CLIENT_GROWTH = [
-  { name: 'Jan', clients: 45 },
-  { name: 'Feb', clients: 60 },
-  { name: 'Mar', clients: 82 },
-  { name: 'Apr', clients: 110 },
-  { name: 'May', clients: 135 },
-  { name: 'Jun', clients: 150 },
-]
-
-const MOCK_PAYMENT_STATUS = [
-  { name: 'Paid', value: 14250, color: '#30D2BE' },
-  { name: 'Outstanding', value: 3210, color: '#F59E0B' },
-  { name: 'Draft / Uninvoiced', value: 1200, color: '#8C4BFF' },
-]
 
 // Specific Reports Map
 const SPECIFIC_REPORTS = {
@@ -444,74 +415,56 @@ export default function ReportsPage() {
 
   // Dynamically compute card metrics based on selected filters and live database
   const metrics = useMemo(() => {
-    if (liveReportData && liveReportData.metrics) {
-      // Real DB data — show exact values, no filterScale distortion
-      const m = liveReportData.metrics
-      return {
-        revenue: m.revenue || 0,
-        appointments: m.appointments || 0,
-        newClients: m.newClients || 0,
-        outstanding: m.outstanding || 0,
-        utilisation: m.utilisation || 0,
-        cancellation: m.cancellation || 0,
-        uninvoiced: m.uninvoiced || 0
-      }
-    }
-    // Fallback dummy data when no API response (only apply filterScale to dummy)
+    const m = (liveReportData && liveReportData.metrics) ? liveReportData.metrics : {}
     return {
-      revenue: Math.round(16900 * filterScale),
-      appointments: Math.max(1, Math.round(195 * filterScale)),
-      newClients: Math.max(1, Math.round(150 * filterScale)),
-      outstanding: Math.round(2400 * filterScale),
-      utilisation: 78,
-      cancellation: 5.8,
-      uninvoiced: Math.max(1, Math.round(8 * filterScale))
+      revenue: m.revenue || 0,
+      appointments: m.appointments || 0,
+      newClients: m.newClients || 0,
+      outstanding: m.outstanding || 0,
+      utilisation: m.utilisation || 0,
+      cancellation: m.cancellation || 0,
+      uninvoiced: m.uninvoiced || 0
     }
-  }, [liveReportData, filterScale])
+  }, [liveReportData])
 
-  // Dynamically compute charts data — use real DB data when available, fallback to MOCK only when DB is empty
+  // Dynamically compute charts data strictly from DB data
   const chartRevenueData = useMemo(() => {
-    const hasLiveData = liveReportData && Array.isArray(liveReportData.monthlyRevenue) && liveReportData.monthlyRevenue.length > 0
-    const list = hasLiveData ? liveReportData.monthlyRevenue : MOCK_MONTHLY_REVENUE
-    // Apply filterScale only to mock/fallback data, not real DB data
-    const scale = hasLiveData ? 1 : filterScale
+    const list = (liveReportData && Array.isArray(liveReportData.monthlyRevenue)) ? liveReportData.monthlyRevenue : []
     return list.map(d => ({
       name: d.name,
-      current: Math.round((d.current || 0) * scale),
-      previous: Math.round((d.previous || 0) * scale)
+      current: Math.round(d.current || 0),
+      previous: Math.round(d.previous || 0)
     }))
-  }, [liveReportData, filterScale])
+  }, [liveReportData])
 
   // Client growth chart from DB
   const chartClientGrowthData = useMemo(() => {
-    if (liveReportData && Array.isArray(liveReportData.clientGrowth) && liveReportData.clientGrowth.length > 0) {
+    if (liveReportData && Array.isArray(liveReportData.clientGrowth)) {
       return liveReportData.clientGrowth
     }
-    return MOCK_CLIENT_GROWTH
+    return []
   }, [liveReportData])
 
   // Payment status pie chart from DB
   const chartPaymentStatusData = useMemo(() => {
-    if (liveReportData && Array.isArray(liveReportData.paymentStatus) && liveReportData.paymentStatus.some(p => p.value > 0)) {
+    if (liveReportData && Array.isArray(liveReportData.paymentStatus)) {
       return [
         { name: 'Paid', value: liveReportData.paymentStatus.find(p => p.name === 'Paid')?.value || 0, color: '#30D2BE' },
         { name: 'Outstanding', value: liveReportData.paymentStatus.find(p => p.name === 'Outstanding')?.value || 0, color: '#F59E0B' },
         { name: 'Draft / Uninvoiced', value: liveReportData.paymentStatus.find(p => p.name === 'Draft / Uninvoiced')?.value || 0, color: '#8C4BFF' }
       ]
     }
-    return MOCK_PAYMENT_STATUS
+    return []
   }, [liveReportData])
 
   const chartPractitionerData = useMemo(() => {
-    const hasLiveData = liveReportData && Array.isArray(liveReportData.practitionerPerformance) && liveReportData.practitionerPerformance.length > 0
-    const list = hasLiveData ? liveReportData.practitionerPerformance : MOCK_PRACTITIONER_DATA
-    const scale = hasLiveData ? 1 : filterScale
+    const list = (liveReportData && Array.isArray(liveReportData.practitionerPerformance)) ? liveReportData.practitionerPerformance : []
     return list
       .filter(d => practitioner === 'All Practitioners' || practitioner === 'All' || (d.name || '').includes(practitioner))
       .map(d => ({
         name: d.name,
-        Appointments: Math.max(0, Math.round((d.Appointments || 0) * scale)),
-        Revenue: Math.round((d.Revenue || 0) * scale)
+        Appointments: Math.max(0, Math.round(d.Appointments || 0)),
+        Revenue: Math.round(d.Revenue || 0)
       }))
   }, [liveReportData, practitioner, filterScale])
 
@@ -785,7 +738,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Global overrides for this specific layout */}
-      <style jsx global>{`
+      <style>{`
         .custom-dark-select .ant-select-selector {
           background-color: ${darkMode ? '#1E293B' : '#EEF2F6'} !important;
           border: none !important;

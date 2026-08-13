@@ -297,7 +297,7 @@ export default function WaitlistPage() {
         open={modalVisible}
         onCancel={() => setModalVisible(false)}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         width={650}
       >
         <Form

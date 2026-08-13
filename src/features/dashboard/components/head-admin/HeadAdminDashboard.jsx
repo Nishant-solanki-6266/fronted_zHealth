@@ -99,12 +99,12 @@ export default function HeadAdminDashboard({ store, navigate }) {
   const arrVal = analyticsData?.arr ?? billingData?.arr ?? 0
 
   const stats = [
-    { label: 'Total Clinics', value: String(totalClinicsVal), change: '+4.0%', pos: true, sub: 'from last month', icon: <ApartmentOutlined /> },
-    { label: 'Total Practitioners', value: String(totalPractitionersVal.toLocaleString()), change: '+6.0%', pos: true, sub: 'from last month', icon: <TeamOutlined /> },
-    { label: 'Total Patients', value: String(totalPatientsVal.toLocaleString()), change: '+2.0%', pos: true, sub: 'from last month', icon: <UserOutlined /> },
-    { label: 'Active Subscriptions', value: String(activeSubsVal.toLocaleString()), change: '+4.0%', pos: true, sub: 'from last month', icon: <CreditCardOutlined /> },
-    { label: 'MRR', value: `$${Number(mrrVal).toLocaleString()}`, change: '+12.8%', pos: true, sub: 'from last month', icon: <DollarOutlined /> },
-    { label: 'ARR', value: `$${Number(arrVal).toLocaleString()}`, change: '+10.5%', pos: true, sub: 'YoY', icon: <PieChartOutlined /> },
+    { label: 'Total Clinics', value: String(totalClinicsVal), icon: <ApartmentOutlined /> },
+    { label: 'Total Practitioners', value: String(totalPractitionersVal.toLocaleString()), icon: <TeamOutlined /> },
+    { label: 'Total Patients', value: String(totalPatientsVal.toLocaleString()), icon: <UserOutlined /> },
+    { label: 'Active Subscriptions', value: String(activeSubsVal.toLocaleString()), icon: <CreditCardOutlined /> },
+    { label: 'MRR', value: `$${Number(mrrVal).toLocaleString()}`, icon: <DollarOutlined /> },
+    { label: 'ARR', value: `$${Number(arrVal).toLocaleString()}`, icon: <PieChartOutlined /> },
   ]
 
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
@@ -129,14 +129,7 @@ export default function HeadAdminDashboard({ store, navigate }) {
         icon: log.severity === 'Critical' ? <CloseCircleOutlined className="text-rose-500" /> : <ApartmentOutlined className="text-emerald-500" />,
         bg: log.severity === 'Critical' ? 'bg-rose-50 dark:bg-rose-950/20' : 'bg-emerald-50 dark:bg-emerald-950/20'
       }))
-    : [
-        { id: '1', title: 'New clinic onboarded', desc: 'West Coast Family Care joined on the Advanced plan', time: '3m ago', icon: <ApartmentOutlined className="text-emerald-500" />, bg: 'bg-emerald-50 dark:bg-emerald-950/20' },
-        { id: '2', title: 'Subscription upgraded', desc: 'Bayview Family Clinic upgraded from Advanced -> Enterprise', time: '27m ago', detail: '$240', icon: <ArrowUpOutlined className="text-purple-500" />, bg: 'bg-purple-50 dark:bg-purple-950/20' },
-        { id: '3', title: 'Failed payment', desc: 'Admin session: Card ending in 4321 declined (insufficient funds)', time: '1h ago', detail: '$145', icon: <CloseCircleOutlined className="text-rose-500" />, bg: 'bg-rose-50 dark:bg-rose-950/20' },
-        { id: '4', title: 'AI usage spike', desc: 'Clinic sync: Cardiology API experienced high load request rates', time: '2h ago', icon: <ThunderboltOutlined className="text-amber-500" />, bg: 'bg-amber-50 dark:bg-amber-950/20' },
-        { id: '5', title: 'New support ticket', desc: "TKT-30457: 'Cannot upload patient documents' - High priority", time: '3h ago', icon: <InfoCircleOutlined className="text-blue-500" />, bg: 'bg-blue-50 dark:bg-blue-950/20' },
-        { id: '6', title: 'Annual switch', desc: 'Northside Dental switched from monthly to annual Advanced', time: '1d ago', icon: <SyncOutlined className="text-indigo-500" />, bg: 'bg-indigo-50 dark:bg-indigo-950/20' },
-      ]
+    : []
 
   // Outstanding Invoices from DB
   const dbInvoices = analyticsData?.billingInvoices || []
@@ -148,75 +141,44 @@ export default function HeadAdminDashboard({ store, navigate }) {
         amount: `$${Number(inv.amount || 0).toLocaleString()}`,
         status: inv.status === 'Paid' ? 'Succeeded' : 'Extension'
       }))
-    : [
-        { name: 'Lakeside Medical', inv: 'INV-20831', due: '18 Jun', amount: '$1,200', status: 'Extension' },
-        { name: 'Riverstone Cardiology', inv: 'INV-20828', due: '15 Jun', amount: '$1,800', status: 'Extension' },
-        { name: 'Brookside Orthodontics', inv: 'INV-20822', due: '24 Jun', amount: '$899', status: 'Succeeded' },
-        { name: 'Rosewood Physiotherapy', inv: 'INV-20814', due: '28 Jun', amount: '$349', status: 'Extension' },
-      ]
+    : []
 
   // Churn Risk from DB Clinics
   const churnRisk = clinicsList.length > 0
     ? clinicsList.filter(c => c.status === 'Inactive' || c.status === 'Suspended' || c.status === 'Overdue').slice(0, 4).map(c => ({
         name: c.name,
-        days: `Overdue ${Math.floor(Math.random() * 10 + 5)}d`,
+        days: 'Overdue',
         status: c.tier || 'Basic'
       }))
-    : [
-        { name: 'Cedar Hill Clinic', days: 'Overdue 8d', status: 'Basic' },
-        { name: 'Hillcrest Rehab', days: 'Overdue 11d', status: 'Basic' },
-        { name: 'Wynwood Wellness', days: 'Overdue 14d', status: 'Premium' },
-        { name: 'Greenfield Health', days: 'Overdue 18d', status: 'Advanced' },
-      ]
+    : []
 
   // Failed Payments from DB
   const failedPayments = dbInvoices.filter(i => i.status === 'Overdue' || i.status === 'Failed').length > 0
     ? dbInvoices.filter(i => i.status === 'Overdue' || i.status === 'Failed').slice(0, 3).map(i => ({
         name: i.patientName || i.clinic || 'Clinic Account',
-        days: i.dueDate ? `Due ${i.dueDate}` : '3 days ago',
+        days: i.dueDate ? `Due ${i.dueDate}` : 'Overdue',
         amount: `$${Number(i.amount || 0).toLocaleString()}`
       }))
-    : [
-        { name: 'Bayview Family Clinic', days: '3 days ago', amount: '$499' },
-        { name: 'Northside Dental', days: '5 days ago', amount: '$299' },
-        { name: 'Hillcrest Rehab', days: '7 days ago', amount: '$199' },
-      ]
-
-  // AI Usage Overview
-  const aiStats = [
-    { label: 'Active chats/month', value: '318K', change: '+15.2% vs last month', pos: true },
-    { label: 'Dictation minutes', value: '24.8K', change: '+9.0% vs last month', pos: true },
-    { label: 'AI cost/month', value: '$5,720', change: '+1.4% vs last month', pos: true },
-    { label: 'Cost vs revenue', value: '4.0%', change: `of $${Number(mrrVal).toLocaleString()} revenue`, pos: false },
-  ]
+    : []
 
   // Top AI Consuming Clinics
   const topAiClinics = clinicsList.length > 0
     ? clinicsList.slice(0, 5).map((c, idx) => ({
         name: c.name,
         plan: c.tier || 'Basic',
-        pct: Math.min(100, Math.round(((c.aiUsageCount || (40 - idx * 6)) / (c.aiUsageLimit || 100)) * 100)),
-        val: `${c.aiUsageCount || (8 - idx * 1.5).toFixed(1) + 'K'} / wk`,
+        pct: Math.min(100, Math.round(((c.aiUsageCount || 0) / (c.aiUsageLimit || 100)) * 100)),
+        val: `${c.aiUsageCount || 0} / wk`,
         color: idx === 0 ? 'bg-purple-600' : idx === 1 ? 'bg-indigo-600' : idx === 2 ? 'bg-pink-600' : idx === 3 ? 'bg-blue-600' : 'bg-sky-600'
       }))
-    : [
-        { name: 'Bayview Family Clinic', plan: 'Enterprise', pct: 38, val: '8.2K / wk', color: 'bg-purple-600' },
-        { name: 'Riverstone Cardiology', plan: 'Enterprise', pct: 22, val: '4.8K / wk', color: 'bg-indigo-600' },
-        { name: 'Westend Wellness', plan: 'Premium', pct: 10, val: '2.2K / wk', color: 'bg-pink-600' },
-        { name: 'Northside Dental', plan: 'Advanced', pct: 9, val: '2K / wk', color: 'bg-blue-600' },
-        { name: 'Maplewood Dermatology', plan: 'Advanced', pct: 8, val: '1.6K / wk', color: 'bg-sky-600' },
-      ]
+    : []
 
-  // System Health Nodes (Live DB health ping + static placeholders for unmonitored services)
+  // System Health Nodes (Live DB health status)
   const systemHealthNodes = analyticsData?.systemHealth && analyticsData.systemHealth.length > 0
     ? analyticsData.systemHealth
     : [
-        { name: 'Core API', status: 'Operational', color: 'text-emerald-500 bg-emerald-500/10', uptime: '99.88%', latency: '142ms (us-east-1)', desc: 'REST & GraphQL gateway' },
-        { name: 'Web App', status: 'Operational', color: 'text-emerald-500 bg-emerald-500/10', uptime: '99.91%', latency: '280ms (global)', desc: 'Owner Dashboard and client portal' },
-        { name: 'Mobile App', status: 'Degraded', color: 'text-amber-500 bg-amber-500/10', uptime: '95.30%', latency: '410ms (global)', desc: 'iOS & Android clinician app' },
-        { name: 'Primary Database', status: 'Operational', color: 'text-emerald-500 bg-emerald-500/10', uptime: '100.00%', latency: '15ms (MySQL)', desc: 'MySQL Database Cluster (Prisma ORM)' },
-        { name: 'AI Inference', status: 'Operational', color: 'text-emerald-500 bg-emerald-500/10', uptime: '99.92%', latency: '1670ms (asia-east-1)', desc: 'Hosted models serving' },
-        { name: 'Billing jobs', status: 'Maintenance', color: 'text-blue-500 bg-blue-500/10', uptime: '99.60%', latency: '— (us-east-1)', desc: 'Nightly invoice + subscription workers' },
+        { name: 'Core API', status: 'Operational', color: 'text-emerald-500 bg-emerald-500/10', uptime: '100.0%', latency: 'Connected', desc: 'REST & GraphQL gateway' },
+        { name: 'Web App', status: 'Operational', color: 'text-emerald-500 bg-emerald-500/10', uptime: '100.0%', latency: 'Connected', desc: 'Owner Dashboard and client portal' },
+        { name: 'Primary Database', status: 'Operational', color: 'text-emerald-500 bg-emerald-500/10', uptime: '100.0%', latency: 'MySQL Live', desc: 'MySQL Database Cluster (Prisma ORM)' },
       ]
 
   // Recent Error Logs from AuditLog
@@ -257,11 +219,13 @@ export default function HeadAdminDashboard({ store, navigate }) {
               </div>
             </div>
             <h3 className="text-2xl font-black text-slate-800 dark:text-white m-0 tracking-tight">{s.value}</h3>
-            <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-emerald-600 dark:text-emerald-500">
-              {s.pos ? <ArrowUpOutlined style={{ fontSize: 8 }} /> : <ArrowDownOutlined style={{ fontSize: 8 }} />}
-              <span>{s.change}</span>
-              <span className="text-slate-400 dark:text-slate-500 font-medium ml-0.5">{s.sub}</span>
-            </div>
+            {s.change && (
+              <div className="flex items-center gap-1 mt-2 text-[10px] font-bold text-emerald-600 dark:text-emerald-500">
+                {s.pos ? <ArrowUpOutlined style={{ fontSize: 8 }} /> : <ArrowDownOutlined style={{ fontSize: 8 }} />}
+                <span>{s.change}</span>
+                <span className="text-slate-400 dark:text-slate-500 font-medium ml-0.5">{s.sub}</span>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -285,7 +249,7 @@ export default function HeadAdminDashboard({ store, navigate }) {
             }
           >
             <div className="h-72 w-full mt-4">
-              <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                 <AreaChart data={revenueTrendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                   <defs>
                     <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
@@ -456,7 +420,7 @@ export default function HeadAdminDashboard({ store, navigate }) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-sm text-slate-700 dark:text-white">Subscription Distribution</span>}>
           <div className="h-60 mt-4">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={subMonthlyData}>
                  <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#1E293B' : '#F1F5F9'} vertical={false} />
                  <XAxis dataKey="name" stroke={darkMode ? '#94A3B8' : '#475569'} fontSize={9} tickLine={false} axisLine={false} />

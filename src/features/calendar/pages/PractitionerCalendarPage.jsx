@@ -372,7 +372,7 @@ function SalesCalendarView({ store, navigate }) {
         onCancel={() => setSelectedEvent(null)}
         title={<span className="font-bold text-slate-850 dark:text-white text-base">Calendar Event details</span>}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
         className="dark:bg-slate-900 rounded-2xl"
       >
         {selectedEvent && (
@@ -442,7 +442,7 @@ function SalesCalendarView({ store, navigate }) {
         onCancel={() => setBookModalVisible(false)}
         title={<span className="font-bold text-slate-850 dark:text-white text-base">Book Demo / Meeting Slot</span>}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleBookDemo} initialValues={{ type: 'Demos', stage: 'Demo Scheduled' }}>
           <Form.Item
@@ -730,8 +730,11 @@ export default function PractitionerCalendarPage() {
     return getLoggedInPractitionerId(store.practitioners)
   })
 
-  // Ensure calendar defaults to logged-in practitioner when store.practitioners loads
+  // Ensure calendar defaults to logged-in practitioner when store.practitioners loads and load live DB appointments
   useEffect(() => {
+    if (store.fetchAppointments) {
+      store.fetchAppointments()
+    }
     if (store.practitioners && store.practitioners.length > 0) {
       const loggedInIds = getLoggedInPractitionerId(store.practitioners)
       if (loggedInIds.length > 0) {
@@ -803,8 +806,17 @@ export default function PractitionerCalendarPage() {
 
   // Filter appointments
   const filteredAppts = useMemo(() => {
-    return store.appointments.filter(appt => {
-      if (appt.practitionerId && !selectedPractitioners.includes(appt.practitionerId)) return false
+    return (store.appointments || []).filter(appt => {
+      if (selectedPractitioners && selectedPractitioners.length > 0) {
+        if (appt.practitionerId && !selectedPractitioners.includes(appt.practitionerId)) {
+          const selectedNames = (store.practitioners || [])
+            .filter(p => selectedPractitioners.includes(p.id))
+            .map(p => (p.name || '').toLowerCase())
+          const apptPracName = (appt.practitionerName || '').toLowerCase()
+          const nameMatches = selectedNames.some(n => n && apptPracName.includes(n))
+          if (!nameMatches) return false
+        }
+      }
       if (!searchVal) return true
       const q = searchVal.toLowerCase()
       return appt.patientName?.toLowerCase().includes(q) ||
@@ -812,7 +824,7 @@ export default function PractitionerCalendarPage() {
         appt.appointmentType?.toLowerCase().includes(q) ||
         appt.diagnosis?.toLowerCase().includes(q)
     })
-  }, [store.appointments, searchVal, selectedPractitioners])
+  }, [store.appointments, store.practitioners, searchVal, selectedPractitioners])
 
   const getApptsInSlot = (dayObj, h, m) => {
     const dateStr = dayObj.format('YYYY-MM-DD')

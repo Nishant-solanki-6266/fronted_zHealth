@@ -3,10 +3,12 @@ import { Card, Table, Tag, Button, Modal, Select, DatePicker, TimePicker, Input,
 import { PlusOutlined, VideoCameraOutlined, SearchOutlined, FilterOutlined } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
 import api from '../../../../api/axios'
+import { useClinicStore } from '../../../../store/clinicStore'
 
 const { Option } = Select
 
 export default function PatientAppointments() {
+  const store = useClinicStore()
   const [loading, setLoading] = useState(false)
   const [telehealthOpen, setTelehealthOpen] = useState(false)
   const [bookModalOpen, setBookModalOpen] = useState(false)
@@ -63,6 +65,7 @@ export default function PatientAppointments() {
       const res = await api.get('/api/patient/practitioners')
       if (res.data?.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
         setPractitionersList(res.data.data)
+        setSelectedPractitioner(prev => prev || res.data.data[0].id)
       }
     } catch (err) {
       console.warn('Practitioners fetch notice:', err?.message)
@@ -76,12 +79,20 @@ export default function PatientAppointments() {
 
   const handleBookSubmit = async (e) => {
     e.preventDefault()
-    const chosenPrac = practitionersList.find(p => p.id === selectedPractitioner)
-    const practitionerName = chosenPrac ? chosenPrac.name : 'Dr. Sarah Jenkins'
+    const targetPracId = selectedPractitioner || (practitionersList[0]?.id || 'sarah')
+    const chosenPrac = practitionersList.find(p => p.id === targetPracId) || (store.practitioners || []).find(p => p.id === targetPracId)
+    
+    let practitionerName = chosenPrac ? chosenPrac.name : ''
+    if (!practitionerName) {
+      if (targetPracId === 'sarah') practitionerName = 'Dr. Sarah Jenkins'
+      else if (targetPracId === 'emily') practitionerName = 'Dr. Emily Smith'
+      else if (targetPracId === 'james') practitionerName = 'Dr. James Carter'
+      else practitionerName = practitionersList[0]?.name || 'Dr. Practitioner'
+    }
 
     try {
       const payload = {
-        practitionerId: selectedPractitioner || null,
+        practitionerId: targetPracId && !['sarah','emily','james'].includes(targetPracId) ? targetPracId : null,
         practitionerName,
         branchName: 'Melbourne Allied Health',
         serviceName: 'General Consultation',
@@ -104,6 +115,9 @@ export default function PatientAppointments() {
           status: 'Upcoming'
         }
         setAppointmentsList(prev => [newAppObj, ...prev])
+        if (store.fetchAppointments) {
+          store.fetchAppointments()
+        }
         toast.success('Appointment request submitted successfully to database!')
       } else {
         toast.success('Appointment booking request submitted! Awaiting confirmation.')

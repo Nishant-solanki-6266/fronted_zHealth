@@ -341,7 +341,7 @@ export default function AdminProfilePage() {
             </Form.Item>
 
             <Form.Item name="gender" label={<span className="text-slate-600 dark:text-slate-400 text-[13px]">Gender</span>}>
-              <Select className="h-11 w-full" popupClassName="dark:bg-[#1f222b]">
+              <Select className="h-11 w-full" classNames={{ popup: { root: 'dark:bg-[#1f222b]' } }}>
                 <Option value="Female">Female</Option>
                 <Option value="Male">Male</Option>
                 <Option value="Non-binary">Non-binary</Option>
@@ -372,7 +372,7 @@ export default function AdminProfilePage() {
             </Form.Item>
 
             <Form.Item name="country" label={<span className="text-slate-600 dark:text-slate-400 text-[13px]">Country</span>}>
-              <Select className="h-11 w-full" popupClassName="dark:bg-[#1f222b]">
+              <Select className="h-11 w-full" classNames={{ popup: { root: 'dark:bg-[#1f222b]' } }}>
                 <Option value="Australia">Australia</Option>
                 <Option value="United States">United States</Option>
                 <Option value="United Kingdom">United Kingdom</Option>
@@ -424,7 +424,7 @@ export default function AdminProfilePage() {
         </div>
       </Form>
 
-      <style jsx global>{`
+      <style>{`
         .admin-profile-form .ant-select-selector {
           background-color: transparent !important;
           border-color: #cbd5e1 !important;

@@ -69,7 +69,7 @@ export default function PatientExercises() {
           
           {loading ? (
             <div className="text-center py-12">
-              <Spin size="large" tip="Loading prescribed exercises..." />
+              <Spin size="large" description="Loading prescribed exercises..." />
             </div>
           ) : exerciseToday.length === 0 ? (
             <Card className="text-center py-8 rounded-2xl">

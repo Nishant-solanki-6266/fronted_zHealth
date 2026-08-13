@@ -342,7 +342,7 @@ export default function HeadAdminGlobalTemplates() {
         onCancel={() => setCreateModalOpen(false)}
         title={<span className="font-extrabold text-base text-slate-800 dark:text-white">Add New Global Healthcare Template</span>}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={form} layout="vertical" onFinish={handleCreateTemplate} className="pt-3">
           <Form.Item name="name" label={<span className="text-xs font-bold text-slate-600 uppercase">Template Title *</span>} rules={[{ required: true, message: 'Please enter template name' }]}>
@@ -391,7 +391,7 @@ export default function HeadAdminGlobalTemplates() {
         onCancel={() => { setEditModalOpen(false); setEditingTemplate(null) }}
         title={<span className="font-extrabold text-base text-slate-800 dark:text-white">Edit Global Healthcare Template</span>}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={editForm} layout="vertical" onFinish={handleEditTemplate} className="pt-3">
           <Form.Item name="name" label={<span className="text-xs font-bold text-slate-600 uppercase">Template Title *</span>} rules={[{ required: true }]}>
@@ -432,7 +432,7 @@ export default function HeadAdminGlobalTemplates() {
         onCancel={() => { setAssignModalOpen(false); setAssigningTemplate(null) }}
         title={<span className="font-extrabold text-base text-slate-800 dark:text-white">Push Template Globally to Clinics</span>}
         footer={null}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={assignForm} layout="vertical" onFinish={handleAssignSubmit} className="pt-3">
           <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl mb-4 border border-slate-150 dark:border-slate-700">
