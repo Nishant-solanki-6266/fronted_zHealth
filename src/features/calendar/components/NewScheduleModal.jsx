@@ -3,7 +3,8 @@ import { Modal, Form, Input, Select, DatePicker, TimePicker, Switch, Space, Butt
 import { useClinicStore } from '../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
-import { createAppointment } from '../api/clinicAdminApi'
+import { createAppointment, getPatients, getPractitioners } from '../api/clinicAdminApi'
+import { getClinicServices } from '../../settings/api/settingsApi'
 
 const { Option } = Select
 
@@ -12,6 +13,33 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
   const [form] = Form.useForm()
   const [selectedRepeat, setSelectedRepeat] = useState('None')
   const [extraNonLabourCosts, setExtraNonLabourCosts] = useState([])
+
+  // Auto-fetch patients, practitioners, services from Live DB if store is empty on modal open
+  useEffect(() => {
+    if (open) {
+      if (!store.patients || store.patients.length === 0 || !store.practitioners || store.practitioners.length === 0 || !store.services || store.services.length === 0) {
+        Promise.allSettled([
+          getPatients(),
+          getPractitioners(),
+          getClinicServices()
+        ]).then(([patRes, pracRes, servRes]) => {
+          if (patRes.status === 'fulfilled' && patRes.value?.success && Array.isArray(patRes.value.data)) {
+            const mapped = patRes.value.data.map(p => ({
+              ...p,
+              name: p.fullName || p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.email || 'Unnamed Client'
+            }))
+            if (typeof store.setPatients === 'function') store.setPatients(mapped)
+          }
+          if (pracRes.status === 'fulfilled' && pracRes.value?.success && Array.isArray(pracRes.value.data)) {
+            if (typeof store.setPractitioners === 'function') store.setPractitioners(pracRes.value.data)
+          }
+          if (servRes.status === 'fulfilled' && servRes.value?.success && Array.isArray(servRes.value.data)) {
+            if (typeof store.setServices === 'function') store.setServices(servRes.value.data)
+          }
+        })
+      }
+    }
+  }, [open])
 
   // Set initial default date/time when clicked on grid
   useEffect(() => {
@@ -69,9 +97,9 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
   }, [open, defaultTimeSlot, store.practitioners])
 
   const onFinish = async (values) => {
-    const patientObj = store.patients.find(p => p.id === values.patientId)
-    const practitionerObj = store.practitioners.find(p => p.id === values.practitionerId)
-    const serviceObj = store.services.find(s => s.id === values.serviceId)
+    const patientObj = (store.patients || []).find(p => p.id === values.patientId)
+    const practitionerObj = (store.practitioners || []).find(p => p.id === values.practitionerId)
+    const serviceObj = (store.services || []).find(s => s.id === values.serviceId)
 
     const finalRepeat = values.repeat === 'Custom' 
       ? `Custom: ${values.customRepeatText || 'Every 3 days'}` 
@@ -146,10 +174,12 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Form.Item name="patientId" label={<span className="text-slate-600 dark:text-slate-350 font-semibold text-xs">Client Patient</span>} rules={[{ required: true }]} className="mb-0">
             <Select 
+              showSearch
+              optionFilterProp="children"
               placeholder="Select client" 
               className="rounded-xl h-10 flex items-center"
               onChange={(val) => {
-                const pat = store.patients.find(p => p.id === val)
+                const pat = (store.patients || []).find(p => p.id === val)
                 if (pat) {
                   form.setFieldsValue({
                     diagnosis: pat.diagnosis && pat.diagnosis[0] ? pat.diagnosis[0] : '',
@@ -158,16 +188,22 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
                 }
               }}
             >
-              {store.patients.map(p => (
-                <Option key={p.id} value={p.id}>{p.name}</Option>
-              ))}
+              {(store.patients || []).map(p => {
+                const displayName = p.fullName || p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.email || 'Unnamed Client'
+                return <Option key={p.id} value={p.id}>{displayName}</Option>
+              })}
             </Select>
           </Form.Item>
           
           <Form.Item name="practitionerId" label={<span className="text-slate-600 dark:text-slate-350 font-semibold text-xs">Practitioner</span>} rules={[{ required: true }]} className="mb-0">
-            <Select placeholder="Select practitioner" className="rounded-xl h-10 flex items-center">
-              {store.practitioners.map(p => (
-                <Option key={p.id} value={p.id}>{p.name}</Option>
+            <Select 
+              showSearch
+              optionFilterProp="children"
+              placeholder="Select practitioner" 
+              className="rounded-xl h-10 flex items-center"
+            >
+              {(store.practitioners || []).map(p => (
+                <Option key={p.id} value={p.id}>{p.name} {p.specialty ? `(${p.specialty})` : ''}</Option>
               ))}
             </Select>
           </Form.Item>
@@ -175,9 +211,14 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Form.Item name="serviceId" label={<span className="text-slate-600 dark:text-slate-350 font-semibold text-xs">Appointment Type / Service</span>} rules={[{ required: true }]} className="mb-0">
-            <Select placeholder="Select service" className="rounded-xl h-10 flex items-center">
-              {store.services.filter(s => !s.archived).map(s => (
-                <Option key={s.id} value={s.id}>{s.name} ({s.duration}m)</Option>
+            <Select 
+              showSearch
+              optionFilterProp="children"
+              placeholder="Select service" 
+              className="rounded-xl h-10 flex items-center"
+            >
+              {(store.services || []).filter(s => !s.archived).map(s => (
+                <Option key={s.id} value={s.id}>{s.name} ({s.duration || 60}m)</Option>
               ))}
             </Select>
           </Form.Item>

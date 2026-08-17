@@ -426,8 +426,8 @@ export default function PractitionerConsultation() {
     if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
       age--
     }
-    if (age < 0) return '< 1'
-    return age
+    if (age <= 0) return '< 1 yr'
+    return `${age} yrs`
   }
 
   // Simulation handlers
@@ -770,7 +770,7 @@ export default function PractitionerConsultation() {
                 <Tag color="cyan" className="m-0 border-none font-bold text-[8.5px] uppercase rounded-full px-2.5 py-0.5">{patient.tags?.join(' & ') || 'NDIS'}</Tag>
               </div>
               <p className="text-slate-400 text-[11px] font-semibold mt-1">
-                Age: {calculateAge(patient.dob)}yo &bull; DOB: {patient.dob} &bull; Diagnosis: {patient.diagnosis ? patient.diagnosis.join(', ') : 'Injury'}
+                Age: {calculateAge(patient.dob)} &bull; DOB: {patient.dob} &bull; Diagnosis: {patient.diagnosis ? patient.diagnosis.join(', ') : 'Injury'}
               </p>
               <div className="flex items-center gap-3 mt-1.5">
                 <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
@@ -799,7 +799,7 @@ export default function PractitionerConsultation() {
           </div>
         </div>
 
-        {patient.alerts && (
+        {patient.alerts && String(patient.alerts).trim().toLowerCase() !== 'null' && String(patient.alerts).trim().toLowerCase() !== 'undefined' && String(patient.alerts).trim() !== '' && (
           <Alert
             title={<span className="font-extrabold text-red-550 text-xs">Patient Safety Alert:</span>}
             description={<span className="text-slate-500 font-semibold text-xs">{patient.alerts}</span>}

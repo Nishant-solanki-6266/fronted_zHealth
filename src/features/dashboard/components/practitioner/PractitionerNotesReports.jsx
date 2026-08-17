@@ -49,23 +49,24 @@ export default function PractitionerNotesReports() {
   // Real DB Patients List
   const availablePatients = store.patients || []
 
-  // Real DB Draft Consultations + Mock Review items
-  const realDraftNotes = (store.consultations || [])
-    .filter(c => c.status === 'Draft')
+  // Real DB Draft & Pending Consultations
+  const combinedReviewList = (store.consultations || [])
+    .filter(c => c.status === 'Draft' || c.status === 'Pending' || c.status === 'Pending Review' || c.status === 'In Review')
     .map(c => ({
       id: c.id,
       client: c.patientName || 'Client Patient',
       service: c.profession ? `${c.profession} Clinical Note` : 'Progress Note',
-      date: c.date || 'Today',
-      status: 'Draft Note'
+      date: c.date || (c.createdAt ? new Date(c.createdAt).toISOString().split('T')[0] : 'Today'),
+      status: c.status || 'Draft Note'
     }))
-
-  const combinedReviewList = realDraftNotes
 
   const handleApproveNote = async (id, client) => {
     try {
       if (store.updateConsultation) {
         await store.updateConsultation(id, { status: 'Completed' })
+      }
+      if (store.fetchConsultations) {
+        await store.fetchConsultations()
       }
       toast.success(`Notes approved & signed for ${client}!`)
     } catch (err) {
@@ -73,52 +74,140 @@ export default function PractitionerNotesReports() {
     }
   }
 
+  // State for dynamic custom templates and modals
+  const [customTemplates, setCustomTemplates] = useState([])
+  const [newTemplateModalOpen, setNewTemplateModalOpen] = useState(false)
+  const [newTemplateForm] = Form.useForm()
+
+  const [editingTemplate, setEditingTemplate] = useState(null)
+  const [editTemplateModalOpen, setEditTemplateModalOpen] = useState(false)
+  const [editTemplateForm] = Form.useForm()
+
   // Templates list dynamically based on specialty
   const getTemplatesForProfession = () => {
     switch (activeSpecialty) {
       case 'Physiotherapist':
         return [
-          { name: 'Initial Assessment', code: 'PT-IA-01', type: 'Clinical Intake' },
-          { name: 'Progress Report Update', code: 'PT-PR-02', type: 'GP Letter' },
-          { name: 'Discharge Summary', code: 'PT-DS-03', type: 'Discharge' },
-          { name: 'AHTR NDIS Report', code: 'PT-AHTR-04', type: 'Funding' },
-          { name: 'EPC Plan 5-session Review', code: 'PT-EPC-05', type: 'Medicare' },
-          { name: 'CTP Car Accident Assessment', code: 'PT-CTP-06', type: 'Insurance' }
+          { id: 'pt_1', name: 'Initial Assessment', code: 'PT-IA-01', type: 'Clinical Intake' },
+          { id: 'pt_2', name: 'Progress Report Update', code: 'PT-PR-02', type: 'GP Letter' },
+          { id: 'pt_3', name: 'Discharge Summary', code: 'PT-DS-03', type: 'Discharge' },
+          { id: 'pt_4', name: 'AHTR NDIS Report', code: 'PT-AHTR-04', type: 'Funding' },
+          { id: 'pt_5', name: 'EPC Plan 5-session Review', code: 'PT-EPC-05', type: 'Medicare' },
+          { id: 'pt_6', name: 'CTP Car Accident Assessment', code: 'PT-CTP-06', type: 'Insurance' }
         ]
       case 'Psychologist':
         return [
-          { name: 'Mental Health Treatment Plan (MHTP)', code: 'PSY-MHTP-01', type: 'GP Letter' },
-          { name: 'Psychology Progress Note', code: 'PSY-PN-02', type: 'Clinical Intake' },
-          { name: 'Cognitive Behavioural Therapy Review', code: 'PSY-CBT-03', type: 'Assessment' },
-          { name: 'NDIS Psychosocial Assessment', code: 'PSY-NDIS-04', type: 'Funding' }
+          { id: 'psy_1', name: 'Mental Health Treatment Plan (MHTP)', code: 'PSY-MHTP-01', type: 'GP Letter' },
+          { id: 'psy_2', name: 'Psychology Progress Note', code: 'PSY-PN-02', type: 'Clinical Intake' },
+          { id: 'psy_3', name: 'Cognitive Behavioural Therapy Review', code: 'PSY-CBT-03', type: 'Assessment' },
+          { id: 'psy_4', name: 'NDIS Psychosocial Assessment', code: 'PSY-NDIS-04', type: 'Funding' }
         ]
       case 'Occupational Therapist':
         return [
-          { name: 'Functional Capacity Assessment (FCA)', code: 'OT-FCA-01', type: 'NDIS' },
-          { name: 'Home Modifications Assessment', code: 'OT-HMA-02', type: 'Assessment' },
-          { name: 'Assistive Technology Recommendation', code: 'OT-AT-03', type: 'Funding' },
-          { name: 'Occupational Sensory Profile', code: 'OT-SP-04', type: 'Intake' }
+          { id: 'ot_1', name: 'Functional Capacity Assessment (FCA)', code: 'OT-FCA-01', type: 'NDIS' },
+          { id: 'ot_2', name: 'Home Modifications Assessment', code: 'OT-HMA-02', type: 'Assessment' },
+          { id: 'ot_3', name: 'Assistive Technology Recommendation', code: 'OT-AT-03', type: 'Funding' },
+          { id: 'ot_4', name: 'Occupational Sensory Profile', code: 'OT-SP-04', type: 'Intake' }
         ]
       case 'Speech Pathologist':
         return [
-          { name: 'Speech & Language Evaluation', code: 'SP-LE-01', type: 'Assessment' },
-          { name: 'AAC Device Communication Plan', code: 'SP-AAC-02', type: 'Treatment' },
-          { name: 'Paediatric Articulation Log', code: 'SP-AL-03', type: 'Intake' },
-          { name: 'Swallowing Safety Dysphagia assessment', code: 'SP-SW-04', type: 'Clinical' }
+          { id: 'sp_1', name: 'Speech & Language Evaluation', code: 'SP-LE-01', type: 'Assessment' },
+          { id: 'sp_2', name: 'AAC Device Communication Plan', code: 'SP-AAC-02', type: 'Treatment' },
+          { id: 'sp_3', name: 'Paediatric Articulation Log', code: 'SP-AL-03', type: 'Intake' },
+          { id: 'sp_4', name: 'Swallowing Safety Dysphagia assessment', code: 'SP-SW-04', type: 'Clinical' }
         ]
       case 'Exercise Physiologist':
         return [
-          { name: 'Cardiopulmonary Fitness Review', code: 'EP-CP-01', type: 'Assessment' },
-          { name: 'Musculoskeletal Rehab program', code: 'EP-MR-02', type: 'Treatment' },
-          { name: 'NDIS Functional capacity program report', code: 'EP-NDIS-03', type: 'Funding' }
+          { id: 'ep_1', name: 'Cardiopulmonary Fitness Review', code: 'EP-CP-01', type: 'Assessment' },
+          { id: 'ep_2', name: 'Musculoskeletal Rehab program', code: 'EP-MR-02', type: 'Treatment' },
+          { id: 'ep_3', name: 'NDIS Functional capacity program report', code: 'EP-NDIS-03', type: 'Funding' }
         ]
       default:
         return [
-          { name: 'General Physical Assessment', code: 'GP-GEN-01', type: 'Clinical' },
-          { name: 'Progress updates summary', code: 'GP-PR-02', type: 'Standard' },
-          { name: 'Discharge Letter', code: 'GP-DL-03', type: 'Discharge' }
+          { id: 'gp_1', name: 'General Physical Assessment', code: 'GP-GEN-01', type: 'Clinical' },
+          { id: 'gp_2', name: 'Progress updates summary', code: 'GP-PR-02', type: 'Standard' },
+          { id: 'gp_3', name: 'Discharge Letter', code: 'GP-DL-03', type: 'Discharge' }
         ]
     }
+  }
+
+  // Fetch templates from DB on mount
+  useEffect(() => {
+    if (store.fetchConsultations) store.fetchConsultations()
+    if (store.initStoreData) store.initStoreData()
+    if (store.fetchDocuments) store.fetchDocuments()
+    if (store.fetchSettingsTemplates) store.fetchSettingsTemplates()
+  }, [])
+
+  // Combine base profession templates with DB noteTemplates & custom state
+  const dbNoteTemplates = (store.noteTemplates || []).map(t => ({
+    id: t.id,
+    name: t.title || t.name,
+    code: t.code || `TPL-${String(t.id).slice(-4)}`,
+    type: t.type || t.category || 'Clinical Intake',
+    specialty: t.specialty || activeSpecialty
+  }))
+
+  const allTemplatesForProfession = [
+    ...getTemplatesForProfession(),
+    ...dbNoteTemplates.filter(t => !t.specialty || t.specialty === activeSpecialty),
+    ...customTemplates.filter(t => !t.specialty || t.specialty === activeSpecialty)
+  ]
+
+  const handleUseTemplate = (temp) => {
+    draftReportForm.setFieldsValue({ reportType: temp.name })
+    setActiveTab('reports')
+    toast.success(`Loaded "${temp.name}" template into Report Generator!`)
+  }
+
+  const handleCreateTemplate = async (values) => {
+    const code = values.code || `PT-${Math.floor(100 + Math.random() * 900)}`
+    const type = values.type || 'Clinical Intake'
+    const newTpl = {
+      id: `tpl_${Date.now()}`,
+      name: values.name,
+      title: values.name,
+      code,
+      type,
+      specialty: activeSpecialty
+    }
+
+    try {
+      if (store.addSettingsTemplate) {
+        await store.addSettingsTemplate('notes', {
+          title: values.name,
+          name: values.name,
+          code,
+          type,
+          category: type,
+          specialty: activeSpecialty
+        })
+      }
+    } catch (e) {
+      console.warn('DB template create notice:', e)
+    }
+
+    setCustomTemplates(prev => [...prev, newTpl])
+    setNewTemplateModalOpen(false)
+    newTemplateForm.resetFields()
+    toast.success(`New template "${values.name}" created & saved to DB successfully!`)
+  }
+
+  const handleOpenEditTemplate = (temp) => {
+    setEditingTemplate(temp)
+    editTemplateForm.setFieldsValue({
+      name: temp.name,
+      code: temp.code,
+      type: temp.type
+    })
+    setEditTemplateModalOpen(true)
+  }
+
+  const handleSaveEditTemplate = (values) => {
+    if (!editingTemplate) return
+    setCustomTemplates(prev => prev.map(t => t.id === editingTemplate.id ? { ...t, ...values } : t))
+    setEditTemplateModalOpen(false)
+    toast.success(`Template "${values.name}" updated successfully!`)
   }
 
   const getLoggedInPractitionerName = () => {
@@ -157,11 +246,33 @@ export default function PractitionerNotesReports() {
         date: new Date().toLocaleDateString(),
         status: 'Generated'
       })
-      toast.success('Report document saved to live DB Documents folder!')
+
+      // Trigger automatic file download in browser
+      const element = document.createElement('a')
+      const file = new Blob([reportPreviewText], { type: 'text/plain;charset=utf-8' })
+      element.href = URL.createObjectURL(file)
+      element.download = `${generatedReportMeta.reportType}_${generatedReportMeta.patientName}.txt`
+      document.body.appendChild(element)
+      element.click()
+      document.body.removeChild(element)
+
+      toast.success('Report saved to live DB & downloaded successfully!')
     } catch (err) {
       toast.error('Failed to save document. Please try again.')
     } finally {
       setSavingDoc(false)
+    }
+  }
+
+  const handlePrintReport = () => {
+    if (!reportPreviewText) return
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`<pre style="font-family: monospace; font-size: 13px; padding: 24px; line-height: 1.6;">${reportPreviewText}</pre>`)
+      printWindow.document.close()
+      printWindow.print()
+    } else {
+      toast.success('Sending to clinic printer...')
     }
   }
 
@@ -280,7 +391,7 @@ export default function PractitionerNotesReports() {
                   <div className="flex justify-end gap-2">
                     <Button 
                       icon={<PrinterOutlined />} 
-                      onClick={() => toast.success('Sending to clinic printer...')}
+                      onClick={handlePrintReport}
                       className="rounded-xl font-bold border-slate-200"
                     >
                       Print
@@ -306,12 +417,19 @@ export default function PractitionerNotesReports() {
             <div className="p-4 space-y-4">
               <div className="flex justify-between items-center">
                 <h4 className="font-extrabold text-sm text-slate-700 dark:text-white uppercase tracking-wider m-0">Dynamic templates for {activeSpecialty}</h4>
-                <Button icon={<PlusOutlined />} size="small" className="rounded-lg font-bold border-slate-200">New Template</Button>
+                <Button 
+                  icon={<PlusOutlined />} 
+                  size="small" 
+                  onClick={() => setNewTemplateModalOpen(true)}
+                  className="rounded-lg font-bold border-slate-200"
+                >
+                  New Template
+                </Button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {getTemplatesForProfession().map((temp, idx) => (
-                  <div key={idx} className="p-4 bg-white dark:bg-slate-950 border border-slate-150 rounded-2xl space-y-3 text-xs shadow-sm flex flex-col justify-between">
+                {allTemplatesForProfession.map((temp, idx) => (
+                  <div key={temp.id || idx} className="p-4 bg-white dark:bg-slate-950 border border-slate-150 rounded-2xl space-y-3 text-xs shadow-sm flex flex-col justify-between">
                     <div>
                       <div className="flex justify-between items-center">
                         <Tag color="blue" className="m-0 border-none font-bold text-[8.5px] uppercase px-2 py-0.5 rounded-md">{temp.type}</Tag>
@@ -321,8 +439,22 @@ export default function PractitionerNotesReports() {
                     </div>
                     
                     <div className="flex justify-end pt-3 gap-1">
-                      <Button size="small" className="rounded-lg font-semibold border-slate-200" onClick={() => toast.success(`Selected template: ${temp.name}`)}>Use</Button>
-                      <Button size="small" className="rounded-lg font-semibold border-slate-200">Edit</Button>
+                      <Button 
+                        size="small" 
+                        type="primary"
+                        style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
+                        className="rounded-lg font-semibold text-white" 
+                        onClick={() => handleUseTemplate(temp)}
+                      >
+                        Use
+                      </Button>
+                      <Button 
+                        size="small" 
+                        className="rounded-lg font-semibold border-slate-200"
+                        onClick={() => handleOpenEditTemplate(temp)}
+                      >
+                        Edit
+                      </Button>
                     </div>
                   </div>
                 ))}
@@ -331,6 +463,70 @@ export default function PractitionerNotesReports() {
           </Tabs.TabPane>
         </Tabs>
       </Card>
+
+      {/* New Template Modal */}
+      <Modal
+        title={<span className="font-bold text-sm">Create New Profession Template ({activeSpecialty})</span>}
+        open={newTemplateModalOpen}
+        onCancel={() => setNewTemplateModalOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form form={newTemplateForm} layout="vertical" onFinish={handleCreateTemplate} className="mt-4">
+          <Form.Item name="name" label={<span className="text-xs font-semibold text-slate-500">Template Title</span>} rules={[{ required: true, message: 'Please enter template name' }]}>
+            <Input placeholder="e.g. Specialized Rehabilitation Intake Note" className="rounded-xl h-10" />
+          </Form.Item>
+          <Form.Item name="code" label={<span className="text-xs font-semibold text-slate-500">Template Code</span>}>
+            <Input placeholder="e.g. PT-CUSTOM-01" className="rounded-xl h-10" />
+          </Form.Item>
+          <Form.Item name="type" label={<span className="text-xs font-semibold text-slate-500">Category Tag</span>} initialValue="Clinical Intake">
+            <Select className="rounded-xl h-10 flex items-center">
+              <Option value="Clinical Intake">Clinical Intake</Option>
+              <Option value="Assessment">Assessment</Option>
+              <Option value="Discharge">Discharge</Option>
+              <Option value="Funding">Funding / NDIS</Option>
+              <Option value="GP Letter">GP Letter</Option>
+              <Option value="Medicare">Medicare</Option>
+            </Select>
+          </Form.Item>
+          <div className="flex justify-end gap-2 mt-6">
+            <Button onClick={() => setNewTemplateModalOpen(false)} className="rounded-xl font-bold">Cancel</Button>
+            <Button type="primary" htmlType="submit" style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }} className="rounded-xl font-bold text-white">Create Template</Button>
+          </div>
+        </Form>
+      </Modal>
+
+      {/* Edit Template Modal */}
+      <Modal
+        title={<span className="font-bold text-sm">Edit Profession Template</span>}
+        open={editTemplateModalOpen}
+        onCancel={() => setEditTemplateModalOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form form={editTemplateForm} layout="vertical" onFinish={handleSaveEditTemplate} className="mt-4">
+          <Form.Item name="name" label={<span className="text-xs font-semibold text-slate-500">Template Title</span>} rules={[{ required: true }]}>
+            <Input className="rounded-xl h-10" />
+          </Form.Item>
+          <Form.Item name="code" label={<span className="text-xs font-semibold text-slate-500">Template Code</span>}>
+            <Input className="rounded-xl h-10" />
+          </Form.Item>
+          <Form.Item name="type" label={<span className="text-xs font-semibold text-slate-500">Category Tag</span>}>
+            <Select className="rounded-xl h-10 flex items-center">
+              <Option value="Clinical Intake">Clinical Intake</Option>
+              <Option value="Assessment">Assessment</Option>
+              <Option value="Discharge">Discharge</Option>
+              <Option value="Funding">Funding / NDIS</Option>
+              <Option value="GP Letter">GP Letter</Option>
+              <Option value="Medicare">Medicare</Option>
+            </Select>
+          </Form.Item>
+          <div className="flex justify-end gap-2 mt-6">
+            <Button onClick={() => setEditTemplateModalOpen(false)} className="rounded-xl font-bold">Cancel</Button>
+            <Button type="primary" htmlType="submit" style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }} className="rounded-xl font-bold text-white">Save Changes</Button>
+          </div>
+        </Form>
+      </Modal>
     </div>
   )
 }

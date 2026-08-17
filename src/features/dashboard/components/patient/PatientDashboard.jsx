@@ -118,7 +118,7 @@ export default function PatientDashboard({ store, navigate }) {
 
   const patientName = dashboardData.profile?.fullName || dashboardData.profile?.name || store?.userName || 'Patient'
   
-  const upcomingAppts = dashboardData.appointments.filter(a => (a.status || 'Scheduled').toLowerCase() === 'scheduled')
+  const upcomingAppts = dashboardData.appointments.filter(a => ['scheduled', 'confirmed', 'upcoming', 'pending'].includes((a.status || 'Scheduled').toLowerCase()))
   const nextAppt = upcomingAppts[0] || dashboardData.appointments[0]
   const nextApptTime = nextAppt ? `${nextAppt.date || ''} ${nextAppt.startTime || ''}`.trim() : 'No upcoming appointment'
 

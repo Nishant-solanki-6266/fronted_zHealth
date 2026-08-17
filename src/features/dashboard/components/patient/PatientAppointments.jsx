@@ -40,17 +40,24 @@ export default function PatientAppointments() {
     try {
       const res = await api.get('/api/patient/appointments')
       if (res.data?.success && Array.isArray(res.data.data)) {
-        const formatted = res.data.data.map(app => ({
-          id: app.id,
-          date: app.date || new Date(app.createdAt).toISOString().split('T')[0],
-          time: app.startTime || '10:00 AM',
-          practitioner: app.practitionerName || 'Dr. Practitioner',
-          clinic: app.branchName || 'Allied Health Clinic',
-          type: app.serviceName || 'Consultation',
-          funding: 'Private',
-          status: app.status === 'Scheduled' ? 'Upcoming' : app.status,
-          rawStatus: app.status
-        }))
+        const todayStr = new Date().toISOString().split('T')[0]
+        const formatted = res.data.data.map(app => {
+          const rawStatus = app.status || 'Confirmed'
+          const appDate = app.date || new Date(app.createdAt).toISOString().split('T')[0]
+          const isUpcomingStatus = ['scheduled', 'confirmed', 'upcoming', 'pending'].includes(rawStatus.toLowerCase())
+          const isPast = ['completed', 'cancelled', 'missed'].includes(rawStatus.toLowerCase()) || (appDate < todayStr && !isUpcomingStatus)
+          return {
+            id: app.id,
+            date: appDate,
+            time: app.startTime || '10:00 AM',
+            practitioner: app.practitionerName || 'Dr. Practitioner',
+            clinic: app.branchName || 'Allied Health Clinic',
+            type: app.serviceName || 'Consultation',
+            funding: 'Private',
+            status: isPast ? rawStatus : 'Upcoming',
+            rawStatus: rawStatus
+          }
+        })
         setAppointmentsList(formatted)
       }
     } catch (err) {

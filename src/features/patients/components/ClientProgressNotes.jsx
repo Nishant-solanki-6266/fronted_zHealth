@@ -216,57 +216,73 @@ export default function ClientProgressNotes({ patientId: embeddedPatientId = nul
     || loggedInUser?.practitionerId 
     || (loggedInUser?.id ? `D-${String(loggedInUser.id).slice(-4).toUpperCase()}` : (store.userRole === 'clinic' ? 'A0912' : 'D-1001'))
 
+  const getSoapPayload = () => {
+    const fields = soapForm.getFieldsValue() || {}
+    return {
+      ...fields,
+      bodyChart: bodyChartFindings
+    }
+  }
+
   // Save as Draft
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     const apptObj = getSelectedAppointmentObj()
     const existingNoteObj = apptObj ? store.consultations.find(c => c.appointmentId === apptObj.id) : null
+    const soapData = getSoapPayload()
 
     if (existingNoteObj) {
-      store.updateConsultation(existingNoteObj.id, {
+      await store.updateConsultation(existingNoteObj.id, {
         notes: noteText,
+        soap: soapData,
         status: 'Draft',
         date: new Date().toISOString().split('T')[0]
       })
-      toast.success(`Progress note draft updated for ${patient.name}!`)
+      toast.success(`Progress note draft updated in DB for ${patient?.name || 'Client'}!`)
     } else {
       const newCons = {
         patientId: selectedPatientId,
-        patientName: patient.name,
+        patientName: patient?.name || 'Client',
         notes: noteText,
+        soap: soapData,
         status: 'Draft',
         practitionerName: activeDoctorName,
         profession: activeSpecialty,
-        appointmentId: apptObj ? apptObj.id : undefined
+        appointmentId: apptObj ? apptObj.id : undefined,
+        date: new Date().toISOString().split('T')[0]
       }
-      store.addConsultation(newCons)
-      toast.success(`Progress note draft saved for ${patient.name}!`)
+      await store.addConsultation(newCons)
+      toast.success(`Progress note draft saved to DB for ${patient?.name || 'Client'}!`)
     }
   }
 
   // Save as Final
-  const handleSaveFinal = () => {
+  const handleSaveFinal = async () => {
     const apptObj = getSelectedAppointmentObj()
     const existingNoteObj = apptObj ? store.consultations.find(c => c.appointmentId === apptObj.id) : null
+    const soapData = getSoapPayload()
 
     if (existingNoteObj) {
-      store.updateConsultation(existingNoteObj.id, {
+      await store.updateConsultation(existingNoteObj.id, {
         notes: noteText,
+        soap: soapData,
         status: 'Completed',
         date: new Date().toISOString().split('T')[0]
       })
-      toast.success(`Progress note saved as final for ${patient.name}!`)
+      toast.success(`Progress note saved as final in DB for ${patient?.name || 'Client'}!`)
     } else {
       const newCons = {
         patientId: selectedPatientId,
-        patientName: patient.name,
+        patientName: patient?.name || 'Client',
         notes: noteText,
+        soap: soapData,
         status: 'Completed',
         practitionerName: activeDoctorName,
         profession: activeSpecialty,
-        appointmentId: apptObj ? apptObj.id : undefined
+        appointmentId: apptObj ? apptObj.id : undefined,
+        date: new Date().toISOString().split('T')[0]
       }
-      store.addConsultation(newCons)
-      toast.success(`Progress note saved as final for ${patient.name}!`)
+      await store.addConsultation(newCons)
+      toast.success(`Progress note saved as final in DB for ${patient?.name || 'Client'}!`)
     }
   }
 

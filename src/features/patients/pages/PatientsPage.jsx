@@ -305,13 +305,14 @@ export default function PatientsPage() {
             {/* Table Header */}
             <div
               className="hidden md:grid text-xs font-semibold text-slate-400 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800"
-              style={{ gridTemplateColumns: '2fr 1.5fr 1.5fr 2fr 2fr', alignItems: 'stretch' }}
+              style={{ gridTemplateColumns: '2fr 1.2fr 1.2fr 1.8fr 1.8fr 1.5fr', alignItems: 'stretch' }}
             >
               <span className="bg-slate-50 dark:bg-slate-800/60 py-3 px-6 font-bold text-slate-700 dark:text-slate-300">Client Name</span>
               <span className="py-3 px-4 flex items-center">Date of Birth</span>
               <span className="py-3 px-4 flex items-center">Contact Number</span>
               <span className="py-3 px-4 flex items-center">Email</span>
               <span className="py-3 px-4 flex items-center">Tags</span>
+              <span className="py-3 px-4 flex items-center justify-end pr-6">Action</span>
             </div>
 
             {/* Table Rows */}
@@ -320,7 +321,7 @@ export default function PatientsPage() {
                 key={patient.id}
                 onClick={() => navigate(`${basePath}/patients/${patient.id}`)}
                 className="flex flex-col md:grid border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:bg-slate-800/60 dark:hover:bg-slate-800/30 transition-colors cursor-pointer group py-2 md:py-0"
-                style={{ gridTemplateColumns: '2fr 1.5fr 1.5fr 2fr 2fr', alignItems: 'stretch' }}
+                style={{ gridTemplateColumns: '2fr 1.2fr 1.2fr 1.8fr 1.8fr 1.5fr', alignItems: 'stretch' }}
               >
                 <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 group-hover:text-[#8C4BFF] transition-colors bg-slate-50/50 md:bg-slate-50 dark:bg-slate-800/50 md:dark:bg-slate-800 py-3 md:py-4 px-4 md:px-6 md:border-r border-slate-100/50 dark:border-slate-800/30 flex items-center justify-between">
                   <span className="md:hidden font-bold text-xs text-slate-400 uppercase tracking-wider">Client Name</span>
@@ -342,6 +343,18 @@ export default function PatientsPage() {
                   {(patient.tags || []).slice(0, 3).map((tag) => (
                     <ClientTag key={tag} label={tag} clientTags={store.clientTags} />
                   ))}
+                </div>
+                <div className="py-3 md:py-4 px-4 flex items-center justify-end pr-6">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      navigate(`/practitioner/consultations?patientId=${patient.id}`)
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#8C4BFF] hover:bg-[#7B3DE8] border-none shadow-sm cursor-pointer transition-colors flex items-center gap-1.5"
+                  >
+                    Start Consultation
+                  </button>
                 </div>
               </div>
             ))}

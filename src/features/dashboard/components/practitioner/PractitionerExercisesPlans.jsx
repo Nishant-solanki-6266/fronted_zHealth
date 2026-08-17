@@ -24,6 +24,9 @@ export default function PractitionerExercisesPlans() {
     if (store.fetchPrescribedExercises) {
       store.fetchPrescribedExercises()
     }
+    if (store.fetchPatients) {
+      store.fetchPatients()
+    }
   }, [])
 
   const activePrograms = store.prescribedExercises || []
@@ -45,7 +48,7 @@ export default function PractitionerExercisesPlans() {
       const selectedPatient = store.patients?.find(p => p.id === pInput || p.name === pInput || p.fullName === pInput)
       
       const targetPatientId = selectedPatient ? selectedPatient.id : (pInput && pInput.length > 2 ? pInput : 'p1')
-      const targetPatientName = selectedPatient ? (selectedPatient.name || selectedPatient.fullName || selectedPatient.email) : pInput
+      const targetPatientName = selectedPatient ? (selectedPatient.fullName || selectedPatient.name || selectedPatient.email) : pInput
 
       const prog = {
         patientId: targetPatientId,
@@ -69,17 +72,21 @@ export default function PractitionerExercisesPlans() {
   }
 
   const getPatientDisplayName = (record) => {
-    if (record.patientName && record.patientName.trim() !== '' && !record.patientName.includes('-') && record.patientName !== 'Client Patient') {
-      return record.patientName
+    if (record.patientName && record.patientName.trim() !== '' && record.patientName !== 'Client Patient' && record.patientName !== 'John Miller') {
+      return record.patientName.trim()
     }
     const match = store.patients?.find(p => p.id === record.patientId || p.id === record.patientName || p.name === record.patientName || p.fullName === record.patientName)
     if (match) {
-      return match.name || match.fullName || `${match.firstName || ''} ${match.lastName || ''}`.trim() || 'Unknown Patient'
+      return match.fullName || match.name || `${match.firstName || ''} ${match.lastName || ''}`.trim() || 'Patient'
     }
-    if (record.patientName && record.patientName.trim() !== '' && record.patientName !== 'Client Patient' && !record.patientName.includes('-')) {
-      return record.patientName
+    if (record.patientName && record.patientName.trim() !== '' && record.patientName !== 'Client Patient') {
+      return record.patientName.trim()
     }
-    return 'Unknown Patient'
+    if (record.patientId && !record.patientId.startsWith('ex_')) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(record.patientId)
+      if (!isUuid) return record.patientId
+    }
+    return 'Patient'
   }
 
   const columns = [

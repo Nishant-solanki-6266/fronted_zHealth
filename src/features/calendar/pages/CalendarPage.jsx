@@ -784,10 +784,33 @@ export default function CalendarPage() {
 
   const getApptsInSlot = (dayObj, h, m) => {
     const dateStr = dayObj.format('YYYY-MM-DD')
-    const dayAppts = filteredAppts.filter(a => a.date === dateStr)
+    const dayAppts = filteredAppts.filter(a => a && a.date === dateStr)
     return dayAppts.filter(a => {
-      const [ah, am] = a.time.split(':').map(Number)
-      return ah === h && am === m
+      let ah = -1, am = -1;
+
+      const rawTime = a.startTime || a.time
+      if (rawTime && typeof rawTime === 'string') {
+        const parts = rawTime.trim().split(' ')
+        const timePart = parts[0]
+        const modifier = parts[1] ? parts[1].toUpperCase() : null
+
+        if (timePart && timePart.includes(':')) {
+          const tArr = timePart.split(':').map(Number)
+          ah = tArr[0]
+          am = tArr[1] || 0
+
+          if (modifier === 'PM' && ah < 12) ah += 12
+          else if (modifier === 'AM' && ah === 12) ah = 0
+          else if (!modifier && ah > 0 && ah < 7) ah += 12
+        }
+      } else {
+        return false;
+      }
+
+      if (ah !== h) return false;
+      if (intervalMin === 60) return m === 0;
+      if (intervalMin === 30) return m === (am >= 30 ? 30 : 0);
+      return m === 0;
     })
   }
 

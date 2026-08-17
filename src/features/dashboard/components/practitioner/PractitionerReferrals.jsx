@@ -25,15 +25,25 @@ export default function PractitionerReferrals() {
   useEffect(() => {
     if (store.initStoreData) store.initStoreData()
     if (store.fetchDocuments) store.fetchDocuments()
+    if (store.fetchContacts) store.fetchContacts()
   }, [])
 
-  // Local Address Book (Demo)
-  const addressBook = [
+  // Dynamic Contacts Directory combined with defaults
+  const defaultPartners = [
     { name: 'Dr. Arthur Conan', type: 'GP', clinic: 'Baker Street Medical Clinic', contact: '+61 3 9988 7766' },
     { name: 'Dr. David Bruce', type: 'Specialist Doctor', clinic: 'City Orthopaedic Center', contact: '+61 2 8877 6655' },
     { name: 'Southside Radiology', type: 'Imaging Facility', clinic: 'Southside Imaging Center', contact: '1300 888 999' },
     { name: 'Melbourne Pathology', type: 'Pathology Lab', clinic: 'Melb Path Lab', contact: '1800 111 222' }
   ]
+
+  const dbContacts = (store.contacts || []).map(c => ({
+    name: c.name || c.contactName,
+    type: c.type || c.category || 'Specialist',
+    clinic: c.company || c.clinic || c.organization || 'Partner Clinic',
+    contact: c.mobileNumber || c.phone || c.contact || '+61 3 9999 8888'
+  }))
+
+  const addressBook = [...dbContacts, ...defaultPartners]
 
   // Real DB Patients List with dynamic fallbacks
   const availablePatients = store.patients && store.patients.length > 0
@@ -72,6 +82,7 @@ export default function PractitionerReferrals() {
   }
 
   const handleSendReferral = async (values) => {
+    if (sendingRef) return
     try {
       setSendingRef(true)
       
@@ -84,17 +95,20 @@ export default function PractitionerReferrals() {
         practitionerName = store.user.name.startsWith('Dr.') ? store.user.name : `Dr. ${store.user.name}`
       }
 
+      const targetContact = addressBook.find(c => c.name === values.recipient)
+      const recipientEmail = targetContact?.email || targetContact?.contact || 'doctor@externalclinic.com'
+
       await store.addDocument({
         name: `Referral - ${values.patientName} to ${values.recipient}.pdf`,
         type: `${values.recipientType || 'Specialist'} Referral`,
         patientName: values.patientName,
-        sentTo: values.recipient,
+        sentTo: `${values.recipient} (${recipientEmail})`,
         uploadBy: practitionerName,
         date: new Date().toLocaleDateString(),
         status: 'Sent'
       })
 
-      toast.success(`Referral letter successfully sent to ${values.recipient}!`)
+      toast.success(`Referral letter successfully sent via Secure Email to ${values.recipient} (${recipientEmail})!`)
       setAiDraftText('')
       form.resetFields()
     } catch (err) {
@@ -210,7 +224,7 @@ export default function PractitionerReferrals() {
               <Form.Item name="patientName" label={<span className="text-xs font-semibold text-slate-500">Patient</span>} rules={[{ required: true }]}>
                 <Select placeholder="Choose patient..." className="rounded-xl h-10 flex items-center">
                   {availablePatients.map(p => (
-                    <Option key={p.id} value={p.name}>{p.name}</Option>
+                    <Option key={p.id} value={p.name || p.fullName}>{p.name || p.fullName}</Option>
                   ))}
                 </Select>
               </Form.Item>

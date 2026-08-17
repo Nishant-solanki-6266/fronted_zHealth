@@ -23,7 +23,7 @@ const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'
 const SPECIALTIES = [
   'Physiotherapist', 'Chiropractor', 'Occupational Therapist', 'Exercise Physiologist',
   'Speech Pathologist', 'Psychologist', 'Dietitian', 'Podiatrist', 'Osteopath',
-  'General Practitioner', 'Specialist Doctor'
+  'General Practitioner', 'Specialist Doctor', 'Other'
 ]
 
 const PALETTE = [
@@ -120,6 +120,7 @@ export default function DoctorsManagePage() {
   const [qualInput, setQualInput] = useState('')
   const [quals, setQuals] = useState([])
   const [form] = Form.useForm()
+  const formSpecialty = Form.useWatch('specialty', form)
 
   const loadPractitioners = async () => {
     setLoading(true)
@@ -177,9 +178,15 @@ export default function DoctorsManagePage() {
     setAvailability(record.availability || defaultAvailability())
     setQuals(record.qualifications || [])
     setQualInput('')
+
+    const isStandardSpec = SPECIALTIES.filter(s => s !== 'Other').includes(record.specialty)
+    const specVal = isStandardSpec ? record.specialty : 'Other'
+    const customSpecVal = isStandardSpec ? '' : (record.specialty || '')
+
     form.setFieldsValue({
       name: record.name,
-      specialty: record.specialty,
+      specialty: specVal,
+      customSpecialty: customSpecVal,
       email: record.email,
       phone: record.phone,
       status: record.status,
@@ -217,7 +224,11 @@ export default function DoctorsManagePage() {
   const removeQual = (q) => setQuals(quals.filter((x) => x !== q))
 
   const handleSubmit = async (values) => {
-    const data = { ...values, color: pickedColor, availability, qualifications: quals }
+    const finalSpecialty = values.specialty === 'Other' ? (values.customSpecialty?.trim() || 'Other') : values.specialty
+    const payload = { ...values, specialty: finalSpecialty }
+    delete payload.customSpecialty
+
+    const data = { ...payload, color: pickedColor, availability, qualifications: quals }
     try {
       if (modalMode === 'add') {
         const res = await createPractitioner(data)
@@ -284,7 +295,7 @@ export default function DoctorsManagePage() {
   // Stats
   const totalActive = practitionerList.filter((p) => p.status === 'Active').length
   const totalInactive = practitionerList.filter((p) => p.status !== 'Active').length
-  const specialties = [...new Set(practitionerList.map((p) => p.specialty).filter(Boolean))]
+  const specialties = [...new Set([...SPECIALTIES.filter(s => s !== 'Other'), ...practitionerList.map((p) => p.specialty).filter(Boolean)])]
 
   const columns = [
     {
@@ -535,6 +546,17 @@ export default function DoctorsManagePage() {
                     </Select>
                   </Form.Item>
                 </div>
+
+                {formSpecialty === 'Other' && (
+                  <Form.Item
+                    name="customSpecialty"
+                    label={<span className="text-slate-555 font-bold text-[11px] uppercase tracking-wider">Specify Custom Specialty *</span>}
+                    rules={[{ required: true, message: 'Custom specialty required' }]}
+                    className="mb-0 mt-3"
+                  >
+                    <Input placeholder="e.g. Neurologist, Cardiologist, Dermatologist..." className="rounded-xl h-10 border-slate-200 dark:border-slate-850 dark:bg-slate-900 text-slate-808 dark:text-white" />
+                  </Form.Item>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Form.Item

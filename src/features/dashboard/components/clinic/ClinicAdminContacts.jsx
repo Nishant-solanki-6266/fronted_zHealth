@@ -41,6 +41,7 @@ export default function ClinicAdminContacts() {
   }, [searchText, typeFilter, companyFilter])
 
   const handleAddSubmit = async (values) => {
+    if (submitting) return
     setSubmitting(true)
     try {
       const res = await createContact({
@@ -70,7 +71,10 @@ export default function ClinicAdminContacts() {
 
   const PAGE_SIZE = 15
 
-  const contactsList = (store.contacts || []).filter(Boolean)
+  const contactsList = (store.contacts || []).filter((c, idx, self) => {
+    if (!c) return false
+    return idx === self.findIndex(t => t && (t.id === c.id || (t.name === c.name && t.email === c.email && t.mobileNumber === c.mobileNumber)))
+  })
 
   const filtered = contactsList.filter(c => {
     const q = searchText.toLowerCase()
@@ -302,10 +306,11 @@ export default function ClinicAdminContacts() {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl text-xs font-bold text-white border-none cursor-pointer hover:opacity-90 transition-opacity shadow-sm"
+              disabled={submitting}
+              className="px-5 py-2 rounded-xl text-xs font-bold text-white border-none cursor-pointer hover:opacity-90 transition-opacity shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ backgroundColor: '#8C4BFF' }}
             >
-              Save Contact
+              {submitting ? 'Saving...' : 'Save Contact'}
             </button>
           </div>
         </Form>

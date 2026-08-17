@@ -4,6 +4,9 @@ import { useClinicStore } from '../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
 
+import { getPatients, getPractitioners } from '../api/clinicAdminApi'
+import { getClinicServices } from '../../settings/api/settingsApi'
+
 const { Option } = Select
 
 export default function AppointmentModal({ open, visible, onCancel, defaultTimeSlot }) {
@@ -12,10 +15,37 @@ export default function AppointmentModal({ open, visible, onCancel, defaultTimeS
   const [extraNonLabourCosts, setExtraNonLabourCosts] = useState([])
   const isOpen = open !== undefined ? open : visible
 
+  // Auto-fetch patients, practitioners, services from Live DB if store is empty on modal open
+  useEffect(() => {
+    if (isOpen) {
+      if (!store.patients || store.patients.length === 0 || !store.practitioners || store.practitioners.length === 0 || !store.services || store.services.length === 0) {
+        Promise.allSettled([
+          getPatients(),
+          getPractitioners(),
+          getClinicServices()
+        ]).then(([patRes, pracRes, servRes]) => {
+          if (patRes.status === 'fulfilled' && patRes.value?.success && Array.isArray(patRes.value.data)) {
+            const mapped = patRes.value.data.map(p => ({
+              ...p,
+              name: p.fullName || p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.email || 'Unnamed Client'
+            }))
+            if (typeof store.setPatients === 'function') store.setPatients(mapped)
+          }
+          if (pracRes.status === 'fulfilled' && pracRes.value?.success && Array.isArray(pracRes.value.data)) {
+            if (typeof store.setPractitioners === 'function') store.setPractitioners(pracRes.value.data)
+          }
+          if (servRes.status === 'fulfilled' && servRes.value?.success && Array.isArray(servRes.value.data)) {
+            if (typeof store.setServices === 'function') store.setServices(servRes.value.data)
+          }
+        })
+      }
+    }
+  }, [isOpen])
+
   const onFinish = (values) => {
-    const patientObj = store.patients.find(p => p.id === values.patientId)
-    const practitionerObj = store.practitioners.find(p => p.id === values.practitionerId)
-    const serviceObj = store.services.find(s => s.id === values.serviceId)
+    const patientObj = (store.patients || []).find(p => p.id === values.patientId)
+    const practitionerObj = (store.practitioners || []).find(p => p.id === values.practitionerId)
+    const serviceObj = (store.services || []).find(s => s.id === values.serviceId)
 
     const newAppt = {
       patientId: values.patientId,
@@ -58,7 +88,7 @@ export default function AppointmentModal({ open, visible, onCancel, defaultTimeS
           date: dayjs(defaultTimeSlot.date),
           time: dayjs(`2026-06-09T${defaultTimeSlot.time}`),
           endTime: dayjs(`2026-06-09T${defaultTimeSlot.time}`).add(1, 'hour'),
-          practitionerId: defaultTimeSlot.practitionerId || store.practitioners[0]?.id,
+          practitionerId: defaultTimeSlot.practitionerId || (store.practitioners || [])[0]?.id,
           repeat: 'None',
           providerTravel: false,
           nonLabourCosts: false,
@@ -71,7 +101,7 @@ export default function AppointmentModal({ open, visible, onCancel, defaultTimeS
           date: dayjs(),
           time: dayjs('09:00', 'HH:mm'),
           endTime: dayjs('10:00', 'HH:mm'),
-          practitionerId: store.practitioners[0]?.id,
+          practitionerId: (store.practitioners || [])[0]?.id,
           repeat: 'None',
           providerTravel: false,
           nonLabourCosts: false,

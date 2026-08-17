@@ -122,8 +122,9 @@ export default function PractitionerDashboard({ store, navigate }) {
   // Tasks due
   const pendingTasks = store.tasks.filter(t => t.status !== 'Completed')
 
-  // Reports due
-  const reportsDueList = []
+  // Calculate completed consultations and pending notes dynamically from live store
+  const completedConsultationsCount = (store.consultations || []).filter(c => c.status === 'Completed' || c.status === 'Signed').length
+  const pendingNotesCount = (store.consultations || []).filter(c => c.status === 'Draft').length
 
   // Render Mobile View Mode
   if (mobileMode) {
@@ -301,17 +302,17 @@ export default function PractitionerDashboard({ store, navigate }) {
         {[
           {
             label: "Today's Consultations",
-            value: statsLoading ? '—' : `${(dbStats?.todayAppointments || (store.appointments?.length || 1))} Sessions`,
+            value: statsLoading ? '—' : `${(dbStats?.todayAppointments || (store.appointments?.length || 2))} Sessions`,
             icon: <CalendarOutlined />,
             color: '#30D2BE',
-            desc: statsLoading ? 'Loading DB...' : `${dbStats?.todayCompleted ?? 0} completed, ${dbStats?.todayCancelled ?? 0} cancelled`
+            desc: statsLoading ? 'Loading DB...' : `${completedConsultationsCount} completed, 0 cancelled`
           },
           {
             label: 'Uncompleted Notes Review',
-            value: statsLoading ? '—' : `${(dbStats?.pendingNotes || (store.consultations?.length || 1))} Pending`,
+            value: statsLoading ? '—' : `${pendingNotesCount} Pending`,
             icon: <FileTextOutlined />,
             color: '#8C4BFF',
-            desc: 'Requires validation / completion'
+            desc: pendingNotesCount === 0 ? 'All session notes completed!' : 'Requires validation / completion'
           },
           {
             label: 'Clinical Utilization Rate',
@@ -361,15 +362,23 @@ export default function PractitionerDashboard({ store, navigate }) {
                 todayAppts.map(appt => {
                   const sessionsLeft = appt.patientId === 'p1' ? 6 : appt.patientId === 'p3' ? 1 : 8
                   const isLowFunding = sessionsLeft <= 2
+                  const hasFinalNote = (store.consultations || []).some(
+                    c => (c.patientId === appt.patientId || c.appointmentId === appt.id) && (c.status === 'Completed' || c.status === 'Signed')
+                  )
                   return (
                     <div
                       key={appt.id}
                       className="p-4 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-150 dark:border-slate-850 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:border-[#8C4BFF]/30 transition-all"
                     >
                       <div className="flex items-start gap-3">
-                        <div className="w-1.5 h-11 rounded-full flex-shrink-0" style={{ backgroundColor: appt.color || '#30D2BE' }} />
+                        <div className="w-1.5 h-11 rounded-full flex-shrink-0" style={{ backgroundColor: hasFinalNote ? '#10B981' : (appt.color || '#30D2BE') }} />
                         <div>
-                          <span className="font-extrabold text-slate-800 dark:text-white text-xs block">{appt.patientName}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-extrabold text-slate-800 dark:text-white text-xs">{appt.patientName}</span>
+                            {hasFinalNote && (
+                              <Tag color="success" className="m-0 border-none font-bold text-[8px] uppercase rounded-full px-2 py-0.5">Completed</Tag>
+                            )}
+                          </div>
                           <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">
                             {appt.appointmentType || appt.serviceType || 'Consultation'} &bull; {appt.time}
                           </span>
@@ -397,10 +406,10 @@ export default function PractitionerDashboard({ store, navigate }) {
                           size="small"
                           type="primary"
                           onClick={() => navigate(`/practitioner/consultations?patientId=${appt.patientId}`)}
-                          style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
+                          style={{ backgroundColor: hasFinalNote ? '#10B981' : '#8C4BFF', borderColor: hasFinalNote ? '#10B981' : '#8C4BFF' }}
                           className="rounded-xl font-bold text-[10px] text-white"
                         >
-                          Start Consultation
+                          {hasFinalNote ? 'View Note' : 'Start Consultation'}
                         </Button>
                       </div>
                     </div>

@@ -28,14 +28,14 @@ export const useClinicStore = create((set, get) => ({
       const role = (get().userRole || (typeof window !== 'undefined' ? localStorage.getItem('userRole') : '') || '').toLowerCase()
       const path = typeof window !== 'undefined' ? window.location.pathname : ''
       
-      // Skip clinic-admin specific endpoint calls for non-admin roles (patient, practitioner, sales) to prevent 403 Forbidden console errors
-      const isClinicOrSuperAdmin = role === 'clinic' || role === 'head_admin' || role === 'super_admin' || path.startsWith('/clinic-admin') || path.startsWith('/head-admin')
+      // Allow fetching for clinic admin, super admin, practitioners, and sales roles
+      const isAllowedRole = role === 'clinic' || role === 'head_admin' || role === 'super_admin' || role === 'practitioner' || role === 'doctor' || role === 'sales' || path.startsWith('/clinic-admin') || path.startsWith('/head-admin') || path.startsWith('/practitioner') || path.startsWith('/sales')
       
-      if (!isClinicOrSuperAdmin) {
+      if (!isAllowedRole) {
         return
       }
 
-      const [tagsRes, reasonsRes, termsRes, patientsRes, practitionersRes, productsRes, servicesRes, branchesRes] = await Promise.allSettled([
+      const [tagsRes, reasonsRes, termsRes, patientsRes, practitionersRes, productsRes, servicesRes, branchesRes, consultationsRes] = await Promise.allSettled([
         getClinicClientTags(),
         getClinicCancellationReasons(),
         getPaymentTerms(),
@@ -43,7 +43,8 @@ export const useClinicStore = create((set, get) => ({
         getPractitioners(),
         getProducts(),
         getClinicServices(),
-        getBranches()
+        getBranches(),
+        api.get('/api/practitioner/consultations').then(r => r.data).catch(() => null)
       ])
 
       if (tagsRes.status === 'fulfilled' && tagsRes.value?.success && Array.isArray(tagsRes.value.data)) {
@@ -79,6 +80,9 @@ export const useClinicStore = create((set, get) => ({
       if (branchesRes.status === 'fulfilled' && branchesRes.value?.success && Array.isArray(branchesRes.value.data)) {
         set({ branches: branchesRes.value.data })
       }
+      if (consultationsRes.status === 'fulfilled' && consultationsRes.value?.success && Array.isArray(consultationsRes.value.data)) {
+        set({ consultations: consultationsRes.value.data })
+      }
     } catch (err) {
       console.error('❌ Error initializing store dynamic data:', err)
     }
@@ -86,6 +90,10 @@ export const useClinicStore = create((set, get) => ({
 
   /* Active practitioners */
   practitioners: [],
+  setPractitioners: (practitioners) => set({ practitioners: Array.isArray(practitioners) ? practitioners : [] }),
+
+  /* Active services setter */
+  setServices: (services) => set({ services: Array.isArray(services) ? services : [] }),
 
   /* Custom client tags */
   clientTags: [
@@ -238,6 +246,22 @@ export const useClinicStore = create((set, get) => ({
 
   /* Primary patients registry */
   patients: [],
+  setPatients: (patients) => set({ patients: Array.isArray(patients) ? patients : [] }),
+  fetchPatients: async () => {
+    try {
+      const res = await getPatients()
+      if (res && res.success && Array.isArray(res.data)) {
+        const mapped = res.data.map(p => ({
+          ...p,
+          name: p.fullName || p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.email || 'Unnamed Client'
+        }))
+        set({ patients: mapped })
+        return mapped
+      }
+    } catch (err) {
+      console.error('❌ Error fetching patients in store:', err)
+    }
+  },
 
   /* Waitlist data */
   waitlist: [],
@@ -625,8 +649,47 @@ export const useClinicStore = create((set, get) => ({
 
   /* Contacts Actions */
   setContacts: (contacts) => set({ contacts: Array.isArray(contacts) ? contacts : [] }),
-  addContact: (contact) => {
-    set((state) => ({ contacts: [contact, ...(state.contacts || [])] }))
+  fetchContacts: async () => {
+    try {
+      const res = await api.get('/api/clinic-admin/contacts')
+      if (res?.data?.success && Array.isArray(res.data.data)) {
+        set({ contacts: res.data.data })
+        return res.data.data
+      }
+    } catch (err) {
+      console.error('❌ Error fetching contacts from DB:', err?.message)
+    }
+  },
+  addContact: async (contactData) => {
+    if (!contactData) return
+    // If object is already created in backend (has real UUID id), update store state directly without 2nd POST request
+    if (contactData.id && !String(contactData.id).startsWith('cnt_')) {
+      set((state) => {
+        const list = state.contacts || []
+        const exists = list.some(c => c && c.id === contactData.id)
+        if (exists) return { contacts: list }
+        return { contacts: [contactData, ...list] }
+      })
+      return contactData
+    }
+    try {
+      const res = await api.post('/api/clinic-admin/contacts', contactData)
+      if (res?.data?.success) {
+        const created = res.data.data
+        set((state) => {
+          const list = state.contacts || []
+          const exists = list.some(c => c && c.id === created.id)
+          if (exists) return { contacts: list }
+          return { contacts: [created, ...list] }
+        })
+        return created
+      }
+    } catch (err) {
+      console.error('❌ Error saving contact to DB:', err?.message)
+    }
+    const fallback = { id: `cnt_${Date.now()}`, ...contactData }
+    set((state) => ({ contacts: [fallback, ...(state.contacts || [])] }))
+    return fallback
   },
   updateContact: (updatedContact) => {
     set((state) => ({
@@ -832,6 +895,48 @@ export const useClinicStore = create((set, get) => ({
     }
     set((state) => ({
       appointments: (state.appointments || []).filter((a) => a.id !== id),
+    }))
+  },
+
+  /* Consultations / Clinical Notes State */
+  consultations: [],
+  setConsultations: (consultations) => set({ consultations: Array.isArray(consultations) ? consultations : [] }),
+  fetchConsultations: async (params = {}) => {
+    try {
+      const res = await api.get('/api/practitioner/consultations', { params })
+      if (res?.data?.success && Array.isArray(res.data.data)) {
+        set({ consultations: res.data.data })
+        return res.data.data
+      }
+    } catch (err) {
+      console.error('❌ Error fetching consultations from DB:', err?.message)
+    }
+  },
+  addConsultation: async (note) => {
+    try {
+      const res = await api.post('/api/practitioner/consultations', note)
+      if (res?.data?.success && res.data.data) {
+        const created = res.data.data
+        set((state) => ({ consultations: [created, ...(state.consultations || []).filter(c => c.id !== created.id)] }))
+        return created
+      }
+    } catch (err) {
+      console.error('❌ Error saving consultation to DB:', err?.message)
+    }
+    const newNote = { id: `cn_${Date.now()}`, date: new Date().toISOString().split('T')[0], ...note }
+    set((state) => ({ consultations: [newNote, ...(state.consultations || []).filter(c => c.id !== newNote.id)] }))
+    return newNote
+  },
+  updateConsultation: async (id, updated) => {
+    try {
+      if (id && !String(id).startsWith('cn_')) {
+        await api.put(`/api/practitioner/consultations/${id}`, updated)
+      }
+    } catch (err) {
+      console.error('❌ Error updating consultation in DB:', err?.message)
+    }
+    set((state) => ({
+      consultations: (state.consultations || []).map((c) => (c.id === id ? { ...c, ...updated } : c)),
     }))
   },
 
