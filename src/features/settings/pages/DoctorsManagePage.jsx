@@ -35,7 +35,7 @@ const defaultAvailability = () => {
   const av = {}
   DAYS.forEach((d) => {
     av[d] = {
-      available: ['Monday','Tuesday','Wednesday','Thursday','Friday'].includes(d),
+      available: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(d),
       startTime: '09:00',
       endTime: '17:00',
     }
@@ -236,6 +236,7 @@ export default function DoctorsManagePage() {
           toast.success('Practitioner added to live database!')
           if (store.addPractitioner) store.addPractitioner(res.data)
           await loadPractitioners()
+          closeModal()
         } else {
           toast.error(res?.message || 'Failed to add practitioner')
         }
@@ -245,15 +246,16 @@ export default function DoctorsManagePage() {
           toast.success('Practitioner updated in live database!')
           if (store.editPractitioner) store.editPractitioner({ ...currentDoc, ...data })
           await loadPractitioners()
+          closeModal()
         } else {
           toast.error(res?.message || 'Failed to update practitioner')
         }
       }
     } catch (err) {
       console.error("Error saving practitioner:", err)
-      toast.error('Error saving practitioner to live database')
+      const errorMsg = err?.response?.data?.message || 'Error saving practitioner to live database'
+      toast.error(errorMsg)
     }
-    closeModal()
   }
 
   const handleDelete = (record) => {
@@ -380,9 +382,8 @@ export default function DoctorsManagePage() {
       width: '10%',
       render: (status) => (
         <span
-          className={`inline-flex px-3 py-1 rounded-full text-xs font-bold ${
-            status === 'Active' ? 'bg-[#0E1B33] text-white dark:bg-emerald-500/20 dark:text-emerald-400 dark:border dark:border-emerald-500/20' : 'bg-[#EEF2F6] text-[#64748B] dark:bg-slate-800 dark:text-slate-400 dark:border dark:border-slate-700'
-          }`}
+          className={`inline-flex px-3 py-1 rounded-full text-xs font-bold ${status === 'Active' ? 'bg-[#0E1B33] text-white dark:bg-emerald-500/20 dark:text-emerald-400 dark:border dark:border-emerald-500/20' : 'bg-[#EEF2F6] text-[#64748B] dark:bg-slate-800 dark:text-slate-400 dark:border dark:border-slate-700'
+            }`}
         >
           {status}
         </span>
@@ -444,11 +445,10 @@ export default function DoctorsManagePage() {
     <button
       type="button"
       onClick={() => setActiveTab(id)}
-      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border-none cursor-pointer transition-all ${
-        activeTab === id
-          ? 'bg-[#8C4BFF] text-white shadow-sm font-bold'
-          : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-      }`}
+      className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border-none cursor-pointer transition-all ${activeTab === id
+        ? 'bg-[#8C4BFF] text-white shadow-sm font-bold'
+        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
+        }`}
     >
       {icon}
       {label}
@@ -461,7 +461,7 @@ export default function DoctorsManagePage() {
     return (
       <div className="bg-[#F8FAFC] dark:bg-slate-950 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-6 animate-slide-in">
         <div className="flex items-center gap-2">
-          <button 
+          <button
             type="button"
             onClick={closeModal}
             className="flex items-center justify-center w-8 h-8 rounded-full border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer text-slate-600 dark:text-slate-350 transition-colors bg-transparent"
@@ -473,8 +473,8 @@ export default function DoctorsManagePage() {
               {isEdit ? 'Edit Practitioner' : 'Add New Practitioner'}
             </h1>
             <p className="text-slate-400 dark:text-slate-455 text-xs mt-0.5">
-              {isEdit 
-                ? 'Update practitioner details, availability, and qualifications.' 
+              {isEdit
+                ? 'Update practitioner details, availability, and qualifications.'
                 : 'Fill in basic info, set availability and add qualifications.'}
             </p>
           </div>
@@ -693,7 +693,7 @@ export default function DoctorsManagePage() {
       <div className="space-y-6 animate-slide-in">
         {/* Navigation & Action Header */}
         <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
-          <button 
+          <button
             onClick={closeModal}
             className="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-[#8C4BFF] font-semibold text-xs border-none bg-transparent cursor-pointer"
           >
@@ -701,7 +701,7 @@ export default function DoctorsManagePage() {
             <span>Back to Practitioners</span>
           </button>
           <div className="flex gap-2">
-            <button 
+            <button
               onClick={() => {
                 closeModal()
                 openEdit(currentDoc)
@@ -711,7 +711,7 @@ export default function DoctorsManagePage() {
               <EditOutlined style={{ fontSize: 13 }} />
               <span>Edit Practitioner</span>
             </button>
-            <button 
+            <button
               onClick={() => {
                 closeModal()
                 handleDelete(currentDoc)
@@ -725,7 +725,7 @@ export default function DoctorsManagePage() {
         </div>
 
         {/* Profile Banner */}
-        <div 
+        <div
           className="rounded-2xl p-6 text-white shadow-md relative overflow-hidden"
           style={{ background: `linear-gradient(135deg, ${currentDoc.color || '#8C4BFF'}, #0E1B33)` }}
         >
@@ -744,9 +744,8 @@ export default function DoctorsManagePage() {
                   {currentDoc.specialty}
                 </span>
                 <span
-                  className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                    currentDoc.status === 'Active' ? 'bg-[#30D2BE] text-[#0E1B33]' : 'bg-slate-100/20 text-slate-300'
-                  }`}
+                  className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase ${currentDoc.status === 'Active' ? 'bg-[#30D2BE] text-[#0E1B33]' : 'bg-slate-100/20 text-slate-300'
+                    }`}
                 >
                   {currentDoc.status}
                 </span>
@@ -845,9 +844,8 @@ export default function DoctorsManagePage() {
                   return (
                     <div
                       key={day}
-                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold ${
-                        slot?.available ? 'bg-[#F0FDF4] text-[#10B981]' : 'bg-[#F8FAFC] dark:bg-slate-900 text-slate-300 dark:bg-slate-950/40'
-                      }`}
+                      className={`flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold ${slot?.available ? 'bg-[#F0FDF4] text-[#10B981]' : 'bg-[#F8FAFC] dark:bg-slate-900 text-slate-300 dark:bg-slate-950/40'
+                        }`}
                     >
                       <div className="flex items-center gap-2">
                         <span className={`w-2 h-2 rounded-full flex-shrink-0 ${slot?.available ? 'bg-[#10B981]' : 'bg-slate-300'}`} />
@@ -869,7 +867,7 @@ export default function DoctorsManagePage() {
 
   return (
     <div className="documents-page-container py-2 space-y-6">
-      <button 
+      <button
         onClick={() => navigate('/clinic')}
         className="flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-[#8C4BFF] font-semibold text-xs border-none bg-transparent cursor-pointer mb-2 transition-colors w-fit"
       >

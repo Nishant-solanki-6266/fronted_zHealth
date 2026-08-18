@@ -20,8 +20,8 @@ const CREDENTIALS = [
   {
     label: 'Sales Executive',
     role: 'sales',
-    email: '',
-    password: '',
+    email: 'sales@gmail.com',
+    password: '12345678',
     description: 'CRM & Pipeline Leads',
     color: '#F59E0B',
     bg: '#FEF3C7',
@@ -38,7 +38,7 @@ const CREDENTIALS = [
   {
     label: 'Practitioner',
     role: 'practitioner',
-    email: 'sun@gmail.com',
+    email: 'practitioners@gmail.com',
     password: 'password123',
     description: 'Doctor / Treatment Board',
     color: '#30D2BE',
@@ -47,7 +47,7 @@ const CREDENTIALS = [
   {
     label: 'Patient Portal',
     role: 'patient',
-    email: 'vijay@gmail.com',
+    email: 'mypatinent@gmail.com',
     password: '12345678',
     description: 'Client Personal Bookings',
     color: '#3B82F6',

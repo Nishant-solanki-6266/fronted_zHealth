@@ -64,6 +64,7 @@ export const tagIconsMap = {
 export function renderTagIcon(iconName) {
   return tagIconsMap[iconName] || <TagOutlined />
 }
+import api from '../../../api/axios'
 import { useClinicStore } from '../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
 import {
@@ -765,7 +766,8 @@ export default function ClinicAdminSettingsPage() {
   const [editingTag, setEditingTag] = useState(null)
   const [tagForm] = Form.useForm()
 
-  // Security Toggles
+  // Security Toggles & Password Form
+  const [passwordForm] = Form.useForm()
   const [tfaMethod, setTfaMethod] = useState('app')
   const [tfaEnabled, setTfaEnabled] = useState(true)
   const [trustedDevices, setTrustedDevices] = useState([
@@ -3029,16 +3031,32 @@ export default function ClinicAdminSettingsPage() {
                   <h3 className="text-base font-extrabold text-slate-800 dark:text-slate-200 m-0">Password Change</h3>
                 </div>
                 <Form
+                  form={passwordForm}
                   layout="vertical"
-                  onFinish={(values) => {
-                    toast.success('Your secure password updated!')
+                  onFinish={async (values) => {
+                    try {
+                      const res = await api.put('/api/clinic-admin/profile', {
+                        currentPassword: values.oldPass,
+                        newPassword: values.newPass
+                      })
+                      if (res.data && res.data.success) {
+                        toast.success('Your account password updated successfully in live database!')
+                        passwordForm.resetFields()
+                      } else {
+                        toast.error(res.data?.message || 'Failed to update password')
+                      }
+                    } catch (err) {
+                      console.error('Error changing password:', err)
+                      const errMsg = err?.response?.data?.message || 'Failed to update password'
+                      toast.error(errMsg)
+                    }
                   }}
                   className="space-y-3"
                 >
-                  <Form.Item name="oldPass" label="Current Password" required>
+                  <Form.Item name="oldPass" label="Current Password" rules={[{ required: true, message: 'Please enter your current password' }]}>
                     <Input.Password className="rounded-xl h-9 text-xs" />
                   </Form.Item>
-                  <Form.Item name="newPass" label="New Secure Password" required>
+                  <Form.Item name="newPass" label="New Secure Password" rules={[{ required: true, message: 'Please enter a new password' }]}>
                     <Input.Password className="rounded-xl h-9 text-xs" />
                   </Form.Item>
 
