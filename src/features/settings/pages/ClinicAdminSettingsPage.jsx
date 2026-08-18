@@ -752,7 +752,7 @@ export default function ClinicAdminSettingsPage() {
   // Notes Template State
   const [selectedNote, setSelectedNote] = useState(store.noteTemplates ? store.noteTemplates[0] : null)
   const [noteModalOpen, setNoteModalOpen] = useState(false)
-  const [notePreviewMode, setNotePreviewMode] = useState(false)
+  const [notePreviewModalOpen, setNotePreviewModalOpen] = useState(false)
 
   // Services State
   const [editingService, setEditingService] = useState(null)
