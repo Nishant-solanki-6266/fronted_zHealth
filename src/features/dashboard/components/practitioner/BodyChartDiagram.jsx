@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, Button, Form, Input, Select, Slider, Tag, Table, Space, Badge, Modal, Tooltip, Popover } from 'antd'
 import {
   PlusOutlined,
@@ -10,6 +10,7 @@ import {
   InfoCircleOutlined
 } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
+import { getBodyChartTemplates } from '../../../calendar/api/clinicAdminApi'
 
 const { Option } = Select
 const { TextArea } = Input
@@ -58,6 +59,36 @@ export default function BodyChartDiagram({ value = [], onChange, readOnly = fals
   const [selectedRegion, setSelectedRegion] = useState(null)
   const [editingFinding, setEditingFinding] = useState(null)
   const [form] = Form.useForm()
+
+  // Live Body Chart Templates dropdown state
+  const [templatesList, setTemplatesList] = useState([])
+  const [selectedTemplateId, setSelectedTemplateId] = useState(null)
+  const [loadingTemplates, setLoadingTemplates] = useState(false)
+
+  useEffect(() => {
+    const loadTemplates = async () => {
+      setLoadingTemplates(true)
+      try {
+        const res = await getBodyChartTemplates()
+        if (res && res.success && Array.isArray(res.data)) {
+          setTemplatesList(res.data)
+        }
+      } catch (err) {
+        console.warn('Body chart templates fetch notice:', err?.message)
+      } finally {
+        setLoadingTemplates(false)
+      }
+    }
+    loadTemplates()
+  }, [])
+
+  const handleSelectTemplate = (templateId) => {
+    setSelectedTemplateId(templateId)
+    const found = templatesList.find(t => t.id === templateId)
+    if (found) {
+      toast.success(`Loaded Body Chart Template: "${found.name}"`)
+    }
+  }
 
   const findings = Array.isArray(value) ? value : []
 
@@ -139,14 +170,34 @@ export default function BodyChartDiagram({ value = [], onChange, readOnly = fals
 
   return (
     <div className="space-y-6 font-sans">
-      {/* Top Bar: View Toggle & Summary */}
+      {/* Top Bar: View Toggle, Template Selector & Summary */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
         <div>
           <span className="text-[10px] font-black uppercase text-[#8C4BFF] tracking-widest block">Interactive Clinical Assessment</span>
           <h3 className="text-base font-extrabold text-slate-800 dark:text-white m-0">Patient Body Chart Findings</h3>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Live Body Chart Template Selector */}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold text-slate-400 uppercase">Template:</span>
+            <Select
+              placeholder="Select Saved Template"
+              value={selectedTemplateId}
+              onChange={handleSelectTemplate}
+              loading={loadingTemplates}
+              allowClear
+              className="w-48 text-xs rounded-xl"
+              size="small"
+            >
+              {templatesList.map(tmpl => (
+                <Option key={tmpl.id} value={tmpl.id}>
+                  {tmpl.name}
+                </Option>
+              ))}
+            </Select>
+          </div>
+
           <div className="bg-slate-200 dark:bg-slate-800 p-1 rounded-xl flex gap-1">
             <button
               type="button"

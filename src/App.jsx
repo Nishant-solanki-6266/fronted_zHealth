@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ConfigProvider, theme } from 'antd'
 import { Toaster } from 'react-hot-toast'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { SocketProvider } from './context/SocketContext'
 import { LoginPage, ForgotPasswordPage, RegisterPage } from './features/auth'
 import DashboardLayout from './layouts/DashboardLayout'
 import { DashboardPage, SuperAdminDashboardPage, SalesExecutiveDashboardPage, ClinicAdminDashboardPage, PractitionerDashboardPage, PatientPortalDashboardPage } from './features/dashboard'
@@ -44,17 +45,18 @@ function App() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider
-        theme={{
-          algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
-          token: {
-            colorPrimary: darkMode ? '#8C4BFF' : '#0E1B33', // Primary purple in dark mode, Navy in light
-            colorSuccess: '#30D2BE', // Brand Teal
-            colorInfo: '#8C4BFF', // Brand Purple
-            fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
-          },
-        }}
-      >
+      <SocketProvider>
+        <ConfigProvider
+          theme={{
+            algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
+            token: {
+              colorPrimary: darkMode ? '#8C4BFF' : '#0E1B33', // Primary purple in dark mode, Navy in light
+              colorSuccess: '#30D2BE', // Brand Teal
+              colorInfo: '#8C4BFF', // Brand Purple
+              fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+            },
+          }}
+        >
         <BrowserRouter>
           <Routes>
             {/* Auth Routes */}
@@ -121,6 +123,7 @@ function App() {
             <Route path="/clinic-admin/products" element={<DashboardLayout><ClinicAdminDashboardPage sectionOverride="products" /></DashboardLayout>} />
             <Route path="/clinic-admin/reports" element={<DashboardLayout><ClinicAdminDashboardPage sectionOverride="reports" /></DashboardLayout>} />
             <Route path="/clinic-admin/documents" element={<DashboardLayout><ClinicAdminDashboardPage sectionOverride="documents" /></DashboardLayout>} />
+            <Route path="/clinic-admin/consultations" element={<DashboardLayout><ClinicAdminDashboardPage sectionOverride="consultations" /></DashboardLayout>} />
             <Route path="/clinic-admin/details" element={<DashboardLayout><ClinicAdminDashboardPage sectionOverride="details" /></DashboardLayout>} />
 
             {['head-admin', 'sales', 'clinic-admin', 'practitioner', 'patient'].map(role => (
@@ -324,7 +327,8 @@ function App() {
           <Toaster position="top-right" toastOptions={{ duration: 1500 }} />
         </BrowserRouter>
       </ConfigProvider>
-    </QueryClientProvider>
+    </SocketProvider>
+  </QueryClientProvider>
   )
 }
 

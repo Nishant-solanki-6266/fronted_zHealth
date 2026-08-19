@@ -457,8 +457,9 @@ function SalesCalendarView({ store, navigate }) {
                   onClick={() => {
                     setSelectedEvent(null)
                     toast.success('Launching Zoom Sales Call...')
+                    window.open('https://zoom.us/j/8123456789', '_blank')
                   }}
-                  style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }}
+                  style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
                   className="rounded-xl font-bold text-xs text-white"
                 >
                   Start Meeting

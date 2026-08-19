@@ -81,9 +81,9 @@ function renderSectionContent(section, role, store, navigate, modalContextProps)
   if (section === 'notifications') {
     return <HeadAdminNotifications />
   }
-  // Check combination of role and active subpage section to render custom modular views
 
-  if (role === 'clinic' || role === 'clinic-admin' || role === 'clinic_admin') {
+  const normRole = String(role || '').toLowerCase()
+  if (!normRole || normRole.includes('clinic') || normRole.includes('admin')) {
     switch (section) {
       case 'consultations':
         return <PractitionerConsultation />
@@ -126,7 +126,7 @@ export default function ClinicAdminDashboardPage({ sectionOverride }) {
   const params = useParams()
   const section = sectionOverride || params.section
   const store = useClinicStore()
-  const userRole = store.userRole
+  const userRole = store.userRole || (typeof window !== 'undefined' ? localStorage.getItem('userRole') : '') || 'clinic'
   const navigate = useNavigate()
 
   const modalContextProps = {

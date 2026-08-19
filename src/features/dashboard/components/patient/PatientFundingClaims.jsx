@@ -133,6 +133,10 @@ export default function PatientFundingClaims() {
         <div className="text-center py-8">
           <Spin description="Loading funding accounts..." />
         </div>
+      ) : activeFunding.length === 0 ? (
+        <Card className="text-center py-6 rounded-2xl border border-slate-100 dark:border-slate-800">
+          <span className="text-xs text-slate-400 font-semibold">No active funding accounts (NDIS / Medicare EPC) registered for your clinic.</span>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {activeFunding.map((fund, idx) => (

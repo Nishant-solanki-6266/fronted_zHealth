@@ -80,8 +80,14 @@ export default function LoginForm() {
         localStorage.setItem('accessToken', json.data.accessToken)
         localStorage.setItem('token', json.data.accessToken)
       }
+      if (json.data?.refreshToken) {
+        localStorage.setItem('refreshToken', json.data.refreshToken)
+      }
       if (json.data?.user) {
         localStorage.setItem('user', JSON.stringify(json.data.user))
+        if (json.data.user.id) localStorage.setItem('userId', json.data.user.id)
+        if (json.data.user.name) localStorage.setItem('userName', json.data.user.name)
+        else if (json.data.user.email) localStorage.setItem('userName', json.data.user.email)
       }
 
       const userRoleFromBackend = json.data?.user?.role

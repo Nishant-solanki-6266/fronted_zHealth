@@ -59,6 +59,9 @@ export default function SalesClinics({ store: propStore }) {
       status: c.status || 'Active',
       salesperson: c.salesperson || currentRepName,
       signupDate: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent',
+      onboardingSteps: (typeof c.onboardingSteps === 'string' 
+        ? JSON.parse(c.onboardingSteps) 
+        : c.onboardingSteps) || [true, false, false, false, false],
       isLead: false,
     }))
 
@@ -76,15 +79,23 @@ export default function SalesClinics({ store: propStore }) {
       status: 'Active',
       salesperson: l.assignedTo || currentRepName,
       signupDate: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'Recent',
+      onboardingSteps: [true, false, false, false, false],
       isLead: true,
     }))
 
-  const leadIds = new Set(convertedLeadsFormatted.map(l => l.id))
-  const filteredDbClinics = dbClinicsFormatted.filter(c => !leadIds.has(c.id))
+  const dbClinicNames = new Set(dbClinicsFormatted.map(c => c.name.toLowerCase().trim()))
+  const filteredConvertedLeads = convertedLeadsFormatted.filter(l => !dbClinicNames.has(l.name.toLowerCase().trim()))
 
-  const colinClinics = [...filteredDbClinics, ...convertedLeadsFormatted]
+  const colinClinics = [...dbClinicsFormatted, ...filteredConvertedLeads]
   const [selectedClinic, setSelectedClinic] = useState(null)
-  const [onboardingStates, setOnboardingStates] = useState({})
+  const [onboardingStates, setOnboardingStates] = useState(() => {
+    try {
+      const saved = localStorage.getItem('legacyOnboardingStates')
+      return saved ? JSON.parse(saved) : {}
+    } catch {
+      return {}
+    }
+  })
 
   const standardSteps = [
     'Account Initialization',
@@ -94,25 +105,46 @@ export default function SalesClinics({ store: propStore }) {
     'DNS Configuration Setup',
   ]
 
-  const getClinicOnboarding = (clinicId) => onboardingStates[clinicId] || [true, false, false, false, false]
+  const getClinicOnboarding = (clinicId) => {
+    if (onboardingStates[clinicId]) return onboardingStates[clinicId]
+    const c = colinClinics.find(x => x.id === clinicId)
+    return c?.onboardingSteps || [true, false, false, false, false]
+  }
 
-  const handleToggleStep = (clinicId, index) => {
+  const handleToggleStep = async (clinicId, index) => {
+    const c = colinClinics.find(x => x.id === clinicId)
     const current = [...getClinicOnboarding(clinicId)]
     current[index] = !current[index]
-    setOnboardingStates({ ...onboardingStates, [clinicId]: current })
-    toast.success(`Updated: ${standardSteps[index]}`)
+    
+    if (c?.isLead) {
+      // Legacy leads don't have a DB clinic yet, update local state only so UI works
+      const newState = { ...onboardingStates, [clinicId]: current }
+      setOnboardingStates(newState)
+      localStorage.setItem('legacyOnboardingStates', JSON.stringify(newState))
+      toast.success(`Updated (Legacy Lead): ${standardSteps[index]}`)
+      return
+    }
+    
+    // Database and optimistic update via store
+    if (store.updateClinicOnboarding) {
+      await store.updateClinicOnboarding(clinicId, current)
+      toast.success(`Updated: ${standardSteps[index]}`)
+    }
   }
 
   const handlePlanUpgrade = (newTier) => {
-    const revenueMap = { Basic: 100, Pro: 250, Enterprise: 1000 }
-    const updated = { ...selectedClinic, tier: newTier, revenue: revenueMap[newTier], value: revenueMap[newTier] }
+    // Dynamic lookup from subscriptionPlans
+    const planMatch = store.subscriptionPlans?.find(p => p.name === newTier)
+    const newRevenue = planMatch ? planMatch.monthlyPrice : 100
+
+    const updated = { ...selectedClinic, tier: newTier, revenue: newRevenue, value: newRevenue }
     if (selectedClinic?.isLead) {
       if (store.updateLead) store.updateLead(updated)
     } else {
       if (store.editClinic) store.editClinic(updated)
     }
     setSelectedClinic(updated)
-    toast.success(`Plan upgraded to ${newTier} ($${revenueMap[newTier]}/mo)`)
+    toast.success(`Plan upgraded to ${newTier} ($${newRevenue}/mo)`)
   }
 
   const getProgressPercent = (clinicId) => {
@@ -247,9 +279,29 @@ export default function SalesClinics({ store: propStore }) {
           </div>
         }
         footer={
-          <div className="flex justify-end gap-2 px-2 py-2 border-t border-slate-100 dark:border-slate-800">
-            <Button onClick={() => setSelectedClinic(null)} className="font-bold rounded-xl text-xs h-9">Cancel</Button>
-            <Button type="primary" onClick={() => { setSelectedClinic(null); toast.success('Changes saved successfully!'); }} className="font-bold rounded-xl text-xs h-9 bg-[#8C4BFF] border-none hover:bg-[#7b3de6] shadow-sm shadow-[#8C4BFF]/20">Save Changes</Button>
+          <div className="flex justify-between items-center px-2 py-2 border-t border-slate-100 dark:border-slate-800">
+            <Button
+              danger
+              type="text"
+              onClick={async () => {
+                if (selectedClinic) {
+                  if (selectedClinic.isLead) {
+                    if (store.deleteLead) await store.deleteLead(selectedClinic.id)
+                  } else {
+                    if (store.deleteClinic) await store.deleteClinic(selectedClinic.id)
+                  }
+                  toast.success(`Clinic "${selectedClinic.name}" removed successfully.`)
+                  setSelectedClinic(null)
+                }
+              }}
+              className="font-bold text-xs"
+            >
+              Delete Clinic
+            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setSelectedClinic(null)} className="font-bold rounded-xl text-xs h-9">Cancel</Button>
+              <Button type="primary" onClick={() => { setSelectedClinic(null); toast.success('Changes saved successfully!'); }} className="font-bold rounded-xl text-xs h-9 bg-[#8C4BFF] border-none hover:bg-[#7b3de6] shadow-sm shadow-[#8C4BFF]/20">Save Changes</Button>
+            </div>
           </div>
         }
       >
@@ -290,9 +342,19 @@ export default function SalesClinics({ store: propStore }) {
             <div className="space-y-2">
               <span className="text-[10px] text-slate-400 uppercase font-black block tracking-wider">Upgrade Subscription Plan</span>
               <Select value={selectedClinic.tier} onChange={handlePlanUpgrade} className="w-full rounded-xl">
-                <Option value="Basic">Basic — $100/mo</Option>
-                <Option value="Pro">Pro — $250/mo</Option>
-                <Option value="Enterprise">Enterprise — $1,000/mo</Option>
+                {store.subscriptionPlans?.length > 0 ? (
+                  store.subscriptionPlans.map((plan) => (
+                    <Option key={plan.id} value={plan.name}>
+                      {plan.name} — ${plan.monthlyPrice}/mo
+                    </Option>
+                  ))
+                ) : (
+                  <>
+                    <Option value="Basic">Basic — $100/mo</Option>
+                    <Option value="Pro">Pro — $250/mo</Option>
+                    <Option value="Enterprise">Enterprise — $1,000/mo</Option>
+                  </>
+                )}
               </Select>
               <span className="text-[9px] text-slate-400 font-semibold block">Changes are applied immediately and reflected on all dashboards.</span>
             </div>

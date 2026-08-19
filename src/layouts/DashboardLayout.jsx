@@ -48,7 +48,6 @@ import {
 import { toast } from 'react-hot-toast'
 import logoImg from '../assets/logo2.png'
 import { useClinicStore } from '../store/clinicStore'
-import { createDocument as createDocumentApi } from '../features/calendar/api/clinicAdminApi'
 import api from '../api/axios'
 
 
@@ -214,6 +213,7 @@ const getNavItems = (role) => {
         { label: 'AI Notes', path: '/head-admin/ai-notes' },
         { label: 'Global Templates', path: '/head-admin/global-templates' },
         { label: 'Compliance', path: '/head-admin/audit-logs' },
+        { label: 'Messages', path: '/head-admin/messages' },
         { label: 'Support', path: '/head-admin/support-centre' },
         { label: 'Reports', path: '/head-admin/platform-analytics' },
       ]
@@ -327,7 +327,14 @@ export default function DashboardLayout({ children }) {
   useEffect(() => {
     fetchNotifications()
     const interval = setInterval(fetchNotifications, 30000)
-    return () => clearInterval(interval)
+    
+    const handleCustomRefetch = () => fetchNotifications()
+    window.addEventListener('notification:refetch', handleCustomRefetch)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('notification:refetch', handleCustomRefetch)
+    }
   }, [userRole])
 
   const getHeaderTitle = () => {
@@ -434,19 +441,28 @@ export default function DashboardLayout({ children }) {
     taskForm.resetFields()
   }
 
-  const handleSendProposalSubmit = () => {
+  const handleSendProposalSubmit = async () => {
     if (!proposalLeadId) {
       toast.error('Please select a lead clinic first.')
       return
     }
     const matchedLead = store.leads.find(l => l.id === proposalLeadId)
     if (matchedLead) {
-      store.moveLeadStage(matchedLead.id, 'Proposal Sent')
-      store.updateLead({
+      // 1. Update the overall lead details (value)
+      await store.updateLead({
         ...matchedLead,
         value: totalProposalPrice
       })
-      store.addLeadActivity(matchedLead.id, `Sent pricing proposal: $${totalProposalPrice.toFixed(2)}/mo (${proposalDrs} practitioners, AI note add-on: ${proposalHasAi ? 'YES' : 'NO'})`)
+      
+      // 2. Move stage sequentially
+      await store.moveLeadStage(matchedLead.id, 'Proposal Sent')
+      
+      // 3. Log activity sequentially
+      await store.addLeadActivity(
+        matchedLead.id, 
+        `Sent pricing proposal: $${totalProposalPrice.toFixed(2)}/mo (${proposalDrs} practitioners, AI note add-on: ${proposalHasAi ? 'YES' : 'NO'})`
+      )
+      
       toast.success(`Proposal sent to ${matchedLead.name}!`)
       store.setSalesProposalModalOpen(false)
       setProposalLeadId(null)
@@ -454,7 +470,7 @@ export default function DashboardLayout({ children }) {
     }
   }
 
-  const handleConvertClinicSubmit = (values) => {
+  const handleConvertClinicSubmit = async (values) => {
     const leadId = store.salesSelectedLeadId || values.leadId
     if (!leadId) {
       toast.error('Please select a lead clinic to convert.')
@@ -463,11 +479,46 @@ export default function DashboardLayout({ children }) {
     const lead = store.leads.find(l => l.id === leadId)
     if (!lead) return
 
-    store.convertLeadToClinic(leadId, values.tier || 'Basic', parseFloat(values.value) || lead.value || 100, 'Colin Edegbe')
-    toast.success(`Clinic ${lead.name} successfully converted and active! Recurring commissions started.`)
-    store.setSalesConvertModalOpen(false)
-    store.setSalesSelectedLeadId(null)
-    convertForm.resetFields()
+    const res = await store.convertLeadToClinic(leadId, values.tier || 'Basic', parseFloat(values.value) || lead.value || 100, 'Colin Edegbe')
+    if (res && res.success) {
+      toast.success(`Clinic ${lead.name} successfully converted!`)
+      store.setSalesConvertModalOpen(false)
+      store.setSalesSelectedLeadId(null)
+      convertForm.resetFields()
+
+      if (res.data && res.data.defaultPassword && lead.email) {
+        Modal.success({
+          title: '🎉 Clinic Successfully Converted!',
+          width: 550,
+          content: (
+            <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+              <p className="text-slate-600 dark:text-slate-300 font-medium mb-4 text-sm">
+                Login credentials have been automatically generated for the clinic admin. Please share these with the client so they can access their new dashboard.
+              </p>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-700/50">
+                  <span className="text-xs text-slate-500 font-bold">Login URL:</span>
+                  <span className="text-xs font-mono text-[#8C4BFF] cursor-pointer" onClick={() => {navigator.clipboard.writeText('https://zhealthos.com/login'); toast.success('URL copied!')}}>https://zhealthos.com/login</span>
+                </div>
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-700/50">
+                  <span className="text-xs text-slate-500 font-bold">Admin Email ID:</span>
+                  <span className="text-xs font-mono font-bold text-slate-800 dark:text-white cursor-pointer" onClick={() => {navigator.clipboard.writeText(lead.email); toast.success('Email copied!')}}>{lead.email}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-xs text-slate-500 font-bold">Temporary Password:</span>
+                  <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 cursor-pointer" onClick={() => {navigator.clipboard.writeText(res.data.defaultPassword); toast.success('Password copied!')}}>{res.data.defaultPassword}</span>
+                </div>
+              </div>
+              <p className="text-xs text-slate-400 mt-4 italic">
+                * The clinic admin can reset this password anytime from their profile settings.
+              </p>
+            </div>
+          ),
+          okText: 'Done',
+          okButtonProps: { style: { backgroundColor: '#8C4BFF', borderColor: '#8C4BFF', borderRadius: '8px' } }
+        })
+      }
+    }
   }
 
   const renderSalesActionsBar = () => {
@@ -831,10 +882,24 @@ export default function DashboardLayout({ children }) {
 
             <div className="grid grid-cols-2 gap-4">
               <Form.Item name="tier" label={<span className="text-slate-555 font-bold text-[11px] uppercase tracking-wider">Subscription Tier *</span>} rules={[{ required: true }]}>
-                <Select className="rounded-xl h-10 flex items-center">
-                  <Option value="Basic">Basic ($100/mo)</Option>
-                  <Option value="Pro">Pro ($250/mo)</Option>
-                  <Option value="Enterprise">Enterprise ($1000/mo)</Option>
+                <Select 
+                  className="rounded-xl h-10 flex items-center"
+                  onChange={(val) => {
+                    const selectedPlan = store.subscriptionPlans?.find(p => p.name === val)
+                    if (selectedPlan) {
+                      convertForm.setFieldsValue({ value: selectedPlan.monthlyPrice })
+                    }
+                  }}
+                >
+                  {store.subscriptionPlans?.length > 0 ? store.subscriptionPlans.map(plan => (
+                    <Option key={plan.id} value={plan.name}>{plan.name} (${plan.monthlyPrice}/mo)</Option>
+                  )) : (
+                    <>
+                      <Option value="Basic">Basic ($100/mo)</Option>
+                      <Option value="Pro">Pro ($250/mo)</Option>
+                      <Option value="Enterprise">Enterprise ($1000/mo)</Option>
+                    </>
+                  )}
                 </Select>
               </Form.Item>
               <Form.Item name="value" label={<span className="text-slate-555 font-bold text-[11px] uppercase tracking-wider">Subscription Monthly Value ($) *</span>} rules={[{ required: true }]}>
@@ -903,7 +968,7 @@ export default function DashboardLayout({ children }) {
     const headAdminSections = [
       'clinics-manage', 'admin-management', 'subscriptions', 'billing',
       'sales-affiliates', 'ai-settings', 'audit-logs', 'support-centre',
-      'platform-analytics', 'global-templates', 'notifications', 'documents'
+      'messages', 'platform-analytics', 'global-templates', 'notifications', 'documents'
     ]
     const isHeadAdminSection = headAdminSections.some(sec => path.includes(`/head-admin/${sec}`))
     const hasHeadAdminAccess = isHeadAdminSection && userRole === 'head_admin'
@@ -947,28 +1012,17 @@ export default function DashboardLayout({ children }) {
 
   const handleAddSubmit = async (values) => {
     try {
-      // Determine uploader name based on the logged-in user's role
-      const authUserId = localStorage.getItem('userId') || '1'
-      const savedUserName = localStorage.getItem('userName')
-      let uploaderName = savedUserName || 'Clinic Admin'
+      let uploaderName = ''
+      try {
+        const uStr = localStorage.getItem('user')
+        if (uStr) {
+          const uObj = JSON.parse(uStr)
+          uploaderName = uObj.name || uObj.fullName || uObj.email
+        }
+      } catch (e) {}
+      if (!uploaderName) uploaderName = localStorage.getItem('userName') || 'Clinic Admin'
 
-      if (userRole === 'sales') {
-        uploaderName = savedUserName || 'Colin Edegbe'
-      } else if (userRole === 'practitioner' && store.practitioners) {
-        const p = store.practitioners.find(pr => pr.id === authUserId) || store.practitioners[0]
-        uploaderName = p ? p.name : (savedUserName || 'Dr. APJ Kalam')
-      } else if (userRole === 'patient' && store.patients) {
-        const p = store.patients.find(pt => pt.id === authUserId) || store.patients[0]
-        uploaderName = p ? p.name : (savedUserName || 'Patient')
-      } else if (userRole === 'receptionist') {
-        uploaderName = savedUserName || 'Emily Clark (Receptionist)'
-      } else if (userRole === 'head_admin' || userRole === 'super_admin') {
-        uploaderName = savedUserName || 'Super Admin'
-      } else if (userRole === 'clinic') {
-        uploaderName = savedUserName || 'Clinic Admin'
-      }
-
-      const newDoc = await createDocumentApi({
+      await addDocument({
         name: values.name,
         patientName: values.patientName,
         sentTo: 'Client John Miller',
@@ -977,9 +1031,6 @@ export default function DashboardLayout({ children }) {
         type: 'Assessment',
         status: 'Active'
       })
-      if (newDoc && newDoc.data) {
-        addDocument(newDoc.data)
-      }
       toast.success('Document uploaded and saved to live database!')
       setAddDocModalOpen(false)
       addForm.resetFields()
@@ -991,6 +1042,12 @@ export default function DashboardLayout({ children }) {
 
 
   const handleLogout = () => {
+    localStorage.removeItem('user')
+    localStorage.removeItem('userName')
+    localStorage.removeItem('userId')
+    localStorage.removeItem('token')
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('userRole')
     toast.success('Logged out successfully.')
     navigate('/login')
   }

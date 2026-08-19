@@ -18,6 +18,9 @@ export default function PatientHealthSharing() {
   const [loading, setLoading] = useState(false)
   const [sharingClinics, setSharingClinics] = useState([])
   const [pendingRequests, setPendingRequests] = useState([])
+  const [availableClinics, setAvailableClinics] = useState([
+    'Metro Rehab Centre', 'Footscray Physio & Ortho', 'East Melbourne Specialist Clinic'
+  ])
 
   const [selectedAccessLevel, setSelectedAccessLevel] = useState('Limited Access')
   const [selectedClinic, setSelectedClinic] = useState('Metro Rehab Centre')
@@ -29,6 +32,10 @@ export default function PatientHealthSharing() {
       if (res.data?.success && res.data.data) {
         if (Array.isArray(res.data.data.activeShares)) setSharingClinics(res.data.data.activeShares)
         if (Array.isArray(res.data.data.pendingRequests)) setPendingRequests(res.data.data.pendingRequests)
+        if (Array.isArray(res.data.data.availableClinics) && res.data.data.availableClinics.length > 0) {
+          setAvailableClinics(res.data.data.availableClinics)
+          if (!selectedClinic && res.data.data.availableClinics[0]) setSelectedClinic(res.data.data.availableClinics[0])
+        }
       }
     } catch (err) {
       console.warn('Health sharing API fetch fallback notice:', err?.message)
@@ -247,14 +254,18 @@ export default function PatientHealthSharing() {
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Search/Select Clinic</label>
                   <Select 
-                    placeholder="Search Clinic..." 
+                    showSearch
+                    placeholder="Search/Select Clinic..." 
                     className="w-full rounded-xl"
                     value={selectedClinic}
                     onChange={setSelectedClinic}
+                    filterOption={(input, option) =>
+                      (option?.children ?? '').toLowerCase().includes(input.toLowerCase())
+                    }
                   >
-                    <Option value="Metro Rehab Centre">Metro Rehab Centre</Option>
-                    <Option value="Footscray Physio & Ortho">Footscray Physio & Ortho</Option>
-                    <Option value="East Melbourne Specialist Clinic">East Melbourne Specialist Clinic</Option>
+                    {availableClinics.map((cName, idx) => (
+                      <Option key={cName || idx} value={cName}>{cName}</Option>
+                    ))}
                   </Select>
                 </div>
                 <div>

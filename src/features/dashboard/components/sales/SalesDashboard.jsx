@@ -50,14 +50,15 @@ export default function SalesDashboard({ store, navigate, modalContext }) {
   const repCommissionRate = (parseFloat(store.user?.profileData?.commissionRate || store.salesProfile?.commissionRate) || 10.0) / 100
   const colinClinics = (clinics || []).filter(c => isMatchingRep(c.salesperson))
   const myLeads = (leads || []).filter(l => isMatchingRep(l.assignedTo || l.salesperson))
+  const convertedLeads = myLeads.filter(l => l.stage === 'Converted' || l.stage === 'Closed Won')
   const totalLeads = myLeads.length
   const demosBooked = salesCalendarEvents.filter(e => e.type === 'Demos' || e.type === 'Demo Scheduled').length
-  const clinicsConverted = colinClinics.length
-  const totalMrr = colinClinics.reduce((sum, c) => sum + (parseFloat(c.revenue) || 0), 0)
+  const clinicsConverted = Math.max(colinClinics.length, convertedLeads.length)
+  const totalMrr = colinClinics.reduce((sum, c) => sum + (parseFloat(c.revenue) || 0), 0) || convertedLeads.reduce((sum, l) => sum + (parseFloat(l.value) || 0), 0)
   const pendingCommissions = colinClinics.filter(c => c.commissionStatus === 'Pending').reduce((sum, c) => sum + (parseFloat(c.revenue) * repCommissionRate), 0)
   const paidCommissions = colinClinics.filter(c => c.commissionStatus === 'Paid').reduce((sum, c) => sum + (parseFloat(c.revenue) * repCommissionRate), 0)
-  const totalCommissionsEarned = pendingCommissions + paidCommissions
-  const activeClinicsCount = colinClinics.filter(c => c.status === 'Active').length
+  const totalCommissionsEarned = (pendingCommissions + paidCommissions) || (totalMrr * repCommissionRate)
+  const activeClinicsCount = Math.max(colinClinics.filter(c => c.status === 'Active').length, convertedLeads.length)
   const thisMonthCommission = totalMrr * repCommissionRate
   const pendingTasks = salesTasks.filter(t => t.status !== 'Completed')
   const trialClinics = colinClinics.filter(c => c.status === 'Trial')

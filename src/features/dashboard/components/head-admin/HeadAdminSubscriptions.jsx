@@ -14,41 +14,7 @@ export default function HeadAdminSubscriptions() {
   const [activeTab, setActiveTab] = useState('Subscription Management')
   const [billingCycle, setBillingCycle] = useState('Monthly Subscription')
 
-  const [packages, setPackages] = useState({
-    basic: { 
-      name: 'Basic', 
-      price: 50, 
-      enabled: true, 
-      features: [
-        { text: 'Basic Patient Management', hasBullet: true },
-        { text: 'Appointment Scheduling', hasBullet: true },
-        { text: 'Clinical Notes', hasBullet: false, isIndented: true },
-        { text: 'Clinical Auto-Summarization', hasBullet: true }
-      ] 
-    },
-    advanced: { 
-      name: 'Advanced', 
-      price: 50, 
-      enabled: true, 
-      features: [
-        { text: 'Basic Patient Management', hasBullet: true },
-        { text: 'Appointment Scheduling', hasBullet: true },
-        { text: 'Clinical Notes', hasBullet: false, isIndented: true },
-        { text: 'Clinical Auto-Summarization', hasBullet: true }
-      ] 
-    },
-    premium: { 
-      name: 'Premium', 
-      price: 50, 
-      enabled: true, 
-      features: [
-        { text: 'Basic Patient Management', hasBullet: true },
-        { text: 'Appointment Scheduling', hasBullet: true },
-        { text: 'Clinical Notes', hasBullet: false, isIndented: true },
-        { text: 'Clinical Auto-Summarization', hasBullet: true }
-      ] 
-    }
-  })
+  const [packages, setPackages] = useState({})
 
   const backendFetch = async (endpoint, options = {}) => {
     const mainBase = API_BASE_URL
@@ -91,17 +57,17 @@ export default function HeadAdminSubscriptions() {
   }
 
   const fetchSubscriptionsFromBackend = async () => {
-    const json = await backendFetch('/super-admin/subscriptions')
-    if (json && json.success && Array.isArray(json.data) && json.data.length > 0) {
+    const json = await backendFetch('/super-admin/subscription-plans')
+    if (json && json.success && Array.isArray(json.data)) {
       const fetchedPackages = {}
       json.data.forEach((sub, idx) => {
         const key = sub.id || `sub_${idx}`
         fetchedPackages[key] = {
           id: sub.id,
-          name: sub.plan || sub.clinicName || 'Package',
-          price: sub.amount || 50,
-          enabled: sub.status === 'Active',
-          features: [
+          name: sub.name || 'Package',
+          price: sub.monthlyPrice || 0,
+          enabled: sub.isActive !== false,
+          features: Array.isArray(sub.features) && sub.features.length > 0 ? sub.features : [
             { text: 'Basic Patient Management', hasBullet: true },
             { text: 'Appointment Scheduling', hasBullet: true },
             { text: 'Clinical Notes', hasBullet: false, isIndented: true },
@@ -138,15 +104,18 @@ export default function HeadAdminSubscriptions() {
       [key]: newPkg
     }))
 
-    await backendFetch('/super-admin/subscriptions', {
+    await backendFetch('/super-admin/subscription-plans', {
       method: 'POST',
       body: JSON.stringify({
         name: values.name,
-        price: values.price || 50,
-        plan: values.name,
-        billingCycle: 'Monthly',
-        amount: values.price || 50,
-        status: 'Active'
+        monthlyPrice: values.price || 50,
+        features: [
+          { text: 'Basic Patient Management', hasBullet: true },
+          { text: 'Appointment Scheduling', hasBullet: true },
+          { text: 'Clinical Notes', hasBullet: false, isIndented: true },
+          { text: 'Clinical Auto-Summarization', hasBullet: true }
+        ],
+        isActive: true
       })
     })
 
@@ -184,12 +153,11 @@ export default function HeadAdminSubscriptions() {
     }))
 
     if (pack && pack.id) {
-      await backendFetch(`/super-admin/subscriptions/${pack.id}`, {
+      await backendFetch(`/super-admin/subscription-plans/${pack.id}`, {
         method: 'PUT',
         body: JSON.stringify({
           name: values.name,
-          price: values.price,
-          amount: values.price
+          monthlyPrice: values.price
         })
       })
     }

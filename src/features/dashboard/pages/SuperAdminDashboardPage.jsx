@@ -64,6 +64,8 @@ function renderSectionContent(section, role, store, navigate, modalContextProps)
         return <HeadAdminAuditLogs />
       case 'support-centre':
         return <HeadAdminSupportCentre />
+      case 'messages':
+        return <SalesMessages store={store} />
       case 'platform-analytics':
         return <HeadAdminPlatformAnalytics />
       default:

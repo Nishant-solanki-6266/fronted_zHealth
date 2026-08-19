@@ -3,7 +3,7 @@ import { Modal, Form, Input, Select, DatePicker, TimePicker, Switch, Space, Butt
 import { useClinicStore } from '../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
-import { createAppointment, getPatients, getPractitioners } from '../api/clinicAdminApi'
+import { getPatients, getPractitioners } from '../api/clinicAdminApi'
 import { getClinicServices } from '../../settings/api/settingsApi'
 
 const { Option } = Select
@@ -131,13 +131,12 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
     }
 
     try {
-      const res = await createAppointment(newAppt)
-      const savedAppt = res.data || newAppt
-      store.addAppointment(savedAppt)
-      toast.success(`Appointment scheduled & saved to live database for ${savedAppt.patientName}!`)
+      const savedAppt = await store.addAppointment(newAppt)
+      const pName = savedAppt?.patientName || newAppt.patientName || 'Client'
+      toast.success(`Appointment scheduled & saved for ${pName}!`)
     } catch (err) {
-      store.addAppointment(newAppt)
-      toast.success(`Appointment scheduled for ${newAppt.patientName}!`)
+      console.error('❌ Error in scheduling appointment:', err)
+      toast.error('Failed to schedule appointment')
     }
     form.resetFields()
     onCancel()

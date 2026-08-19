@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card, Table, Tag, Select, Button } from 'antd'
 import { CreditCardOutlined, DollarOutlined, ClockCircleOutlined, CheckCircleOutlined, PercentageOutlined, RiseOutlined } from '@ant-design/icons'
 import { useClinicStore } from '../../../../store/clinicStore'
@@ -6,13 +6,32 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 const { Option } = Select
 
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function getMonthsWindow(count) {
+  const now = new Date()
+  const months = []
+  for (let i = count - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999)
+    months.push({
+      label: MONTHS_SHORT[d.getMonth()],
+      year: d.getFullYear(),
+      month: d.getMonth(),
+      endDate: endOfMonth
+    })
+  }
+  return months
+}
+
 export default function SalesCommissions({ store: propStore }) {
   const localStore = useClinicStore()
   const store = propStore || localStore
+  const [requestedPayouts, setRequestedPayouts] = useState({})
   const { clinics, leads } = store
   const [filterStatus, setFilterStatus] = useState('All')
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (store.fetchSalesClinics) store.fetchSalesClinics()
     if (store.fetchLeads) store.fetchLeads()
   }, [])
@@ -44,51 +63,69 @@ export default function SalesCommissions({ store: propStore }) {
     return sp.includes(cur) || cur.includes(sp) || sp === 'unassigned' || sp === 'sales executive'
   }
 
-  // Combine database clinics + converted sales leads into converted clinics view for commissions
+  const repCommissionRate = (parseFloat(store.user?.profileData?.commissionRate || store.salesProfile?.commissionRate) || 12.0) / 100
+  const ratePercentageStr = `${Math.round(repCommissionRate * 100)}%`
+
+  const getPayoutForClinic = (id) => {
+    return (store.salesCommissions || []).find(p => p.clinicId === id)
+  }
+
+  // Multi-tenant database clinics & converted leads attributed to this sales executive
   const dbClinicsFormatted = (clinics || [])
+    .filter(c => c.status === 'Active')
     .filter(c => isMatchingRep(c.salesperson))
-    .map(c => ({
-      id: c.id,
-      name: c.name,
-      tier: c.tier || 'Basic',
-      revenue: parseFloat(c.revenue) || 100,
-      commissionStatus: c.commissionStatus || 'Paid',
-      commissionPaidDate: c.commissionPaidDate || (c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Active'),
-      salesperson: c.salesperson || currentRepName,
-      signupDate: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent',
-    }))
+    .map(c => {
+      const payout = getPayoutForClinic(c.id)
+      return {
+        id: c.id,
+        name: c.name,
+        tier: c.tier || 'Basic',
+        revenue: parseFloat(c.revenue) || 100,
+        commissionStatus: payout ? payout.status : 'Pending',
+        commissionPaidDate: payout && payout.status === 'Paid' && payout.paidDate 
+          ? new Date(payout.paidDate).toLocaleDateString() 
+          : (payout ? 'Requested' : 'Awaiting Cycle'),
+        salesperson: c.salesperson || currentRepName,
+        signupDate: c.createdAt ? new Date(c.createdAt).toLocaleDateString() : 'Recent',
+        createdAt: c.createdAt ? new Date(c.createdAt) : new Date(),
+      }
+    })
 
   const convertedLeadsFormatted = (leads || [])
     .filter(l => l.stage === 'Converted' || l.status === 'Converted')
     .filter(l => isMatchingRep(l.assignedTo || l.salesperson))
-    .map(l => ({
-      id: l.id,
-      name: l.name || l.companyName,
-      tier: l.tier || 'Basic',
-      revenue: parseFloat(l.value) || 100,
-      commissionStatus: 'Pending',
-      commissionPaidDate: 'Awaiting Cycle',
-      salesperson: l.assignedTo || currentRepName,
-      signupDate: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'Recent',
-    }))
+    .map(l => {
+      const payout = getPayoutForClinic(l.id)
+      return {
+        id: l.id,
+        name: l.name || l.companyName,
+        tier: l.tier || 'Basic',
+        revenue: parseFloat(l.value) || 100,
+        commissionStatus: payout ? payout.status : 'Pending',
+        commissionPaidDate: payout && payout.status === 'Paid' && payout.paidDate 
+          ? new Date(payout.paidDate).toLocaleDateString() 
+          : (payout ? 'Requested' : 'Awaiting Cycle'),
+        salesperson: l.assignedTo || currentRepName,
+        signupDate: l.createdAt ? new Date(l.createdAt).toLocaleDateString() : 'Recent',
+        createdAt: l.createdAt ? new Date(l.createdAt) : new Date(),
+      }
+    })
 
   const leadIds = new Set(convertedLeadsFormatted.map(l => l.id))
   const filteredDbClinics = dbClinicsFormatted.filter(c => !leadIds.has(c.id))
 
-  const repCommissionRate = (parseFloat(store.user?.profileData?.commissionRate || store.salesProfile?.commissionRate) || 10.0) / 100
+  const repClinics = [...filteredDbClinics, ...convertedLeadsFormatted]
 
-  const colinClinics = [...filteredDbClinics, ...convertedLeadsFormatted]
-
-  const paidCommissionSum = colinClinics
+  const paidCommissionSum = repClinics
     .filter(c => c.commissionStatus === 'Paid')
     .reduce((sum, c) => sum + (parseFloat(c.revenue) * repCommissionRate), 0)
 
-  const pendingCommissionSum = colinClinics
+  const pendingCommissionSum = repClinics
     .filter(c => c.commissionStatus === 'Pending')
     .reduce((sum, c) => sum + (parseFloat(c.revenue) * repCommissionRate), 0)
 
   const lifetimeCommissions = paidCommissionSum + pendingCommissionSum
-  const totalMrr = colinClinics.reduce((sum, c) => sum + (parseFloat(c.revenue) || 0), 0)
+  const totalMrr = repClinics.reduce((sum, c) => sum + (parseFloat(c.revenue) || 0), 0)
   const thisMonthCommission = totalMrr * repCommissionRate
 
   const stats = [
@@ -98,26 +135,30 @@ export default function SalesCommissions({ store: propStore }) {
     { label: 'Pending Payout', value: `$${pendingCommissionSum.toFixed(2)}`, icon: <ClockCircleOutlined />, color: '#F59E0B', sub: 'Awaiting monthly cycle' },
   ]
 
-  // Monthly trend data
-  const trendData = [
-    { month: 'Jan', commission: 0 },
-    { month: 'Feb', commission: 0 },
-    { month: 'Mar', commission: 0 },
-    { month: 'Apr', commission: Math.round(paidCommissionSum * 0.8) },
-    { month: 'May', commission: Math.round(paidCommissionSum) },
-    { month: 'Jun', commission: Math.round(thisMonthCommission) },
-  ]
+  // Dynamic 6-Month Trend Window based on current date & active clinics in DB
+  const monthsWindow = getMonthsWindow(6)
+  const trendData = monthsWindow.map(({ label, endDate }) => {
+    const activeClinicsUpToMonth = repClinics.filter(c => {
+      const createdDate = c.createdAt ? new Date(c.createdAt) : new Date(0)
+      return createdDate <= endDate
+    })
+    const monthRevenue = activeClinicsUpToMonth.reduce((sum, c) => sum + (parseFloat(c.revenue) || 0), 0)
+    return {
+      month: label,
+      commission: Math.round(monthRevenue * repCommissionRate),
+    }
+  })
 
   // Filter ledger data
-  const filteredClinics = colinClinics.filter(c => filterStatus === 'All' || c.commissionStatus === filterStatus)
+  const filteredClinics = repClinics.filter(c => filterStatus === 'All' || c.commissionStatus === filterStatus)
 
   const ledgerData = filteredClinics.map(c => ({
     key: c.id,
     clinicName: c.name,
     tier: c.tier,
     revenue: c.revenue,
-    rate: '12%',
-    commissionVal: parseFloat(c.revenue) * 0.12,
+    rate: ratePercentageStr,
+    commissionVal: parseFloat(c.revenue) * repCommissionRate,
     status: c.commissionStatus,
     paidDate: c.commissionPaidDate || '—',
     signupDate: c.signupDate || '—',
@@ -128,9 +169,12 @@ export default function SalesCommissions({ store: propStore }) {
 
       {/* Header */}
       <div className="bg-white dark:bg-slate-900 p-5 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
-        <h2 className="text-sm font-black text-slate-800 dark:text-white m-0">My Commissions Ledger</h2>
+        <span className="text-[10px] font-black uppercase tracking-widest text-[#8C4BFF] block mb-1">
+          Multi-Tenant Sales Commission &bull; Live MySQL DB
+        </span>
+        <h2 className="text-xl font-black text-slate-800 dark:text-white m-0">My Commissions Ledger</h2>
         <p className="text-slate-400 dark:text-slate-500 text-[10px] mt-0.5 font-semibold">
-          {currentRepName || 'Sales Executive'} &bull; 12% recurring affiliate commission on converted clinic subscriptions.
+          {currentRepName || 'Sales Executive'} &bull; {ratePercentageStr} recurring affiliate commission on converted clinic subscriptions.
         </p>
       </div>
 
@@ -155,7 +199,7 @@ export default function SalesCommissions({ store: propStore }) {
         title={
           <div>
             <span className="font-bold text-slate-800 dark:text-white text-xs block">Monthly Commission Trend</span>
-            <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">Commission payout over the last 6 months</span>
+            <span className="text-[10px] text-slate-400 font-semibold block mt-0.5">Recurring commission payout over the last 6 months</span>
           </div>
         }>
         <div className="h-48">
@@ -163,7 +207,7 @@ export default function SalesCommissions({ store: propStore }) {
             <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <defs>
                 <linearGradient id="commGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#8C4BFF" stopOpacity={0.2} />
+                  <stop offset="5%" stopColor="#8C4BFF" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#8C4BFF" stopOpacity={0} />
                 </linearGradient>
               </defs>
@@ -191,9 +235,9 @@ export default function SalesCommissions({ store: propStore }) {
       >
         <Table
           dataSource={ledgerData}
-          pagination={false}
+          pagination={{ pageSize: 10, showSizeChanger: false }}
           scroll={{ x: 900 }}
-          locale={{ emptyText: <span className="text-slate-400 text-xs">No commission records found.</span> }}
+          locale={{ emptyText: <span className="text-slate-400 text-xs">No commission attributions recorded for your account yet.</span> }}
           columns={[
             {
               title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Converted Clinic</span>,
@@ -234,9 +278,37 @@ export default function SalesCommissions({ store: propStore }) {
               dataIndex: 'paidDate',
               render: d => <span className="text-slate-400 font-semibold text-xs">{d}</span>,
             },
+            {
+              title: <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Action</span>,
+              key: 'action',
+              render: (_, record) => {
+                if (record.status === 'Paid') {
+                  return <span className="text-emerald-500 font-bold text-xs flex items-center gap-1"><CheckCircleOutlined /> Released</span>
+                }
+                const isRequested = record.status === 'Requested' || requestedPayouts[record.id]
+                return (
+                  <Button
+                    size="small"
+                    type="primary"
+                    disabled={isRequested}
+                    className={`text-xs font-bold rounded-xl h-7 ${isRequested ? 'bg-slate-300 dark:bg-slate-700 text-slate-500' : 'bg-[#8C4BFF]'}`}
+                    onClick={async () => {
+                      if (store.requestCommissionPayout) {
+                        await store.requestCommissionPayout(record.key, record.clinicName, record.commissionVal)
+                      }
+                      setRequestedPayouts(prev => ({ ...prev, [record.key]: true }))
+                      toast.success(`Payout request recorded in database for ${record.clinicName}!`)
+                    }}
+                  >
+                    {isRequested ? 'Requested' : 'Request Payout'}
+                  </Button>
+                )
+              }
+            }
           ]}
         />
       </Card>
     </div>
   )
 }
+
