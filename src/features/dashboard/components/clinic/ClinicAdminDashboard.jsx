@@ -381,8 +381,8 @@ export default function ClinicAdminDashboard({ store: propStore }) {
       {/* Main charts layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="border border-slate-100 dark:border-slate-800 dark:bg-slate-900 rounded-2xl shadow-sm" title={<span className="font-extrabold text-sm text-slate-700 dark:text-slate-200">Monthly Clinical Appointments Trend <span className="text-[10px] text-emerald-500 font-semibold ml-2">Live DB</span></span>}>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <div style={{ width: '100%', height: 240, minHeight: 240 }}>
+            <ResponsiveContainer width="100%" height={240}>
               <LineChart data={chartActivityData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#1E293B' : '#F1F5F9'} vertical={false} />
                 <XAxis dataKey="name" stroke="#94A3B8" fontSize={10} tickLine={false} axisLine={false} />
@@ -395,8 +395,8 @@ export default function ClinicAdminDashboard({ store: propStore }) {
         </Card>
 
         <Card className="border border-slate-100 dark:border-slate-800 dark:bg-slate-900 rounded-2xl shadow-sm" title={<span className="font-extrabold text-sm text-slate-700 dark:text-slate-200">Financial Revenue Logs <span className="text-[10px] text-emerald-500 font-semibold ml-2">Live DB</span></span>}>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <div style={{ width: '100%', height: 240, minHeight: 240 }}>
+            <ResponsiveContainer width="100%" height={240}>
               <BarChart data={chartRevenueData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#1E293B' : '#F1F5F9'} vertical={false} />
                 <XAxis dataKey="name" stroke="#94A3B8" fontSize={10} tickLine={false} axisLine={false} />

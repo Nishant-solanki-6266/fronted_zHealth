@@ -32,6 +32,7 @@ import {
 import { useClinicStore } from '../../../store/clinicStore'
 import AppointmentModal from '../components/NewScheduleModal'
 import AppointmentDetailsModal from '../components/AppointmentDetailsModal'
+import { isPractitionerAvailable } from '../../../utils/availabilityHelper'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
 import 'dayjs/locale/en-gb'
@@ -1104,11 +1105,19 @@ export default function SuperAdminCalendarPage() {
                 </div>
                 {/* Individual sub-columns header for each Practitioner */}
                 <div className="grid mt-2 border-t border-slate-100/80 dark:border-slate-800 pt-1" style={{ gridTemplateColumns: `repeat(${activePractitionerObjects.length}, 1fr)` }}>
-                  {activePractitionerObjects.map((p, pIdx) => (
-                    <div key={p.id} className={`text-[9px] font-black uppercase tracking-tight truncate px-0.5 ${pIdx > 0 ? 'border-l border-slate-100 dark:border-slate-800' : ''} ${isSelected ? 'text-[#8C4BFF] dark:text-[#A78BFA]' : isToday ? 'text-blue-500' : 'text-slate-500 dark:text-slate-400'}`}>
-                      {p.name.replace('Dr. ', '')}
-                    </div>
-                  ))}
+                  {activePractitionerObjects.map((p, pIdx) => {
+                    const isDayOff = !isPractitionerAvailable(p, day, null)
+                    return (
+                      <div key={p.id} className={`text-[9px] font-black uppercase tracking-tight truncate px-0.5 flex items-center justify-center gap-1 ${pIdx > 0 ? 'border-l border-slate-100 dark:border-slate-800' : ''} ${isSelected ? 'text-[#8C4BFF] dark:text-[#A78BFA]' : isToday ? 'text-blue-500' : 'text-slate-500 dark:text-slate-400'}`}>
+                        <span className="truncate">{p.name ? p.name.replace('Dr. ', '') : ''}</span>
+                        {isDayOff && (
+                          <span className="px-1 py-0.2 rounded bg-amber-500/20 text-amber-600 dark:text-amber-400 font-extrabold text-[7px] flex-shrink-0">
+                            OFF
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -1154,13 +1163,28 @@ export default function SuperAdminCalendarPage() {
                     >
                       {activePractitionerObjects.map((prac, pracIdx) => {
                         const pracAppts = appts.filter(a => a.practitionerId === prac.id || (!a.practitionerId && pracIdx === 0))
-                        
+                        const isDayOff = !isPractitionerAvailable(prac, day, null)
+                        const isWorkingSlot = isPractitionerAvailable(prac, day, h, m)
+
                         return (
                           <div
                             key={prac.id}
-                            className={`h-full min-h-[44px] p-0.5 ${pracIdx > 0 ? 'border-l border-slate-100/60 dark:border-slate-800/60' : ''} flex flex-col gap-1`}
+                            className={`h-full min-h-[44px] p-0.5 ${pracIdx > 0 ? 'border-l border-slate-100/60 dark:border-slate-800/60' : ''} flex flex-col gap-1 transition-colors ${
+                              isDayOff
+                                ? 'bg-slate-100/80 dark:bg-slate-950/80 hover:bg-slate-200/60 dark:hover:bg-slate-900 cursor-not-allowed'
+                                : !isWorkingSlot
+                                  ? 'bg-slate-50/50 dark:bg-slate-950/30'
+                                  : ''
+                            }`}
                             onClick={(e) => {
                               if (e.target === e.currentTarget) {
+                                if (isDayOff) {
+                                  toast.error(`${prac.name || 'Practitioner'} is unavailable on ${day.format('dddd')}s (Per Clinic Availability Settings).`, {
+                                    id: `off_${prac.id}_${day.format('YYYY-MM-DD')}`
+                                  })
+                                  return
+                                }
+
                                 const hh = String(h).padStart(2, '0')
                                 const mm = String(m).padStart(2, '0')
                                 
@@ -1190,6 +1214,11 @@ export default function SuperAdminCalendarPage() {
                               }
                             }}
                           >
+                            {isDayOff && pracAppts.length === 0 && (
+                              <div className="h-full flex items-center justify-center opacity-35 select-none pointer-events-none">
+                                <span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">OFF</span>
+                              </div>
+                            )}
                             {pracAppts.map(appt => {
                               const colors = getTypeColor(appt, store.darkMode)
                               const isNoClient = !appt.patientName || appt.patientName === 'No client'

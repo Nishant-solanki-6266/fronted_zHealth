@@ -12,7 +12,7 @@ const CREDENTIALS = [
     label: 'Super Admin',
     role: 'head_admin',
     email: 'admin@zhealth.com',
-    password: 'Password123!',
+    password: '12345678',
     description: 'Platform Owner Control',
     color: '#0E1B33',
     bg: '#EEF2F6',

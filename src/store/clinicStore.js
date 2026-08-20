@@ -1210,27 +1210,32 @@ export const useClinicStore = create((set, get) => ({
   },
 
   fetchLeads: async () => {
-    try {
-      console.log('📡 Fetching sales leads from http://localhost:5001/api/sales/leads...')
-      const res = await api.get('/api/sales/leads')
-      if (res?.data?.success) {
-        console.log('✅ Sales leads fetched successfully:', res.data.data.length, 'records')
-        set({ leads: res.data.data })
-        return res.data.data
-      }
-    } catch (err) {
-      console.error('❌ Failed to fetch /api/sales/leads:', err?.response?.status, err?.response?.data || err.message)
-      // Fallback try
+    if (get()._leadsFetchingPromise) return get()._leadsFetchingPromise
+    const promise = (async () => {
       try {
-        const fallback = await api.get('/api/super-admin/sales-leads')
-        if (fallback?.data?.success) {
-          set({ leads: fallback.data.data })
-          return fallback.data.data
+        const res = await api.get('/api/sales/leads')
+        if (res?.data?.success) {
+          set({ leads: res.data.data })
+          return res.data.data
         }
-      } catch (fbErr) {
-        console.error('❌ Fallback /api/super-admin/sales-leads error:', fbErr?.response?.status, fbErr?.message)
+      } catch (err) {
+        console.error('❌ Failed to fetch /api/sales/leads:', err?.response?.status, err?.response?.data || err.message)
+        // Fallback try
+        try {
+          const fallback = await api.get('/api/super-admin/sales-leads')
+          if (fallback?.data?.success) {
+            set({ leads: fallback.data.data })
+            return fallback.data.data
+          }
+        } catch (fbErr) {
+          console.error('❌ Fallback /api/super-admin/sales-leads error:', fbErr?.response?.status, fbErr?.message)
+        }
+      } finally {
+        set({ _leadsFetchingPromise: null })
       }
-    }
+    })()
+    set({ _leadsFetchingPromise: promise })
+    return promise
   },
 
   addLead: async (lead) => {

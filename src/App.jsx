@@ -14,6 +14,7 @@ import { ReportsPage, DocumentsPage } from './features/reports'
 import { SettingsPage, SuperAdminSettingsPage, SalesExecutiveSettingsPage, ClinicAdminSettingsPage, PractitionerSettingsPage, PatientPortalSettingsPage, AdminPage, BranchPage, DoctorsManagePage, SubscriptionPage, AiNotePage, TenantPage, PaymentTermsPage, TemplateManagePage, AdminProfilePage } from './features/settings'
 import { PaymentsPage } from './features/payments'
 import { ProductsPage } from './features/products'
+import LiveChatPage from './features/chat/pages/LiveChatPage'
 import { useClinicStore } from './store/clinicStore'
 
 const queryClient = new QueryClient({
@@ -53,10 +54,14 @@ function App() {
               colorPrimary: darkMode ? '#8C4BFF' : '#0E1B33', // Primary purple in dark mode, Navy in light
               colorSuccess: '#30D2BE', // Brand Teal
               colorInfo: '#8C4BFF', // Brand Purple
-              fontFamily: "'Plus Jakarta Sans', system-ui, sans-serif",
+              colorWarning: '#F59E0B',
+              colorError: '#EF4444',
+              borderRadius: 12,
+              fontFamily: 'Inter, system-ui, sans-serif',
             },
           }}
         >
+          <Toaster position="top-right" />
         <BrowserRouter>
           <Routes>
             {/* Auth Routes */}
@@ -87,6 +92,14 @@ function App() {
             <Route path="/clinic-admin/dashboard" element={<DashboardLayout><ClinicAdminDashboardPage /></DashboardLayout>} />
             <Route path="/practitioner/dashboard" element={<DashboardLayout><PractitionerDashboardPage /></DashboardLayout>} />
             <Route path="/patient/dashboard" element={<DashboardLayout><PatientPortalDashboardPage /></DashboardLayout>} />
+
+            {/* Universal Real-Time Live Chat Routes */}
+            <Route path="/head-admin/live-chat" element={<DashboardLayout><LiveChatPage /></DashboardLayout>} />
+            <Route path="/sales/live-chat" element={<DashboardLayout><LiveChatPage /></DashboardLayout>} />
+            <Route path="/clinic-admin/live-chat" element={<DashboardLayout><LiveChatPage /></DashboardLayout>} />
+            <Route path="/practitioner/live-chat" element={<DashboardLayout><LiveChatPage /></DashboardLayout>} />
+            <Route path="/patient/live-chat" element={<DashboardLayout><LiveChatPage /></DashboardLayout>} />
+            <Route path="/live-chat" element={<DashboardLayout><LiveChatPage /></DashboardLayout>} />
 
             <Route 
               path="/clinic/calendar" 

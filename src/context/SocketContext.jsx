@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { io } from 'socket.io-client'
 import { useClinicStore } from '../store/clinicStore'
+import { API_BASE_URL } from '../api/axios'
 import { toast } from 'react-hot-toast'
 
 const SocketContext = createContext(null)
@@ -11,12 +12,12 @@ export function SocketProvider({ children }) {
   const store = useClinicStore()
 
   useEffect(() => {
-    const SOCKET_URL = window.location.hostname === 'localhost' ? 'http://localhost:5001' : window.location.origin
+    const SOCKET_URL = API_BASE_URL || (window.location.hostname === 'localhost' ? 'http://localhost:5001' : window.location.origin)
 
     console.log(`🔌 Initializing WebSocket connection to ${SOCKET_URL}...`)
 
     const newSocket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'],
+      transports: ['polling', 'websocket'],
       autoConnect: true,
       reconnectionAttempts: 10,
       reconnectionDelay: 1000,

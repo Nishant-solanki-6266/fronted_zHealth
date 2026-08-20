@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react'
 import { Card, Table, Tag, Button, Modal, Select, DatePicker, TimePicker, Input, Spin } from 'antd'
-import { PlusOutlined, VideoCameraOutlined, SearchOutlined, FilterOutlined } from '@ant-design/icons'
+import { PlusOutlined, VideoCameraOutlined, SearchOutlined, FilterOutlined, WarningOutlined } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
+import dayjs from 'dayjs'
 import api from '../../../../api/axios'
 import { useClinicStore } from '../../../../store/clinicStore'
+import { isPractitionerAvailable } from '../../../../utils/availabilityHelper'
 
 const { Option } = Select
 
@@ -97,6 +99,30 @@ export default function PatientAppointments() {
       else practitionerName = practitionersList[0]?.name || 'Dr. Practitioner'
     }
 
+    // Availability validation guard
+    if (bookingDate && chosenPrac) {
+      const isAvail = isPractitionerAvailable(chosenPrac, dayjs(bookingDate))
+      if (!isAvail) {
+        Modal.warning({
+          title: `${practitionerName} is Unavailable`,
+          centered: true,
+          content: (
+            <div className="space-y-2 mt-3 text-xs font-semibold" style={{ color: '#475569' }}>
+              <p style={{ color: '#0F1B33', fontSize: '13px', margin: 0 }}>
+                <strong>{practitionerName}</strong> is <strong>OFF (Unavailable)</strong> on <strong>{dayjs(bookingDate).format('dddd, D MMMM YYYY')}</strong>.
+              </p>
+              <p style={{ color: '#64748B', margin: '6px 0 0 0' }}>
+                Appointments cannot be scheduled on non-working days per clinic availability settings. Please select another available date (e.g. Monday to Thursday) or choose another healthcare provider.
+              </p>
+            </div>
+          ),
+          okText: 'Choose Another Date',
+          okButtonProps: { style: { backgroundColor: '#8C4BFF', borderColor: '#8C4BFF', borderRadius: '8px' } }
+        })
+        return
+      }
+    }
+
     try {
       const payload = {
         practitionerId: targetPracId && !['sarah','emily','james'].includes(targetPracId) ? targetPracId : null,
@@ -130,6 +156,17 @@ export default function PatientAppointments() {
         toast.success('Appointment booking request submitted! Awaiting confirmation.')
       }
     } catch (err) {
+      if (err.response?.data?.isUnavailable) {
+        Modal.warning({
+          title: 'Practitioner Unavailable',
+          centered: true,
+          content: err.response.data.message || 'This doctor is not available on the selected day.',
+          okText: 'Change Date',
+          okButtonProps: { style: { backgroundColor: '#8C4BFF', borderColor: '#8C4BFF', borderRadius: '8px' } }
+        })
+        return
+      }
+
       // Fallback local state update
       const newAppObj = {
         id: `app_${Date.now()}`,
@@ -162,6 +199,32 @@ export default function PatientAppointments() {
     e.preventDefault()
     if (!selectedApp) return
 
+    const chosenPrac = practitionersList.find(p => p.name === selectedApp.practitioner || p.id === selectedApp.practitionerId) ||
+                       (store.practitioners || []).find(p => p.name === selectedApp.practitioner || p.id === selectedApp.practitionerId)
+
+    if (rescheduleDate && chosenPrac) {
+      const isAvail = isPractitionerAvailable(chosenPrac, dayjs(rescheduleDate))
+      if (!isAvail) {
+        Modal.warning({
+          title: `${selectedApp.practitioner} is Unavailable`,
+          centered: true,
+          content: (
+            <div className="space-y-2 mt-3 text-xs font-semibold" style={{ color: '#475569' }}>
+              <p style={{ color: '#0F1B33', fontSize: '13px', margin: 0 }}>
+                <strong>{selectedApp.practitioner}</strong> is <strong>OFF (Unavailable)</strong> on <strong>{dayjs(rescheduleDate).format('dddd, D MMMM YYYY')}</strong>.
+              </p>
+              <p style={{ color: '#64748B', margin: '6px 0 0 0' }}>
+                Please select another working date according to clinic availability settings.
+              </p>
+            </div>
+          ),
+          okText: 'Select Another Date',
+          okButtonProps: { style: { backgroundColor: '#8C4BFF', borderColor: '#8C4BFF', borderRadius: '8px' } }
+        })
+        return
+      }
+    }
+
     try {
       const res = await api.put(`/api/patient/appointments/${selectedApp.id}/reschedule`, {
         date: rescheduleDate,
@@ -174,6 +237,16 @@ export default function PatientAppointments() {
         toast.success(`Reschedule request sent for appointment with ${selectedApp?.practitioner}.`)
       }
     } catch (err) {
+      if (err.response?.data?.isUnavailable) {
+        Modal.warning({
+          title: 'Practitioner Unavailable',
+          centered: true,
+          content: err.response.data.message || 'This doctor is not available on the selected day.',
+          okText: 'Change Date',
+          okButtonProps: { style: { backgroundColor: '#8C4BFF', borderColor: '#8C4BFF', borderRadius: '8px' } }
+        })
+        return
+      }
       toast.success(`Reschedule request sent for appointment with ${selectedApp?.practitioner}.`)
     }
 
@@ -411,6 +484,19 @@ export default function PatientAppointments() {
             </Select>
           </div>
 
+          {(() => {
+            const currentSelectedPrac = practitionersList.find(p => p.id === (selectedPractitioner || practitionersList[0]?.id)) || (store.practitioners || []).find(p => p.id === selectedPractitioner)
+            if (bookingDate && currentSelectedPrac && !isPractitionerAvailable(currentSelectedPrac, dayjs(bookingDate))) {
+              return (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-700 dark:text-amber-300 text-xs font-bold flex items-center gap-2">
+                  <WarningOutlined />
+                  <span>⚠️ <strong>Notice:</strong> {currentSelectedPrac.name} is <strong>OFF / Unavailable</strong> on {dayjs(bookingDate).format('dddd')}s. Booking on this day is blocked.</span>
+                </div>
+              )
+            }
+            return null
+          })()}
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Preferred Date</label>
@@ -530,6 +616,20 @@ export default function PatientAppointments() {
             <span className="block font-bold text-slate-700 dark:text-slate-200">{selectedApp?.date} @ {selectedApp?.time}</span>
             <span className="block text-slate-500">{selectedApp?.practitioner} ({selectedApp?.type})</span>
           </div>
+
+          {(() => {
+            const chosenPrac = practitionersList.find(p => p.name === selectedApp?.practitioner || p.id === selectedApp?.practitionerId) ||
+                               (store.practitioners || []).find(p => p.name === selectedApp?.practitioner || p.id === selectedApp?.practitionerId)
+            if (rescheduleDate && chosenPrac && !isPractitionerAvailable(chosenPrac, dayjs(rescheduleDate))) {
+              return (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-700 dark:text-amber-300 text-xs font-bold flex items-center gap-2 mb-3">
+                  <WarningOutlined />
+                  <span>⚠️ <strong>Notice:</strong> {selectedApp?.practitioner} is <strong>OFF / Unavailable</strong> on {dayjs(rescheduleDate).format('dddd')}s.</span>
+                </div>
+              )
+            }
+            return null
+          })()}
 
           <div className="grid grid-cols-2 gap-4">
             <div>

@@ -430,6 +430,12 @@ export default function ClientProfilePage() {
             <Input className="rounded-xl h-10 bg-[#F1F5F9]/50 border-slate-200" />
           </Form.Item>
           <Form.Item
+            name="password"
+            label={<span className="text-slate-500 font-semibold text-xs">{isNew ? 'Portal Login Password' : 'Reset Portal Password'}</span>}
+          >
+            <Input.Password placeholder={isNew ? 'Set password (e.g. Patient@2026)' : 'Leave blank to keep current'} className="rounded-xl h-10 bg-[#F1F5F9]/50 border-slate-200" />
+          </Form.Item>
+          <Form.Item
             name="dob"
             label={<span className="text-slate-500 font-semibold text-xs">Date of Birth</span>}
           >

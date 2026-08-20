@@ -13,95 +13,185 @@ import { toast } from 'react-hot-toast'
 
 const { Option } = Select
 import api from '../../../../api/axios'
+import { useSocket } from '../../../../context/SocketContext'
 
 export default function PatientMessages() {
-  const [activeContact, setActiveContact] = useState('sarah')
+  const [contacts, setContacts] = useState([])
+  const [activeContact, setActiveContact] = useState('')
   const [messageCategory, setMessageCategory] = useState('Treatment Questions')
   const [inputText, setInputText] = useState('')
   const [uploadedFiles, setUploadedFiles] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [chatHistories, setChatHistories] = useState({})
+  const { socket } = useSocket() || {}
 
-  const contacts = [
-    { id: 'sarah', name: 'Dr. Sarah Jenkins', role: 'Primary Physiotherapist', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150', online: true },
-    { id: 'reception', name: 'Clinic Reception', role: 'Administrative Staff', avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150', online: true },
-    { id: 'billing', name: 'Billing & Accounts', role: 'Practice Manager', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150', online: false },
-    { id: 'support', name: 'ZealthOS Support Team', role: 'Platform Support', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150', online: true }
-  ]
-
-  const [chatHistories, setChatHistories] = useState({
-    sarah: [],
-    reception: [],
-    billing: [],
-    support: []
+  const formatMsg = (msg) => ({
+    id: msg.id,
+    sender: msg.sender,
+    text: msg.text,
+    timestamp: msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ' · ' + new Date(msg.createdAt).toLocaleDateString([], { month: 'short', day: 'numeric' }) : 'Just now',
+    category: msg.category || 'General Questions',
+    doctorName: msg.doctorName,
+    practitionerId: msg.practitionerId
   })
 
-  React.useEffect(() => {
-    const fetchMessages = async () => {
-      try {
-        const res = await api.get('/api/patient/messages')
-        if (res.data?.success && res.data.data) {
-          const dbMessages = res.data.data
-          const formatted = dbMessages.map(msg => ({
-            id: msg.id,
-            sender: msg.sender,
-            text: msg.text,
-            timestamp: new Date(msg.createdAt).toLocaleString(),
-            category: msg.category || 'General Questions'
+  // 1. Fetch ONLY real practitioners & staff from the patient's specific clinic
+  const fetchContactsAndMessages = async () => {
+    try {
+      setLoading(true)
+      const [clinicUsersRes, msgsRes] = await Promise.all([
+        api.get('/api/patient/clinic-users').catch(() => null),
+        api.get('/api/patient/messages').catch(() => null)
+      ])
+
+      let dynamicContacts = []
+
+      if (clinicUsersRes?.data?.success && Array.isArray(clinicUsersRes.data.data) && clinicUsersRes.data.data.length > 0) {
+        dynamicContacts = clinicUsersRes.data.data
+      } else {
+        const careTeamRes = await api.get('/api/patient/care-team').catch(() => null)
+        if (careTeamRes?.data?.success && Array.isArray(careTeamRes.data.data)) {
+          dynamicContacts = careTeamRes.data.data.map(p => ({
+            id: p.id,
+            name: p.name,
+            role: p.specialty || 'Clinical Practitioner',
+            type: 'practitioner',
+            practitionerId: p.id,
+            avatar: p.avatar,
+            online: true
           }))
-          
-          setChatHistories(prev => ({
-            ...prev,
-            sarah: formatted
-          }))
+          dynamicContacts.push({
+            id: 'reception',
+            name: 'Clinic Reception',
+            role: 'Administrative & Front Desk',
+            type: 'reception',
+            practitionerId: null,
+            avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150',
+            online: true
+          })
         }
-      } catch (err) {
-        console.warn('Failed to fetch messages:', err)
       }
+
+      setContacts(dynamicContacts)
+      setActiveContact(prev => {
+        if (prev && dynamicContacts.some(c => c.id === prev)) return prev
+        return dynamicContacts[0]?.id || ''
+      })
+
+      // Process messages from DB
+      if (msgsRes?.data?.success && msgsRes.data.data) {
+        const dbMessages = msgsRes.data.data
+        const categorized = {}
+        dynamicContacts.forEach(c => {
+          categorized[c.id] = []
+        })
+
+        dbMessages.forEach(msg => {
+          const item = formatMsg(msg)
+          const dName = (msg.doctorName || '').toLowerCase()
+          const sRole = (msg.sender || '').toLowerCase()
+
+          let matched = dynamicContacts.find(c =>
+            (msg.practitionerId && c.practitionerId === msg.practitionerId) ||
+            (c.id === msg.practitionerId)
+          )
+
+          if (!matched && (dName.includes('reception') || sRole === 'reception')) {
+            matched = dynamicContacts.find(c => c.type === 'reception' || c.id.startsWith('reception'))
+          }
+
+          if (!matched) {
+            matched = dynamicContacts.find(c =>
+              c.name && dName.includes(c.name.toLowerCase())
+            )
+          }
+
+          const targetKey = matched ? matched.id : (dynamicContacts[0]?.id || 'reception')
+          if (!categorized[targetKey]) categorized[targetKey] = []
+          categorized[targetKey].push(item)
+        })
+
+        setChatHistories(categorized)
+      }
+    } catch (err) {
+      console.warn('Failed to fetch messages & care team:', err)
+    } finally {
+      setLoading(false)
     }
-    fetchMessages()
+  }
+
+  React.useEffect(() => {
+    fetchContactsAndMessages()
   }, [])
 
+  // Listen to incoming real-time socket events
+  React.useEffect(() => {
+    if (!socket) return
+    const handleIncoming = (data) => {
+      if (data) fetchContactsAndMessages()
+    }
+    socket.on('care_team:message', handleIncoming)
+    return () => {
+      socket.off('care_team:message', handleIncoming)
+    }
+  }, [socket])
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!inputText.trim() && uploadedFiles.length === 0) return
 
-    const newMsg = {
-      id: Date.now().toString(),
+    const messagePayload = inputText || `Sent ${uploadedFiles.map(f => f.name).join(', ')}`
+    const cat = messageCategory
+    const targetId = activeContact
+    const targetName = selectedContactObj?.name
+    const targetPractitionerId = selectedContactObj?.practitionerId || null
+
+    const localPatientMsg = {
+      id: `temp_${Date.now()}`,
       sender: 'patient',
-      text: inputText || `Sent ${uploadedFiles.map(f => f.name).join(', ')}`,
+      text: messagePayload,
       timestamp: 'Just now',
-      category: messageCategory,
+      category: cat,
       files: [...uploadedFiles]
     }
 
     setChatHistories(prev => ({
       ...prev,
-      [activeContact]: [...prev[activeContact], newMsg]
+      [targetId]: [...(prev[targetId] || []), localPatientMsg]
     }))
-
-    api.post('/api/patient/messages', {
-      doctorName: selectedContactObj?.name,
-      messageText: newMsg.text,
-      category: messageCategory
-    }).catch(err => console.warn(err))
 
     setInputText('')
     setUploadedFiles([])
-    toast.success('Message sent securely!')
 
-    // Auto-reply simulation for demo purposes
-    setTimeout(() => {
-      const autoReply = {
-        id: Date.now().toString() + '_reply',
-        sender: 'doctor',
-        text: newMsg.text,
-        timestamp: 'Just now',
-        category: messageCategory
+    try {
+      const res = await api.post('/api/patient/messages', {
+        contactId: targetId,
+        practitionerId: targetPractitionerId,
+        doctorName: targetName,
+        messageText: messagePayload,
+        category: cat
+      })
+
+      if (res.data?.success) {
+        toast.success(`Message delivered to ${targetName}!`)
+        if (res.data?.reply) {
+          const reply = res.data.reply
+          const formattedReply = formatMsg(reply)
+          setTimeout(() => {
+            setChatHistories(prev => ({
+              ...prev,
+              [targetId]: [
+                ...(prev[targetId] || []).filter(m => m.id !== localPatientMsg.id),
+                formatMsg(res.data.data),
+                formattedReply
+              ]
+            }))
+          }, 500)
+        }
       }
-      setChatHistories(prev => ({
-        ...prev,
-        [activeContact]: [...prev[activeContact], autoReply]
-      }))
-    }, 1500)
+    } catch (err) {
+      console.error('Failed to send message:', err)
+      toast.error('Failed to send message.')
+    }
   }
 
   const selectedContactObj = contacts.find(c => c.id === activeContact)
@@ -134,7 +224,8 @@ export default function PatientMessages() {
           <div className="space-y-2">
             {contacts.map(c => {
               const active = c.id === activeContact
-              const lastMsg = chatHistories[c.id][chatHistories[c.id].length - 1]
+              const channelMsgs = chatHistories[c.id] || []
+              const lastMsg = channelMsgs[channelMsgs.length - 1]
               return (
                 <div
                   key={c.id}
@@ -203,32 +294,38 @@ export default function PatientMessages() {
 
               {/* Chat Messages */}
               <div className="flex-1 p-5 overflow-y-auto space-y-4 max-h-[300px]">
-                {chatHistories[activeContact].map(msg => {
-                  const isPatient = msg.sender === 'patient'
-                  return (
-                    <div key={msg.id} className={`flex ${isPatient ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[75%] space-y-1`}>
-                        <div className={`p-3.5 rounded-2xl text-xs font-medium leading-relaxed ${
-                          isPatient 
-                            ? 'bg-[#8C4BFF] text-white rounded-br-none' 
-                            : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none'
-                        }`}>
-                          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-4 mb-2 opacity-80 border-b border-white/20 pb-1.5">
-                            <span className="text-[9px] font-black uppercase tracking-wider">{msg.category}</span>
-                            <span className="text-[8px] font-semibold">{msg.timestamp}</span>
-                          </div>
-                          <div className="m-0 text-sm font-medium" style={{ color: isPatient ? '#ffffff' : undefined }}>{msg.text}</div>
-                          {msg.files && msg.files.map(f => (
-                            <div key={f.name} className="mt-2 p-2 bg-black/10 rounded-xl flex items-center gap-2 text-[10px] font-bold">
-                              {f.type.includes('image') ? <PictureOutlined /> : <FileTextOutlined />}
-                              <span>{f.name}</span>
+                {(chatHistories[activeContact] || []).length > 0 ? (
+                  (chatHistories[activeContact] || []).map(msg => {
+                    const isPatient = msg.sender === 'patient'
+                    return (
+                      <div key={msg.id} className={`flex ${isPatient ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[75%] space-y-1`}>
+                          <div className={`p-3.5 rounded-2xl text-xs font-medium leading-relaxed ${
+                            isPatient 
+                              ? 'bg-[#8C4BFF] text-white rounded-br-none' 
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none'
+                          }`}>
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-4 mb-2 opacity-80 border-b border-white/20 pb-1.5">
+                              <span className="text-[9px] font-black uppercase tracking-wider">{msg.category}</span>
+                              <span className="text-[8px] font-semibold">{msg.timestamp}</span>
                             </div>
-                          ))}
+                            <div className="m-0 text-sm font-medium" style={{ color: isPatient ? '#ffffff' : undefined }}>{msg.text}</div>
+                            {msg.files && msg.files.map(f => (
+                              <div key={f.name} className="mt-2 p-2 bg-black/10 rounded-xl flex items-center gap-2 text-[10px] font-bold">
+                                {f.type.includes('image') ? <PictureOutlined /> : <FileTextOutlined />}
+                                <span>{f.name}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )
-                })}
+                    )
+                  })
+                ) : (
+                  <div className="text-center py-12 text-slate-400 text-xs font-medium">
+                    No messages in this channel yet. Type a message below to start your conversation!
+                  </div>
+                )}
               </div>
 
               {/* Text Input & Controls */}

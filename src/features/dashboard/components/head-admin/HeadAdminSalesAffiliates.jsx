@@ -492,14 +492,17 @@ export default function HeadAdminSalesAffiliates() {
                 </Form.Item>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
+                <Form.Item name="password" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Login Password *</span>} rules={[{ required: true, message: 'Please enter a login password' }]}>
+                  <Input.Password placeholder="Set password (e.g. Sales@2026)" className="rounded-xl h-10" />
+                </Form.Item>
                 <Form.Item name="phone" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Phone Number</span>}>
                   <Input placeholder="+1 (555) 019-2834" className="rounded-xl h-10" />
                 </Form.Item>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-3">
                 <Form.Item name="territory" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Territory Coverage</span>}>
                   <Input placeholder="e.g. West · California, Nevada" className="rounded-xl h-10" />
                 </Form.Item>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
                 <Form.Item name="tier" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Partner Tier *</span>} rules={[{ required: true }]}>
                   <Select className="rounded-xl h-10 flex items-center">
                     <Option value="Platinum">Platinum</Option>
@@ -550,7 +553,10 @@ export default function HeadAdminSalesAffiliates() {
                   <Input className="rounded-xl h-10" />
                 </Form.Item>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-3">
+                <Form.Item name="password" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Reset Password (optional)</span>}>
+                  <Input.Password placeholder="Leave blank to keep existing" className="rounded-xl h-10" />
+                </Form.Item>
                 <Form.Item name="phone" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Phone Number</span>}>
                   <Input className="rounded-xl h-10" />
                 </Form.Item>

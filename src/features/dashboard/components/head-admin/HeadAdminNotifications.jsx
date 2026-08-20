@@ -151,6 +151,22 @@ export default function HeadAdminNotifications() {
           </Select>
 
           <Button
+            type="default"
+            onClick={async () => {
+              try {
+                await api.put('/api/notifications/mark-all-read')
+                setNotificationsList(prev => prev.map(n => ({ ...n, isRead: true })))
+                toast.success('All notifications marked as read')
+              } catch (err) {
+                toast.error('Failed to mark all as read')
+              }
+            }}
+            className="rounded-xl h-10 px-4 font-bold text-xs border-slate-200 dark:border-slate-800 dark:bg-slate-950"
+          >
+            Mark All Read
+          </Button>
+
+          <Button
             type="primary"
             icon={<SendOutlined />}
             onClick={() => setIsModalOpen(true)}
@@ -168,20 +184,38 @@ export default function HeadAdminNotifications() {
           <div className="text-center py-12 text-slate-400 font-semibold text-xs">No notifications found in {activeTab}</div>
         ) : (
           filteredNotifications.map(item => (
-            <div
+            <div 
               key={item.id}
-              className="p-4 bg-slate-50/50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800 rounded-2xl flex flex-col sm:flex-row justify-between sm:items-center gap-4 hover:shadow-xs transition-shadow"
+              className={`p-4 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+                !item.isRead
+                  ? 'border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10'
+                  : 'border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-950/50'
+              }`}
             >
-              {/* Left Side: Icon & Content */}
-              <div className="flex items-center gap-4 flex-1">
-                <div className="w-12 h-12 bg-[#8C4BFF]/5 dark:bg-[#8C4BFF]/10 border border-[#8C4BFF]/10 rounded-2xl flex items-center justify-center text-[#8C4BFF] flex-shrink-0">
-                  <MailOutlined style={{ fontSize: 20 }} />
+              {/* Left Side: Icon & Details */}
+              <div className="flex items-start sm:items-center gap-4">
+                <div className="relative">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    !item.isRead ? 'bg-[#8C4BFF] text-white shadow-sm' : 'bg-slate-200 dark:bg-slate-800 text-slate-500'
+                  }`}>
+                    <MailOutlined style={{ fontSize: 16 }} />
+                  </div>
+                  {!item.isRead && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-white dark:border-slate-900 animate-pulse" />
+                  )}
                 </div>
                 <div>
-                  <h4 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm m-0">
-                    {item.title}
-                  </h4>
-                  <p className="text-xs text-slate-450 dark:text-slate-400 mt-1 font-semibold">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm m-0">
+                      {item.title}
+                    </h4>
+                    {!item.isRead && (
+                      <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 font-extrabold text-[9px]">
+                        NEW
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-450 dark:text-slate-400 mt-1 font-semibold m-0">
                     {item.message}
                   </p>
                 </div>
@@ -190,8 +224,8 @@ export default function HeadAdminNotifications() {
               {/* Right Side: Meta & Actions */}
               <div className="flex items-center justify-between sm:justify-end gap-6 flex-shrink-0">
                 <div className="flex flex-col sm:items-end text-[10px] text-slate-400 dark:text-slate-500 font-semibold">
-                  <span className="text-slate-500 dark:text-slate-400">Recipient: {item.target}</span>
-                  <span className="mt-0.5">{new Date(item.createdAt).toLocaleDateString() + ' ' + new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  <span className="text-slate-500 dark:text-slate-400">Target: {item.target}</span>
+                  <span className="mt-0.5 text-slate-600 dark:text-slate-300 font-bold">{item.date || new Date(item.createdAt).toLocaleDateString()} · {item.time || new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
 
                 <div className="flex items-center gap-2">

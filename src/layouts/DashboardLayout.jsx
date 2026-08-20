@@ -44,12 +44,13 @@ import {
   CheckCircleOutlined,
   ShoppingOutlined,
   AppstoreOutlined,
+  MessageFilled
 } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
 import logoImg from '../assets/logo2.png'
 import { useClinicStore } from '../store/clinicStore'
 import api from '../api/axios'
-
+import FloatingChatDrawer from '../features/chat/components/FloatingChatDrawer'
 
 import { Brain } from 'lucide-react'
 
@@ -58,6 +59,9 @@ const { Dragger } = Upload
 
 const getNavItemIcon = (label) => {
   switch (label) {
+    case 'Live Chat':
+    case 'Messages':
+      return <MailOutlined style={{ fontSize: 16 }} />
     case 'Notification':
     case 'Notifications':
       return <BellOutlined style={{ fontSize: 16 }} />
@@ -149,8 +153,6 @@ const getNavItemIcon = (label) => {
       return <CreditCardOutlined style={{ fontSize: 16 }} />
     case 'Tasks':
       return <FileDoneOutlined style={{ fontSize: 16 }} />
-    case 'Messages':
-      return <MailOutlined style={{ fontSize: 16 }} />
     case 'My Care Team':
       return <TeamOutlined style={{ fontSize: 16 }} />
     case 'Treatment Plans':
@@ -213,7 +215,7 @@ const getNavItems = (role) => {
         { label: 'AI Notes', path: '/head-admin/ai-notes' },
         { label: 'Global Templates', path: '/head-admin/global-templates' },
         { label: 'Compliance', path: '/head-admin/audit-logs' },
-        { label: 'Messages', path: '/head-admin/messages' },
+        { label: 'Messages', path: '/head-admin/live-chat' },
         { label: 'Support', path: '/head-admin/support-centre' },
         { label: 'Reports', path: '/head-admin/platform-analytics' },
       ]
@@ -226,7 +228,7 @@ const getNavItems = (role) => {
         { label: 'Clinics', path: '/sales/sales-clinics' },
         { label: 'Commissions', path: '/sales/commissions' },
         { label: 'Tasks', path: '/sales/tasks' },
-        { label: 'Messages', path: '/sales/messages' },
+        { label: 'Messages', path: '/sales/live-chat' },
         { label: 'Reports', path: '/sales/sales-reports' },
         { label: 'Settings', path: '/sales/settings' },
       ]
@@ -238,6 +240,7 @@ const getNavItems = (role) => {
         { label: 'Clients', path: '/practitioner/patients' },
         { label: 'Exercises & Treatment Plans', path: '/practitioner/exercises-treatment-plans' },
         { label: 'Notes & Reports', path: '/practitioner/notes-reports' },
+        { label: 'Messages', path: '/practitioner/live-chat' },
         { label: 'Referrals', path: '/practitioner/referrals' },
         { label: 'Billing', path: '/practitioner/billing' },
         { label: 'Details', path: '/practitioner/details' },
@@ -258,7 +261,7 @@ const getNavItems = (role) => {
         { label: 'Forms & Documents', path: '/patient/forms-documents' },
         { label: 'Funding & Claims', path: '/patient/funding' },
         { label: 'Invoices & Payments', path: '/patient/payments' },
-        { label: 'Messages', path: '/patient/messages' },
+        { label: 'Messages', path: '/patient/live-chat' },
         { label: 'Health Record Sharing', path: '/patient/health-sharing' },
         { label: 'Profile & Settings', path: '/patient/settings' },
       ]
@@ -267,6 +270,7 @@ const getNavItems = (role) => {
       return [
         { label: 'Dashboard', path: '/clinic-admin/dashboard' },
         { label: 'Calendar', path: '/clinic-admin/calendar' },
+        { label: 'Messages', path: '/clinic-admin/live-chat' },
         { label: 'Details', path: '/clinic-admin/details' },
         { label: 'Clients', path: '/clinic-admin/patients' },
         { label: 'Contacts', path: '/clinic-admin/contacts' },
@@ -340,7 +344,7 @@ export default function DashboardLayout({ children }) {
   const getHeaderTitle = () => {
     const path = location.pathname
     if (path.includes('/notifications')) return 'Notifications'
-    if (path.includes('/messages')) return 'Messages'
+    if (path.includes('/messages') || path.includes('/live-chat')) return 'Messages'
 
     const activeItem = navItems.find(item => isActive(item))
     if (activeItem) return activeItem.label
@@ -1582,6 +1586,7 @@ export default function DashboardLayout({ children }) {
         </Form>
       </Modal>
       {renderPractitionerModals()}
+      <FloatingChatDrawer />
     </div>
   )
 }

@@ -936,6 +936,9 @@ export default function HeadAdminAdminManagement() {
           <Form.Item name="email" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Email Address *</span>} rules={[{ required: true, type: 'email', message: 'Enter valid email' }]}>
             <Input placeholder="sarah@example.com" className="rounded-xl h-10" />
           </Form.Item>
+          <Form.Item name="password" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Login Password *</span>} rules={[{ required: true, message: 'Please enter a login password' }]}>
+            <Input.Password placeholder="Set login password (e.g. Admin@2026)" className="rounded-xl h-10" />
+          </Form.Item>
           <Form.Item name="clinic" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Clinic Name *</span>} rules={[{ required: true, message: 'Please enter clinic' }]}>
             <Input placeholder="e.g. Harbor Wellness" className="rounded-xl h-10" />
           </Form.Item>

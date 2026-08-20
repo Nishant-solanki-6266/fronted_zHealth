@@ -512,6 +512,17 @@ export default function DoctorsManagePage() {
                     <Input placeholder="dr@clinic.com" className="rounded-xl h-10 border-slate-200 dark:border-slate-850 dark:bg-slate-900 text-slate-808 dark:text-white" />
                   </Form.Item>
                   <Form.Item
+                    name="password"
+                    label={<span className="text-slate-555 font-bold text-[11px] uppercase tracking-wider">{modalMode === 'add' ? 'Login Password *' : 'Change Password (optional)'}</span>}
+                    rules={modalMode === 'add' ? [{ required: true, message: 'Password required for practitioner login' }] : []}
+                    className="mb-0"
+                  >
+                    <Input.Password placeholder={modalMode === 'add' ? 'Enter login password (e.g. Sarah@2026)' : 'Leave blank to keep existing'} className="rounded-xl h-10 border-slate-200 dark:border-slate-850 dark:bg-slate-900 text-slate-808 dark:text-white" />
+                  </Form.Item>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Form.Item
                     name="phone"
                     label={<span className="text-slate-555 font-bold text-[11px] uppercase tracking-wider">Phone *</span>}
                     rules={[{ required: true, message: 'Phone required' }]}
@@ -519,9 +530,6 @@ export default function DoctorsManagePage() {
                   >
                     <Input placeholder="+61 412 100 001" className="rounded-xl h-10 border-slate-200 dark:border-slate-850 dark:bg-slate-900 text-slate-808 dark:text-white" />
                   </Form.Item>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Form.Item
                     name="specialty"
                     label={<span className="text-slate-555 font-bold text-[11px] uppercase tracking-wider">Specialty *</span>}

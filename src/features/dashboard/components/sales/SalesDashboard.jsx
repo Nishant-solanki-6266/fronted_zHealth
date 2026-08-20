@@ -365,7 +365,7 @@ export default function SalesDashboard({ store, navigate, modalContext }) {
                       className="mt-1"
                       items={activityLogs.map(log => ({
                         color: log.text?.includes('Converted') ? 'green' : log.text?.includes('Proposal') ? 'purple' : 'blue',
-                        children: (
+                        content: (
                           <div className="text-xs pb-1">
                             <span className="font-bold text-slate-800 dark:text-slate-200 block">{log.clinicName}</span>
                             <span className="text-slate-500 dark:text-slate-400 block">{log.text}</span>

@@ -5,6 +5,7 @@ import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
 import { getPatients, getPractitioners } from '../api/clinicAdminApi'
 import { getClinicServices } from '../../settings/api/settingsApi'
+import { isPractitionerAvailable } from '../../../utils/availabilityHelper'
 
 const { Option } = Select
 
@@ -13,6 +14,11 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
   const [form] = Form.useForm()
   const [selectedRepeat, setSelectedRepeat] = useState('None')
   const [extraNonLabourCosts, setExtraNonLabourCosts] = useState([])
+
+  const watchedPracId = Form.useWatch('practitionerId', form)
+  const watchedDate = Form.useWatch('date', form)
+  const selectedPrac = (store.practitioners || []).find(p => p.id === watchedPracId)
+  const isUnavailableOnDate = selectedPrac && watchedDate && !isPractitionerAvailable(selectedPrac, watchedDate)
 
   // Auto-fetch patients, practitioners, services from Live DB if store is empty on modal open
   useEffect(() => {
@@ -101,6 +107,30 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
     const practitionerObj = (store.practitioners || []).find(p => p.id === values.practitionerId)
     const serviceObj = (store.services || []).find(s => s.id === values.serviceId)
 
+    // Strict availability validation guard
+    if (practitionerObj && values.date) {
+      const isAvail = isPractitionerAvailable(practitionerObj, values.date)
+      if (!isAvail) {
+        Modal.warning({
+          title: `${practitionerObj.name || 'Practitioner'} is Unavailable`,
+          centered: true,
+          content: (
+            <div className="space-y-2 mt-3 text-xs font-semibold" style={{ color: '#475569' }}>
+              <p style={{ color: '#0F1B33', fontSize: '13px', margin: 0 }}>
+                <strong>{practitionerObj.name}</strong> is configured as <strong>Unavailable (OFF)</strong> on <strong>{values.date.format('dddd, D MMMM YYYY')}</strong> in clinic availability schedule.
+              </p>
+              <p style={{ color: '#64748B', margin: '6px 0 0 0' }}>
+                Appointments cannot be booked on non-working days. Please select another date or assign a different practitioner.
+              </p>
+            </div>
+          ),
+          okText: 'Change Date / Practitioner',
+          okButtonProps: { style: { backgroundColor: '#8C4BFF', borderColor: '#8C4BFF', borderRadius: '8px' } }
+        })
+        return
+      }
+    }
+
     const finalRepeat = values.repeat === 'Custom' 
       ? `Custom: ${values.customRepeatText || 'Every 3 days'}` 
       : values.repeat
@@ -134,12 +164,22 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
       const savedAppt = await store.addAppointment(newAppt)
       const pName = savedAppt?.patientName || newAppt.patientName || 'Client'
       toast.success(`Appointment scheduled & saved for ${pName}!`)
+      form.resetFields()
+      onCancel()
     } catch (err) {
+      if (err.response?.data?.isUnavailable) {
+        Modal.warning({
+          title: 'Practitioner Unavailable',
+          centered: true,
+          content: err.response.data.message || 'This practitioner is unavailable on the selected day.',
+          okText: 'OK',
+          okButtonProps: { style: { backgroundColor: '#8C4BFF', borderColor: '#8C4BFF', borderRadius: '8px' } }
+        })
+        return
+      }
       console.error('❌ Error in scheduling appointment:', err)
       toast.error('Failed to schedule appointment')
     }
-    form.resetFields()
-    onCancel()
   }
 
   return (
@@ -170,6 +210,11 @@ export default function NewScheduleModal({ open, onCancel, defaultTimeSlot }) {
           }}
           className="space-y-4"
         >
+        {isUnavailableOnDate && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-700 dark:text-amber-300 text-xs font-bold flex items-center gap-2">
+            <span>⚠️ <strong>Availability Alert:</strong> {selectedPrac.name} is configured as <strong>Unavailable</strong> on {watchedDate.format('dddd')}s in clinic availability schedule.</span>
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Form.Item name="patientId" label={<span className="text-slate-600 dark:text-slate-350 font-semibold text-xs">Client Patient</span>} rules={[{ required: true }]} className="mb-0">
             <Select 
