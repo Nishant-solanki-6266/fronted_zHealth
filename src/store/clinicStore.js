@@ -27,61 +27,100 @@ export const useClinicStore = create((set, get) => ({
     try {
       const role = (get().userRole || (typeof window !== 'undefined' ? localStorage.getItem('userRole') : '') || '').toLowerCase()
       const path = typeof window !== 'undefined' ? window.location.pathname : ''
-      
-      // Allow fetching for clinic admin, super admin, practitioners, and sales roles
-      const isAllowedRole = role === 'clinic' || role === 'head_admin' || role === 'super_admin' || role === 'practitioner' || role === 'doctor' || role === 'sales' || path.startsWith('/clinic-admin') || path.startsWith('/head-admin') || path.startsWith('/practitioner') || path.startsWith('/sales')
-      
-      if (!isAllowedRole) {
+
+      // Sales and Patient roles have their own API fetchers — skip clinic-admin APIs entirely
+      const isSalesRole = role === 'sales' || path.startsWith('/sales')
+      const isPatientRole = role === 'patient' || path.startsWith('/patient')
+      const isPractitionerRole = role === 'practitioner' || path.startsWith('/practitioner')
+      const isClinicRole = role === 'clinic' || role === 'head_admin' || role === 'super_admin' || path.startsWith('/clinic-admin') || path.startsWith('/head-admin')
+
+      // Sales portal specific init
+      if (isSalesRole) {
+        const [plansRes, commissionsRes] = await Promise.allSettled([
+          api.get('/api/sales/subscription-plans').catch(() => null),
+          api.get('/api/sales/commissions').catch(() => null)
+        ])
+        
+        const updates = {}
+        if (plansRes.status === 'fulfilled' && plansRes.value?.data?.success && Array.isArray(plansRes.value.data.data)) {
+          updates.subscriptionPlans = plansRes.value.data.data
+        }
+        if (commissionsRes.status === 'fulfilled' && commissionsRes.value?.data?.success && Array.isArray(commissionsRes.value.data.data)) {
+          updates.salesCommissions = commissionsRes.value.data.data
+        }
+        
+        if (Object.keys(updates).length > 0) {
+          set(updates)
+        }
         return
       }
 
-      const [tagsRes, reasonsRes, termsRes, patientsRes, practitionersRes, productsRes, servicesRes, branchesRes, consultationsRes] = await Promise.allSettled([
-        getClinicClientTags(),
-        getClinicCancellationReasons(),
-        getPaymentTerms(),
-        getPatients(),
-        getPractitioners(),
-        getProducts(),
-        getClinicServices(),
-        getBranches(),
-        api.get('/api/practitioner/consultations').then(r => r.data).catch(() => null)
-      ])
+      // Patient portal specific init
+      if (isPatientRole) {
+        return
+      }
 
-      if (tagsRes.status === 'fulfilled' && tagsRes.value?.success && Array.isArray(tagsRes.value.data)) {
-        set({ clientTags: tagsRes.value.data })
+      // Practitioner: only fetch consultations + practitioners
+      if (isPractitionerRole) {
+        const [practitionersRes, consultationsRes] = await Promise.allSettled([
+          getPractitioners(),
+          api.get('/api/practitioner/consultations').then(r => r.data).catch(() => null)
+        ])
+        if (practitionersRes.status === 'fulfilled' && practitionersRes.value?.success) {
+          set({ practitioners: practitionersRes.value.data })
+        }
+        if (consultationsRes.status === 'fulfilled' && consultationsRes.value?.success) {
+          set({ consultations: consultationsRes.value.data })
+        }
+        return
       }
-      if (reasonsRes.status === 'fulfilled' && reasonsRes.value?.success && Array.isArray(reasonsRes.value.data)) {
-        set({ cancellationReasons: reasonsRes.value.data })
-      }
-      if (termsRes.status === 'fulfilled' && termsRes.value?.success && Array.isArray(termsRes.value.data)) {
-        set((state) => ({
-          invoiceTemplates: {
-            ...state.invoiceTemplates,
-            paymentTermsList: termsRes.value.data
-          }
-        }))
-      }
-      if (patientsRes.status === 'fulfilled' && patientsRes.value?.success && Array.isArray(patientsRes.value.data)) {
-        const mapped = patientsRes.value.data.map(p => ({
-          ...p,
-          name: p.fullName || p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.email || 'Unnamed Client'
-        }))
-        set({ patients: mapped })
-      }
-      if (practitionersRes.status === 'fulfilled' && practitionersRes.value?.success && Array.isArray(practitionersRes.value.data)) {
-        set({ practitioners: practitionersRes.value.data })
-      }
-      if (productsRes.status === 'fulfilled' && productsRes.value?.success && Array.isArray(productsRes.value.data)) {
-        set({ products: productsRes.value.data })
-      }
-      if (servicesRes.status === 'fulfilled' && servicesRes.value?.success && Array.isArray(servicesRes.value.data)) {
-        set({ services: servicesRes.value.data })
-      }
-      if (branchesRes.status === 'fulfilled' && branchesRes.value?.success && Array.isArray(branchesRes.value.data)) {
-        set({ branches: branchesRes.value.data })
-      }
-      if (consultationsRes.status === 'fulfilled' && consultationsRes.value?.success && Array.isArray(consultationsRes.value.data)) {
-        set({ consultations: consultationsRes.value.data })
+
+      // Clinic Admin / Head Admin: fetch full clinic-admin data suite
+      if (isClinicRole) {
+        const [tagsRes, reasonsRes, termsRes, patientsRes, practitionersRes, productsRes, servicesRes, branchesRes] = await Promise.allSettled([
+          getClinicClientTags(),
+          getClinicCancellationReasons(),
+          getPaymentTerms(),
+          getPatients(),
+          getPractitioners(),
+          getProducts(),
+          getClinicServices(),
+          getBranches(),
+        ])
+
+        if (tagsRes.status === 'fulfilled' && tagsRes.value?.success && Array.isArray(tagsRes.value.data)) {
+          set({ clientTags: tagsRes.value.data })
+        }
+        if (reasonsRes.status === 'fulfilled' && reasonsRes.value?.success && Array.isArray(reasonsRes.value.data)) {
+          set({ cancellationReasons: reasonsRes.value.data })
+        }
+        if (termsRes.status === 'fulfilled' && termsRes.value?.success && Array.isArray(termsRes.value.data)) {
+          set((state) => ({
+            invoiceTemplates: {
+              ...state.invoiceTemplates,
+              paymentTermsList: termsRes.value.data
+            }
+          }))
+        }
+        if (patientsRes.status === 'fulfilled' && patientsRes.value?.success && Array.isArray(patientsRes.value.data)) {
+          const mapped = patientsRes.value.data.map(p => ({
+            ...p,
+            name: p.fullName || p.name || `${p.firstName || ''} ${p.lastName || ''}`.trim() || p.email || 'Unnamed Client'
+          }))
+          set({ patients: mapped })
+        }
+        if (practitionersRes.status === 'fulfilled' && practitionersRes.value?.success && Array.isArray(practitionersRes.value.data)) {
+          set({ practitioners: practitionersRes.value.data })
+        }
+        if (productsRes.status === 'fulfilled' && productsRes.value?.success && Array.isArray(productsRes.value.data)) {
+          set({ products: productsRes.value.data })
+        }
+        if (servicesRes.status === 'fulfilled' && servicesRes.value?.success && Array.isArray(servicesRes.value.data)) {
+          set({ services: servicesRes.value.data })
+        }
+        if (branchesRes.status === 'fulfilled' && branchesRes.value?.success && Array.isArray(branchesRes.value.data)) {
+          set({ branches: branchesRes.value.data })
+        }
       }
     } catch (err) {
       console.error('❌ Error initializing store dynamic data:', err)
@@ -605,8 +644,39 @@ export const useClinicStore = create((set, get) => ({
 
   /* Patient CRUD */
   setPatients: (patients) => set({ patients: Array.isArray(patients) ? patients : [] }),
-  addPatient: (patient) => {
-    const newPatient = {
+  addPatient: async (patientData) => {
+    if (!patientData) return
+    if (patientData.id && !String(patientData.id).startsWith('p_')) {
+      set((state) => {
+        const list = state.patients || []
+        const exists = list.some(p => p && p.id === patientData.id)
+        if (exists) return { patients: list }
+        return { patients: [patientData, ...list] }
+      })
+      return patientData
+    }
+    try {
+      const payload = {
+        fullName: patientData.fullName || patientData.name || 'New Client',
+        email: patientData.email || null,
+        phone: patientData.phone || null,
+        dob: patientData.dob || null,
+        gender: patientData.gender || 'Other',
+        status: patientData.status || 'Active'
+      }
+      const res = await api.post('/api/clinic-admin/patients', payload)
+      if (res?.data?.success && res.data.data) {
+        const created = {
+          ...res.data.data,
+          name: res.data.data.fullName || res.data.data.name
+        }
+        set((state) => ({ patients: [created, ...(state.patients || []).filter(p => p.id !== created.id)] }))
+        return created
+      }
+    } catch (err) {
+      console.error('❌ Error saving patient to DB:', err?.message)
+    }
+    const fallback = {
       id: `p_${Date.now()}`,
       sessionsUsed: 0,
       sessionsAllocated: 10,
@@ -614,9 +684,10 @@ export const useClinicStore = create((set, get) => ({
       tags: [],
       diagnosis: [],
       alerts: '',
-      ...patient,
+      ...patientData,
     }
-    set((state) => ({ patients: [...state.patients, newPatient] }))
+    set((state) => ({ patients: [fallback, ...(state.patients || [])] }))
+    return fallback
   },
   updatePatient: (updatedPatient) => {
     set((state) => ({
@@ -788,10 +859,13 @@ export const useClinicStore = create((set, get) => ({
 
   addDocument: async (doc) => {
     try {
-      const res = await api.post('/api/practitioner/documents', doc)
-      if (res?.data?.success) {
+      const role = (get().userRole || (typeof window !== 'undefined' ? localStorage.getItem('userRole') : '') || '').toLowerCase()
+      const isPatient = role === 'patient' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/patient'))
+      const endpoint = isPatient ? '/api/patient/documents' : (role === 'practitioner' ? '/api/practitioner/documents' : '/api/clinic-admin/documents')
+      const res = await api.post(endpoint, doc)
+      if (res?.data?.success && res.data.data) {
         const created = res.data.data
-        set((state) => ({ documents: [created, ...state.documents] }))
+        set((state) => ({ documents: [created, ...(state.documents || []).filter(d => d.id !== created.id)] }))
         return created
       }
     } catch (err) {
@@ -804,7 +878,7 @@ export const useClinicStore = create((set, get) => ({
       uploadBy: doc.uploadBy || 'Admin',
       ...doc,
     }
-    set((state) => ({ documents: [newDoc, ...state.documents] }))
+    set((state) => ({ documents: [newDoc, ...(state.documents || []).filter(d => d.id !== newDoc.id)] }))
     return newDoc
   },
   updateDocument: (updatedDoc) => {
@@ -1404,6 +1478,32 @@ export const useClinicStore = create((set, get) => ({
     set((state) => ({ salesMessages: [...state.salesMessages, newMsg] }))
   },
 
+  /* Sales Commissions Live API */
+  salesCommissions: [],
+  fetchCommissions: async () => {
+    try {
+      const res = await api.get('/api/sales/commissions')
+      if (res?.data?.success) {
+        set({ salesCommissions: res.data.data })
+        return res.data.data
+      }
+    } catch (err) {
+      console.error('❌ Error fetching sales commissions:', err?.response?.status, err?.message)
+    }
+  },
+  requestCommissionPayout: async (clinicId, clinicName, amount) => {
+    try {
+      const res = await api.post('/api/sales/commissions/request', { clinicId, clinicName, amount })
+      if (res?.data?.success) {
+        const created = res.data.data
+        set((state) => ({ salesCommissions: [created, ...state.salesCommissions] }))
+        return created
+      }
+    } catch (err) {
+      console.error('❌ Error requesting commission payout:', err?.response?.status, err?.message)
+    }
+  },
+
   /* Sales Clinics Live API */
   fetchSalesClinics: async () => {
     try {
@@ -1436,7 +1536,27 @@ export const useClinicStore = create((set, get) => ({
       clinics: state.clinics.map((c) => (c.id === updated.id ? { ...c, ...updated } : c)),
     }))
   },
-  deleteClinic: (id) => {
+  updateClinicOnboarding: async (clinicId, steps) => {
+    // Optimistic UI update
+    set((state) => ({
+      clinics: state.clinics.map((c) => (c.id === clinicId ? { ...c, onboardingSteps: steps } : c)),
+    }))
+    try {
+      if (clinicId && !String(clinicId).startsWith('clinic_')) {
+        await api.put(`/api/sales/clinics/${clinicId}`, { onboardingSteps: steps })
+      }
+    } catch (err) {
+      console.error('❌ Error updating onboarding steps in DB:', err?.response?.status, err?.message)
+    }
+  },
+  deleteClinic: async (id) => {
+    try {
+      if (id && !String(id).startsWith('clinic_')) {
+        await api.delete(`/api/sales/clinics/${id}`)
+      }
+    } catch (err) {
+      console.error('❌ Error deleting clinic from DB:', err?.response?.status, err?.message)
+    }
     set((state) => ({ clinics: state.clinics.filter((c) => c.id !== id) }))
   },
   setSalesList: (newList) => {
@@ -1585,7 +1705,10 @@ export const useClinicStore = create((set, get) => ({
   documents: [],
   fetchDocuments: async () => {
     try {
-      const res = await api.get('/api/practitioner/documents')
+      const role = (get().userRole || (typeof window !== 'undefined' ? localStorage.getItem('userRole') : '') || '').toLowerCase()
+      const isPatient = role === 'patient' || (typeof window !== 'undefined' && window.location.pathname.startsWith('/patient'))
+      const endpoint = isPatient ? '/api/patient/documents' : (role === 'practitioner' ? '/api/practitioner/documents' : '/api/clinic-admin/documents')
+      const res = await api.get(endpoint)
       if (res?.data?.success && Array.isArray(res.data.data)) {
         set({ documents: res.data.data })
         return res.data.data
@@ -1593,21 +1716,6 @@ export const useClinicStore = create((set, get) => ({
     } catch (err) {
       console.error('❌ Error fetching documents from DB:', err?.message)
     }
-  },
-  addDocument: async (docData) => {
-    try {
-      const res = await api.post('/api/practitioner/documents', docData)
-      if (res?.data?.success) {
-        const created = res.data.data
-        set((state) => ({ documents: [created, ...state.documents] }))
-        return created
-      }
-    } catch (err) {
-      console.error('❌ Error saving document to DB:', err?.message)
-    }
-    const fallback = { id: `doc_${Date.now()}`, date: new Date().toLocaleDateString(), status: 'Generated', ...docData }
-    set((state) => ({ documents: [fallback, ...state.documents] }))
-    return fallback
   },
 }))
 

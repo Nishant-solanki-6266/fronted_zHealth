@@ -40,6 +40,12 @@ export default function HeadAdminNotifications() {
 
   useEffect(() => {
     fetchNotifications()
+    const handleRefetch = () => fetchNotifications()
+    window.addEventListener('notification:refetch', handleRefetch)
+
+    return () => {
+      window.removeEventListener('notification:refetch', handleRefetch)
+    }
   }, [userRole])
 
   const [activeTab, setActiveTab] = useState('Inbox')

@@ -698,19 +698,11 @@ export default function CalendarPage() {
 
   const today = dayjs()
 
-  // Load appointments from live MySQL database
+  // Load appointments from live database
   useEffect(() => {
-    const loadAppointmentsFromLiveDB = async () => {
-      try {
-        const res = await getAppointments({ search: searchVal })
-        if (res?.success && Array.isArray(res.data) && res.data.length > 0) {
-          res.data.forEach(appt => store.addAppointment(appt))
-        }
-      } catch (err) {
-        console.error('Failed to load appointments from live DB:', err)
-      }
+    if (typeof store.fetchAppointments === 'function') {
+      store.fetchAppointments({ search: searchVal })
     }
-    loadAppointmentsFromLiveDB()
   }, [searchVal])
 
   // Calculate navigations based on selected view mode

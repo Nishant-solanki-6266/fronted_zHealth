@@ -20,7 +20,11 @@ const CREDENTIALS = [
   {
     label: 'Sales Executive',
     role: 'sales',
+<<<<<<< HEAD
     email: 'maria@gmail.com',
+=======
+    email: 'sales@gmail.com',
+>>>>>>> a00112b099d6db502418651eaeeb14e9833832c9
     password: '12345678',
     description: 'CRM & Pipeline Leads',
     color: '#F59E0B',
@@ -38,7 +42,7 @@ const CREDENTIALS = [
   {
     label: 'Practitioner',
     role: 'practitioner',
-    email: 'sun@gmail.com',
+    email: 'practitioners@gmail.com',
     password: 'password123',
     description: 'Doctor / Treatment Board',
     color: '#30D2BE',
@@ -47,7 +51,7 @@ const CREDENTIALS = [
   {
     label: 'Patient Portal',
     role: 'patient',
-    email: 'vijay@gmail.com',
+    email: 'mypatinent@gmail.com',
     password: '12345678',
     description: 'Client Personal Bookings',
     color: '#3B82F6',
@@ -80,8 +84,14 @@ export default function LoginForm() {
         localStorage.setItem('accessToken', json.data.accessToken)
         localStorage.setItem('token', json.data.accessToken)
       }
+      if (json.data?.refreshToken) {
+        localStorage.setItem('refreshToken', json.data.refreshToken)
+      }
       if (json.data?.user) {
         localStorage.setItem('user', JSON.stringify(json.data.user))
+        if (json.data.user.id) localStorage.setItem('userId', json.data.user.id)
+        if (json.data.user.name) localStorage.setItem('userName', json.data.user.name)
+        else if (json.data.user.email) localStorage.setItem('userName', json.data.user.email)
       }
 
       const userRoleFromBackend = json.data?.user?.role

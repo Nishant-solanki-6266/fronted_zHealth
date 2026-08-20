@@ -291,6 +291,10 @@ export default function PractitionerSettingsPage() {
   // Body Chart Templates State (live DB)
   const [bodyChartTemplates, setBodyChartTemplates] = useState([])
   const [bodyChartLoading, setBodyChartLoading] = useState(false)
+  const [bodyChartModalOpen, setBodyChartModalOpen] = useState(false)
+  const [newTemplateName, setNewTemplateName] = useState('')
+  const [newTemplateDesc, setNewTemplateDesc] = useState('')
+  const [creatingTemplate, setCreatingTemplate] = useState(false)
 
   useEffect(() => {
     const loadBodyChartTemplates = async () => {
@@ -519,15 +523,36 @@ export default function PractitionerSettingsPage() {
     }
   }
 
-  const handleAddBodyChartTemplate = async () => {
+  const handleOpenBodyChartModal = () => {
+    setNewTemplateName('')
+    setNewTemplateDesc('')
+    setBodyChartModalOpen(true)
+  }
+
+  const handleAddBodyChartTemplate = async (e) => {
+    if (e && e.preventDefault) e.preventDefault()
+    if (!newTemplateName.trim()) {
+      toast.error('Please enter a template name')
+      return
+    }
+
+    setCreatingTemplate(true)
     try {
-      const res = await createBodyChartTemplate({ name: 'New Template', description: 'Custom body chart template' })
+      const res = await createBodyChartTemplate({
+        name: newTemplateName.trim(),
+        description: newTemplateDesc.trim() || 'Custom clinical body chart template'
+      })
       if (res && res.success) {
         setBodyChartTemplates(prev => [res.data, ...prev])
-        toast.success('New template created in live database!')
+        toast.success(`Template "${res.data.name}" created in live database!`)
+        setBodyChartModalOpen(false)
+        setNewTemplateName('')
+        setNewTemplateDesc('')
       }
     } catch (err) {
       toast.error('Failed to create template')
+    } finally {
+      setCreatingTemplate(false)
     }
   }
 
@@ -840,7 +865,7 @@ export default function PractitionerSettingsPage() {
                       <div className="py-6 space-y-6">
                         <div className="flex justify-between items-center mb-4">
                           <h3 className="font-bold text-lg text-slate-800 dark:text-white m-0">My Body Charts</h3>
-                          <Button icon={<PlusOutlined />} className="rounded-lg font-semibold" loading={bodyChartLoading} onClick={handleAddBodyChartTemplate}>New Template</Button>
+                          <Button icon={<PlusOutlined />} className="rounded-lg font-semibold" loading={bodyChartLoading} onClick={handleOpenBodyChartModal}>New Template</Button>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                           {bodyChartLoading && bodyChartTemplates.length === 0 && (
@@ -864,6 +889,52 @@ export default function PractitionerSettingsPage() {
                             </div>
                           ))}
                         </div>
+
+                        {/* Create Body Chart Template Modal */}
+                        <Modal
+                          title={<span className="font-bold text-slate-800 dark:text-white">Create New Body Chart Template</span>}
+                          open={bodyChartModalOpen}
+                          onCancel={() => setBodyChartModalOpen(false)}
+                          footer={null}
+                          destroyOnHidden
+                        >
+                          <form onSubmit={handleAddBodyChartTemplate} className="space-y-4 pt-3">
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Template Name *</label>
+                              <Input
+                                placeholder="e.g. Lumbar Spine & Lower Back Chart"
+                                value={newTemplateName}
+                                onChange={(e) => setNewTemplateName(e.target.value)}
+                                className="rounded-lg text-xs"
+                                autoFocus
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Category / Description</label>
+                              <Input.TextArea
+                                placeholder="e.g. Pre-configured anatomy diagram for lower back pain evaluations"
+                                value={newTemplateDesc}
+                                onChange={(e) => setNewTemplateDesc(e.target.value)}
+                                rows={3}
+                                className="rounded-lg text-xs"
+                              />
+                            </div>
+                            <div className="flex justify-end gap-2 pt-2">
+                              <Button onClick={() => setBodyChartModalOpen(false)} className="rounded-lg font-semibold text-xs">
+                                Cancel
+                              </Button>
+                              <Button
+                                type="primary"
+                                htmlType="submit"
+                                loading={creatingTemplate}
+                                style={{ backgroundColor: '#8C4BFF', borderColor: '#8C4BFF' }}
+                                className="rounded-lg font-bold text-xs text-white"
+                              >
+                                Create Template
+                              </Button>
+                            </div>
+                          </form>
+                        </Modal>
                       </div>
                     ) 
                   },

@@ -378,8 +378,10 @@ export default function PractitionerConsultation() {
     return () => clearTimeout(timeout)
   }, [noteText])
 
+  const basePath = window.location.pathname.startsWith('/clinic-admin') ? '/clinic-admin' : '/practitioner'
+
   // Load the selected patient
-  const patient = store.patients.find(p => p.id === selectedPatientId)
+  const patient = store.patients.find(p => p.id === selectedPatientId || String(p.id) === String(selectedPatientId)) || (selectedPatientId ? store.patients.find(p => p.id) : null) || store.patients[0]
 
   useEffect(() => {
     if (patient) {
@@ -405,7 +407,7 @@ export default function PractitionerConsultation() {
         </p>
         <Button
           type="primary"
-          onClick={() => navigate('/practitioner/patients')}
+          onClick={() => navigate(`${basePath}/patients`)}
           className="mt-4 rounded-xl font-bold h-10 px-6 text-white border-none"
           style={{ backgroundColor: '#8C4BFF' }}
         >

@@ -345,16 +345,29 @@ export default function PatientsPage() {
                   ))}
                 </div>
                 <div className="py-3 md:py-4 px-4 flex items-center justify-end pr-6">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      navigate(`/practitioner/consultations?patientId=${patient.id}`)
-                    }}
-                    className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#8C4BFF] hover:bg-[#7B3DE8] border-none shadow-sm cursor-pointer transition-colors flex items-center gap-1.5"
-                  >
-                    Start Consultation
-                  </button>
+                  {basePath === '/clinic-admin' ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/clinic-admin/patients/${patient.id}`)
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#8C4BFF] hover:bg-[#7B3DE8] border-none shadow-sm cursor-pointer transition-colors flex items-center gap-1.5"
+                    >
+                      View Profile
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        navigate(`/practitioner/consultations?patientId=${patient.id}`)
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[#8C4BFF] hover:bg-[#7B3DE8] border-none shadow-sm cursor-pointer transition-colors flex items-center gap-1.5"
+                    >
+                      Start Consultation
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

@@ -17,14 +17,27 @@ export default function PatientCareTeam() {
   const [specialtyFilter, setSpecialtyFilter] = useState('ALL')
 
   const [practitioners, setPractitioners] = useState([])
+  const [treatmentPlans, setTreatmentPlans] = useState([])
+  const [documentsList, setDocumentsList] = useState([])
 
-  // Fetch live care team from backend
-  const fetchCareTeam = async () => {
+  // Fetch live care team, treatment plans, and shared documents from backend
+  const fetchCareTeamData = async () => {
     setLoading(true)
     try {
-      const res = await api.get('/api/patient/care-team')
-      if (res.data?.success && Array.isArray(res.data.data)) {
-        setPractitioners(res.data.data)
+      const [careTeamRes, plansRes, docsRes] = await Promise.all([
+        api.get('/api/patient/care-team').catch(() => null),
+        api.get('/api/patient/treatment-plans').catch(() => null),
+        api.get('/api/patient/forms-documents').catch(() => null)
+      ])
+
+      if (careTeamRes?.data?.success && Array.isArray(careTeamRes.data.data)) {
+        setPractitioners(careTeamRes.data.data)
+      }
+      if (plansRes?.data?.success && Array.isArray(plansRes.data.data)) {
+        setTreatmentPlans(plansRes.data.data)
+      }
+      if (docsRes?.data?.success && docsRes.data.data?.documents && Array.isArray(docsRes.data.data.documents)) {
+        setDocumentsList(docsRes.data.data.documents)
       }
     } catch (err) {
       console.warn('Backend care team fetch notice:', err?.message)
@@ -34,7 +47,7 @@ export default function PatientCareTeam() {
   }
 
   useEffect(() => {
-    fetchCareTeam()
+    fetchCareTeamData()
   }, [])
 
   const handleSendMessageClick = (doctor) => {
@@ -76,17 +89,18 @@ export default function PatientCareTeam() {
     toast.success(`${reportTitle} downloaded successfully!`);
   }
 
-  const sharedGoals = [
-    { goal: 'Improve active lumbar extension mobility past 70 degrees', assignees: ['Sarah Jenkins', 'James Carter'], status: 'Active (75% Complete)' },
-    { goal: 'Achieve daily double leg calf raises and eccentric stretches', assignees: ['Sarah Jenkins'], status: 'Active (80% Complete)' },
-    { goal: 'Improve verbal articulation and sentence formation drills', assignees: ['Emily Smith'], status: 'Active (50% Complete)' }
-  ]
+  const sharedGoals = treatmentPlans.map(p => ({
+    goal: p.condition || p.title || 'Rehabilitation & Treatment Plan Goal',
+    assignees: [p.practitionerName || p.practitioner || 'Care Team Practitioner'],
+    status: `Active (${p.overallProgress !== undefined ? p.overallProgress : 75}% Complete)`
+  }))
 
-  const sharedReports = [
-    { title: 'NDIS Mid-Term Functional Assessment Report', date: '2026-06-08', author: 'Dr. Sarah Jenkins', size: '2.4 MB' },
-    { title: 'Paediatric Speech & Language Baseline Profile', date: '2026-05-24', author: 'Dr. Emily Smith', size: '1.8 MB' },
-    { title: 'Lumbar Spine Diagnostic MRI Referrals & Scan Report', date: '2026-04-12', author: 'Dr. Arthur Conan (GP)', size: '4.2 MB' }
-  ]
+  const sharedReports = documentsList.map(d => ({
+    title: d.name,
+    date: d.date || 'Recently',
+    author: d.uploadBy || 'Care Team Doctor',
+    size: d.size || '1.2 MB'
+  }))
 
   // Filtered Practitioners list
   const filteredPractitioners = practitioners.filter(p => {
@@ -201,65 +215,77 @@ export default function PatientCareTeam() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" style={{ marginTop: '24px' }}>
         {/* Shared Treatment Goals */}
         <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-300">Shared Treatment Goals</span>}>
-          <div className="space-y-4">
-            {sharedGoals.map((g, idx) => (
-              <div key={idx} className="p-3.5 bg-slate-50/60 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl space-y-2">
-                <div className="flex justify-between items-start">
-                  <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block flex-1">{g.goal}</span>
-                  <Tag color="success" className="m-0 border-none rounded-full px-2.5 py-0.5 text-[8.5px] font-bold uppercase">{g.status}</Tag>
+          {sharedGoals.length === 0 ? (
+            <div className="py-6 text-center text-xs text-slate-400">
+              No shared treatment goals active yet for your care team.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {sharedGoals.map((g, idx) => (
+                <div key={idx} className="p-3.5 bg-slate-50/60 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-xl space-y-2">
+                  <div className="flex justify-between items-start">
+                    <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block flex-1">{g.goal}</span>
+                    <Tag color="success" className="m-0 border-none rounded-full px-2.5 py-0.5 text-[8.5px] font-bold uppercase">{g.status}</Tag>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    <span className="text-[9px] text-slate-400 font-bold uppercase">Assignees:</span>
+                    {g.assignees.map(a => (
+                      <Tag key={a} className="m-0 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 rounded-full text-[9px] font-semibold">{a}</Tag>
+                    ))}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-1.5 items-center">
-                  <span className="text-[9px] text-slate-400 font-bold uppercase">Assignees:</span>
-                  {g.assignees.map(a => (
-                    <Tag key={a} className="m-0 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 rounded-full text-[9px] font-semibold">{a}</Tag>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </Card>
 
         {/* Shared Collaborative Reports */}
         <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-xs text-slate-700 dark:text-slate-300">Shared Care Documents & Reports</span>}>
-          <Table
-            dataSource={sharedReports}
-            rowKey="title"
-            pagination={false}
-            scroll={{ x: 700 }}
-            className="border-none"
-            columns={[
-              {
-                title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Report Description</span>,
-                render: (_, rec) => (
-                  <div className="flex items-center gap-2">
-                    <FilePdfOutlined className="text-rose-500 text-base flex-shrink-0" />
-                    <div>
-                      <span className="text-slate-700 dark:text-slate-300 font-semibold text-xs block">{rec.title}</span>
-                      <span className="text-[9px] text-slate-400 block mt-0.5">Author: {rec.author} &bull; {rec.size}</span>
+          {sharedReports.length === 0 ? (
+            <div className="py-6 text-center text-xs text-slate-400">
+              No shared clinical reports available.
+            </div>
+          ) : (
+            <Table
+              dataSource={sharedReports}
+              rowKey="title"
+              pagination={false}
+              scroll={{ x: 700 }}
+              className="border-none"
+              columns={[
+                {
+                  title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Report Description</span>,
+                  render: (_, rec) => (
+                    <div className="flex items-center gap-2">
+                      <FilePdfOutlined className="text-rose-500 text-base flex-shrink-0" />
+                      <div>
+                        <span className="text-slate-700 dark:text-slate-300 font-semibold text-xs block">{rec.title}</span>
+                        <span className="text-[9px] text-slate-400 block mt-0.5">Author: {rec.author} &bull; {rec.size}</span>
+                      </div>
                     </div>
-                  </div>
-                )
-              },
-              {
-                title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Shared Date</span>,
-                dataIndex: 'date',
-                render: (d) => <span className="text-slate-500 font-semibold text-xs">{d}</span>
-              },
-              {
-                title: '',
-                align: 'right',
-                render: (_, rec) => (
-                  <Button 
-                    size="small" 
-                    onClick={() => handleDownload(rec.title)}
-                    className="rounded-lg text-[9px] font-bold h-7 border-slate-200"
-                  >
-                    Download
-                  </Button>
-                )
-              }
-            ]}
-          />
+                  )
+                },
+                {
+                  title: <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Shared Date</span>,
+                  dataIndex: 'date',
+                  render: (d) => <span className="text-slate-500 font-semibold text-xs">{d}</span>
+                },
+                {
+                  title: '',
+                  align: 'right',
+                  render: (_, rec) => (
+                    <Button 
+                      size="small" 
+                      onClick={() => handleDownload(rec.title)}
+                      className="rounded-lg text-[9px] font-bold h-7 border-slate-200"
+                    >
+                      Download
+                    </Button>
+                  )
+                }
+              ]}
+            />
+          )}
         </Card>
       </div>
 

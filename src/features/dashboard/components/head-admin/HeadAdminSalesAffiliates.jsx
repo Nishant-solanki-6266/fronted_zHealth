@@ -230,7 +230,7 @@ export default function HeadAdminSalesAffiliates() {
   })
 
   const [globalRate, setGlobalRate] = useState(15)
-  const tabsList = ['Sales User Management', 'Affiliate Tracking', 'Commission Dashboard', 'Lead Pipeline']
+  const tabsList = ['Sales User Management', 'Commission Dashboard']
 
   // Colin Edegbe calculations from store clinics
   const colinClinics = clinics.filter(c => c.salesperson === 'Colin Edegbe')
@@ -277,8 +277,8 @@ export default function HeadAdminSalesAffiliates() {
       
       {/* ── Title Header ── */}
       <div>
-        <h1 className="text-xl font-bold text-slate-850 dark:text-white m-0 tracking-tight">Sales & Affiliates</h1>
-        <p className="text-slate-400 dark:text-slate-450 text-xs mt-1">Sales accounts, affiliate performance, commission rules, and lead pipeline</p>
+        <h1 className="text-xl font-bold text-slate-850 dark:text-white m-0 tracking-tight">Sales Management</h1>
+        <p className="text-slate-400 dark:text-slate-450 text-xs mt-1">Sales accounts and commission rules management</p>
       </div>
 
       {/* ── Horizontal Navigation Tabs ── */}
@@ -303,7 +303,7 @@ export default function HeadAdminSalesAffiliates() {
         <div className="space-y-6 animate-fade-in">
           
           {/* Stats Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex justify-between items-start">
               <div>
                 <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total sales users</span>
@@ -334,17 +334,6 @@ export default function HeadAdminSalesAffiliates() {
               </div>
               <div className="w-8 h-8 rounded-full bg-purple-50 dark:bg-purple-950/20 flex items-center justify-center text-[#8C4BFF]">
                 <SafetyCertificateOutlined style={{ fontSize: 14 }} />
-              </div>
-            </div>
-
-            <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-5 shadow-sm flex justify-between items-start">
-              <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Active pipeline</span>
-                <h3 className="text-2xl font-black text-slate-800 dark:text-white mt-3 mb-0">{leadsList.length}</h3>
-                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-semibold block mt-1">leads in flight</span>
-              </div>
-              <div className="w-8 h-8 rounded-full bg-amber-50 dark:bg-amber-950/20 flex items-center justify-center text-amber-500">
-                <ThunderboltOutlined style={{ fontSize: 14 }} />
               </div>
             </div>
           </div>
@@ -449,11 +438,7 @@ export default function HeadAdminSalesAffiliates() {
                     return <span className="font-bold text-slate-800 dark:text-white text-xs">{count}</span>
                   }
                 },
-                {
-                  title: <span className="text-[10px] font-bold text-slate-400 dark:text-slate-550 uppercase tracking-wider">Pipeline</span>,
-                  dataIndex: 'pipelineCount',
-                  render: (p) => <span className="font-bold text-slate-800 dark:text-white text-xs">{p || 0}</span>
-                },
+
                 {
                   title: <span className="text-[10px] font-bold text-slate-400 dark:text-slate-550 uppercase tracking-wider">Status</span>,
                   dataIndex: 'status',
@@ -604,78 +589,7 @@ export default function HeadAdminSalesAffiliates() {
         </div>
       )}
 
-      {/* ── Tab 2: Affiliate Tracking ── */}
-      {activeTab === 'Affiliate Tracking' && (
-        <div className="space-y-6 animate-fade-in">
-          <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900 overflow-hidden" title={
-            <div className="flex justify-between items-center w-full">
-              <span className="font-extrabold text-sm text-slate-700 dark:text-white">Active Referral Partners & Affiliates</span>
-              <Button type="primary" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }} className="rounded-xl font-bold text-xs h-9 px-4 flex items-center gap-1.5" onClick={() => setIsCreateAffiliateOpen(true)}>
-                <PlusOutlined /> Add Affiliate Partner
-              </Button>
-            </div>
-          }>
-            <Table 
-              dataSource={affiliatesList}
-              rowKey="id"
-              loading={loading}
-              pagination={false}
-              scroll={{ x: 900 }}
-              columns={[
-                { title: 'Display ID', dataIndex: 'displayId', render: (id) => <span className="font-mono text-xs font-bold text-purple-700 dark:text-purple-300">{id || 'AFF-000001'}</span> },
-                { title: 'Affiliate Partner', dataIndex: 'partner', render: (p) => <span className="font-bold text-slate-800 dark:text-white text-xs">{p}</span> },
-                { title: 'Primary Sales Rep', dataIndex: 'rep', render: (r) => <span className="text-slate-600 dark:text-slate-350 text-xs font-semibold">{r}</span> },
-                { title: 'Commission', dataIndex: 'commissionRate', render: (c) => <span className="font-extrabold text-slate-700 dark:text-slate-200 text-xs">{c}</span> },
-                { title: 'Onboarded Clinics', dataIndex: 'referralsCount', render: (c) => <span className="font-bold text-xs">{c || 0} clinics</span> },
-                { title: 'Released Payouts', dataIndex: 'totalPayout', render: (p) => <span className="font-black text-[#8C4BFF] text-xs">${typeof p === 'number' ? p.toLocaleString() : p}</span> },
-                {
-                  title: 'Actions',
-                  key: 'action',
-                  align: 'right',
-                  render: (_, record) => (
-                    <Space>
-                      <Button size="small" onClick={() => toast.success(`Released monthly affiliate payout for ${record.partner}`)}>Release Payout</Button>
-                      <DeleteOutlined className="text-red-400 hover:text-red-600 cursor-pointer text-xs" onClick={() => handleDeleteAffiliate(record.id, record.partner)} />
-                    </Space>
-                  )
-                }
-              ]}
-            />
-          </Card>
 
-          {/* Add Affiliate Responsive Modal */}
-          <Modal
-            open={isCreateAffiliateOpen}
-            onCancel={() => { setIsCreateAffiliateOpen(false); createAffiliateForm.resetFields(); }}
-            footer={null}
-            destroyOnHidden
-            centered
-            width={520}
-            style={{ maxWidth: '92vw', margin: '0 auto' }}
-            title={<span className="font-bold text-base text-slate-800 dark:text-white">Add Affiliate Partner</span>}
-          >
-            <Form form={createAffiliateForm} layout="vertical" onFinish={handleCreateAffiliateSubmit} initialValues={{ commissionRate: '15' }}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
-                <Form.Item name="partner" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Partner Company Name *</span>} rules={[{ required: true }]}>
-                  <Input placeholder="e.g. Allied Health Network" className="rounded-xl h-10" />
-                </Form.Item>
-                <Form.Item name="rep" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Primary Representative *</span>} rules={[{ required: true }]}>
-                  <Input placeholder="e.g. Olivia Bennett" className="rounded-xl h-10" />
-                </Form.Item>
-              </div>
-              <Form.Item name="commissionRate" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Commission Rate (%)</span>}>
-                <Input placeholder="15" className="rounded-xl h-10" suffix="%" />
-              </Form.Item>
-              <Form.Item className="mb-0 text-right mt-4">
-                <Space>
-                  <button type="button" onClick={() => setIsCreateAffiliateOpen(false)} className="bg-white dark:bg-slate-900 border border-slate-200 text-slate-700 dark:text-slate-300 font-bold h-10 px-5 rounded-xl cursor-pointer">Cancel</button>
-                  <button type="submit" style={{ backgroundColor: '#0E1B33' }} className="text-white border-none font-bold h-10 px-5 rounded-xl cursor-pointer">Add Partner</button>
-                </Space>
-              </Form.Item>
-            </Form>
-          </Modal>
-        </div>
-      )}
 
       {/* ── Tab 3: Commission Dashboard ── */}
       {activeTab === 'Commission Dashboard' && (
@@ -785,10 +699,10 @@ export default function HeadAdminSalesAffiliates() {
           </Card>
 
           {/* Global Settings */}
-          <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-sm text-slate-700 dark:text-white">Global Affiliate Settings</span>}>
+          <Card className="border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm bg-white dark:bg-slate-900" title={<span className="font-extrabold text-sm text-slate-700 dark:text-white">Global Commission Settings</span>}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
               <div>
-                <span className="text-xs font-bold text-slate-655 block mb-1">Standard Affiliate Commission Percentage</span>
+                <span className="text-xs font-bold text-slate-655 block mb-1">Standard Commission Percentage</span>
                 <Slider min={5} max={40} step={1} value={globalRate} onChange={setGlobalRate} />
                 <div className="flex justify-between text-xs text-slate-400 font-semibold mt-1">
                   <span>5%</span>
@@ -806,81 +720,7 @@ export default function HeadAdminSalesAffiliates() {
         </div>
       )}
 
-      {/* ── Tab 4: Lead Pipeline ── */}
-      {activeTab === 'Lead Pipeline' && (
-        <div className="space-y-6 animate-fade-in">
-          <div className="flex justify-between items-center">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Manage all prospective clinic leads across stages</span>
-            <Button type="primary" style={{ backgroundColor: '#0E1B33', borderColor: '#0E1B33' }} className="rounded-xl font-bold text-xs h-9 px-4 flex items-center gap-1.5" onClick={() => setIsCreateLeadOpen(true)}>
-              <PlusOutlined /> Add Sales Lead
-            </Button>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {Object.keys(pipelineColumns).map((col) => (
-              <Card key={col} title={<span className="font-bold text-xs text-slate-750 dark:text-slate-300">{col} ({pipelineColumns[col].length})</span>} className="border border-slate-100 dark:border-slate-800 shadow-sm rounded-xl bg-white dark:bg-slate-900">
-                <div className="space-y-3">
-                  {pipelineColumns[col].length === 0 ? (
-                    <div className="text-center py-6 text-slate-400 text-xs font-medium">No leads in this stage</div>
-                  ) : (
-                    pipelineColumns[col].map((lead) => (
-                      <div key={lead.id} className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 rounded-lg">
-                        <div className="flex justify-between items-start">
-                          <span className="font-bold text-xs block text-slate-800 dark:text-white">{lead.companyName}</span>
-                          <span className="font-mono text-[9px] font-bold text-purple-600 dark:text-purple-300">{lead.displayId || 'LED-000001'}</span>
-                        </div>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block mt-0.5">Contact: {lead.contactPerson} ({lead.email})</span>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block">Territory: {lead.territory || 'General Platform'}</span>
-                        <div className="mt-2 flex justify-between items-center">
-                          <Tag className="rounded-full border-none font-bold text-[8px] px-2 py-0.5 bg-blue-50 text-blue-500 dark:bg-blue-950/20 dark:text-blue-400">{lead.stage || 'New Lead'}</Tag>
-                          <span className="font-bold text-slate-700 dark:text-slate-300 text-[10px]">${lead.value || 0}/mo</span>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </Card>
-            ))}
-          </div>
-
-          {/* Add Sales Lead Responsive Modal */}
-          <Modal
-            open={isCreateLeadOpen}
-            onCancel={() => { setIsCreateLeadOpen(false); createLeadForm.resetFields(); }}
-            footer={null}
-            destroyOnHidden
-            centered
-            width={520}
-            style={{ maxWidth: '92vw', margin: '0 auto' }}
-            title={<span className="font-bold text-base text-slate-800 dark:text-white">Add Sales Lead</span>}
-          >
-            <Form form={createLeadForm} layout="vertical" onFinish={handleCreateLeadSubmit} initialValues={{ stage: 'New Lead', value: '150' }}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
-                <Form.Item name="companyName" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Clinic / Company Name *</span>} rules={[{ required: true }]}>
-                  <Input placeholder="e.g. Apex Health Clinic" className="rounded-xl h-10" />
-                </Form.Item>
-                <Form.Item name="contactPerson" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Contact Person *</span>} rules={[{ required: true }]}>
-                  <Input placeholder="e.g. Dr. Sarah Jenkins" className="rounded-xl h-10" />
-                </Form.Item>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3">
-                <Form.Item name="email" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Email Address *</span>} rules={[{ required: true, type: 'email' }]}>
-                  <Input placeholder="sarah@apexhealth.com" className="rounded-xl h-10" />
-                </Form.Item>
-                <Form.Item name="value" label={<span className="text-slate-555 dark:text-slate-300 font-bold text-[11px]">Estimated Monthly MRR ($)</span>}>
-                  <Input placeholder="150" suffix="$" className="rounded-xl h-10" />
-                </Form.Item>
-              </div>
-              <Form.Item className="mb-0 text-right mt-4">
-                <Space>
-                  <button type="button" onClick={() => setIsCreateLeadOpen(false)} className="bg-white dark:bg-slate-900 border border-slate-200 text-slate-700 dark:text-slate-300 font-bold h-10 px-5 rounded-xl cursor-pointer">Cancel</button>
-                  <button type="submit" style={{ backgroundColor: '#0E1B33' }} className="text-white border-none font-bold h-10 px-5 rounded-xl cursor-pointer">Add Lead</button>
-                </Space>
-              </Form.Item>
-            </Form>
-          </Modal>
-        </div>
-      )}
 
     </div>
   )

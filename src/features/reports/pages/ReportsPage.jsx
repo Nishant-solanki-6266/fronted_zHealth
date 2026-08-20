@@ -328,23 +328,21 @@ export default function ReportsPage() {
     }
   }, [liveReportData, specificReport, practitioner, location, filterScale, searchTerm])
 
-  // Dynamic Practitioners options list
+  // Dynamic Practitioners options list (Strict Multi-Tenant Live DB Data)
   const practitionerOptions = useMemo(() => {
-    const defaultList = ['All Practitioners', 'Sarah Jenkins', 'James Carter', 'Emily Smith']
     if (liveReportData && Array.isArray(liveReportData.practitioners) && liveReportData.practitioners.length > 0) {
       const dbList = liveReportData.practitioners.map(p => p.startsWith('Dr.') ? p.replace('Dr. ', '') : p)
       return Array.from(new Set(['All Practitioners', ...dbList]))
     }
-    return defaultList
+    return ['All Practitioners']
   }, [liveReportData])
 
-  // Dynamic Locations options list
+  // Dynamic Locations options list (Strict Multi-Tenant Live DB Data)
   const locationOptions = useMemo(() => {
-    const defaultList = ['All Locations', 'Main Clinic', 'Melbourne', 'Sydney', 'Brisbane']
     if (liveReportData && Array.isArray(liveReportData.locations) && liveReportData.locations.length > 0) {
       return Array.from(new Set(['All Locations', ...liveReportData.locations]))
     }
-    return defaultList
+    return ['All Locations']
   }, [liveReportData])
 
   // Exports Handlers
@@ -469,12 +467,12 @@ export default function ReportsPage() {
   }, [liveReportData, practitioner, filterScale])
 
 
-  // Filters cards depending on reportCategory
+  // Filters cards depending on reportCategory (Strict Live DB Data Subtexts)
   const statsList = [
-    { id: 'utilisation', label: 'Utilisation', icon: '%', value: `${metrics.utilisation}%`, sub: '+2.4% vs last period', cat: 'Appointments & Utilisation' },
-    { id: 'revenue', label: 'Revenue', icon: <DollarOutlined className="border border-slate-600 rounded-full p-0.5" />, value: `$${metrics.revenue.toLocaleString()}`, sub: '+5.8% vs last period', cat: 'Financial' },
+    { id: 'utilisation', label: 'Utilisation', icon: '%', value: `${metrics.utilisation}%`, sub: metrics.utilisation > 0 ? `${metrics.utilisation}% practitioner utilisation` : 'Live from DB', cat: 'Appointments & Utilisation' },
+    { id: 'revenue', label: 'Revenue', icon: <DollarOutlined className="border border-slate-600 rounded-full p-0.5" />, value: `$${metrics.revenue.toLocaleString()}`, sub: metrics.revenue > 0 ? 'Total period revenue' : 'This month (DB)', cat: 'Financial' },
     { id: 'appointments', label: 'Appointments', icon: <CalendarOutlined />, value: String(metrics.appointments), sub: 'Scheduled visits', cat: 'Appointments & Utilisation' },
-    { id: 'cancellation', label: 'Cancellation', icon: <WarningOutlined />, value: `${metrics.cancellation}%`, sub: '-0.4% improvement', cat: 'Appointments & Utilisation' },
+    { id: 'cancellation', label: 'Cancellation', icon: <WarningOutlined />, value: `${metrics.cancellation}%`, sub: metrics.cancellation > 0 ? `${metrics.cancellation}% cancellation rate` : 'This month (DB)', cat: 'Appointments & Utilisation' },
     { id: 'newClients', label: 'New Clients', icon: <UserAddOutlined />, value: String(metrics.newClients), sub: 'Onboarded this period', cat: 'Clients' },
     { id: 'outstanding', label: 'Outstanding', icon: <DollarOutlined className="border border-slate-600 rounded-full p-0.5" />, value: `$${metrics.outstanding.toLocaleString()}`, sub: 'Pending payment', cat: 'Financial' },
     { id: 'uninvoiced', label: 'Uninvoiced', icon: <FileTextOutlined />, value: String(metrics.uninvoiced), sub: 'Draft invoice needed', cat: 'Financial' }
