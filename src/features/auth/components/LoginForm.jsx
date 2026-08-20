@@ -20,8 +20,8 @@ const CREDENTIALS = [
   {
     label: 'Sales Executive',
     role: 'sales',
-    email: '',
-    password: '',
+    email: 'maria@gmail.com',
+    password: '12345678',
     description: 'CRM & Pipeline Leads',
     color: '#F59E0B',
     bg: '#FEF3C7',
