@@ -32,7 +32,8 @@ import {
   FireOutlined,
   AlertOutlined,
   SettingOutlined,
-  MobileOutlined
+  MobileOutlined,
+  DollarOutlined
 } from '@ant-design/icons'
 import { useClinicStore } from '../../../store/clinicStore'
 import { toast } from 'react-hot-toast'
@@ -41,6 +42,7 @@ import PatientSettings from '../../dashboard/components/patient/PatientSettings'
 import ClinicDetailsTab from '../components/ClinicDetailsTab'
 import SubscriptionPage from './SubscriptionPage'
 import RolesPermissionsTab from '../components/RolesPermissionsTab'
+import PractitionerBilling from '../../dashboard/components/practitioner/PractitionerBilling'
 import { getBodyChartTemplates, createBodyChartTemplate, deleteBodyChartTemplate, getPractitionerProfile, updatePractitionerProfile, getApiKeys as getApiKeysApi, createApiKey as createApiKeyApi, deleteApiKey as deleteApiKeyApi } from '../../calendar/api/clinicAdminApi'
 import { 
   getPractitionerLoginHistory, 
@@ -99,6 +101,7 @@ export default function PractitionerSettingsPage() {
         return [
           { key: 'profile', label: 'My Profile', icon: <UserOutlined /> },
           { key: 'security', label: 'Security', icon: <LockOutlined /> },
+          { key: 'billing', label: 'Billing & Invoicing', icon: <DollarOutlined /> },
           { key: 'notes', label: 'Note Templates', icon: <FormOutlined /> },
           { key: 'letters', label: 'Letter Templates', icon: <MailOutlined /> }
         ]
@@ -3430,6 +3433,9 @@ export default function PractitionerSettingsPage() {
             </Card>
           </div>
         )
+
+      case 'billing':
+        return <PractitionerBilling />
 
       default:
         return null

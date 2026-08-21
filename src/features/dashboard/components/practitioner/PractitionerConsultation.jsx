@@ -38,7 +38,7 @@ import BodyChartDiagram from './BodyChartDiagram'
 const { Option } = Select
 const { TextArea } = Input
 
-export default function PractitionerConsultation() {
+export default function PractitionerConsultation({ patientId: propPatientId, clientPatient } = {}) {
   const location = useLocation()
   const navigate = useNavigate()
   const store = useClinicStore()
@@ -48,12 +48,19 @@ export default function PractitionerConsultation() {
   const activeSpecialty = store.simulatedSpecialty || 'Physiotherapist'
   const isSoapSpecialty = activeSpecialty !== 'Speech Pathologist' && activeSpecialty !== 'Speech Therapist' && activeSpecialty !== 'Occupational Therapist'
 
-  // Extract patientId from URL query parameters if present
+  // Extract patientId from prop or URL query parameters if present
   const queryParams = new URLSearchParams(location.search)
   const isNew = queryParams.get('new') === 'true'
-  const initialPatientId = isNew ? null : (queryParams.get('patientId') || 'p1')
+  const initialPatientId = propPatientId || (isNew ? null : (queryParams.get('patientId') || (clientPatient?.id || 'p1')))
 
   const [selectedPatientId, setSelectedPatientId] = useState(initialPatientId)
+
+  useEffect(() => {
+    if (propPatientId) {
+      setSelectedPatientId(propPatientId)
+    }
+  }, [propPatientId])
+
   const [activeTab, setActiveTab] = useState('notes')
 
   // Forms

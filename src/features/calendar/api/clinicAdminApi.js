@@ -318,3 +318,25 @@ export const deleteApiKey = async (id) => {
   const res = await api.delete(`/api/practitioner/settings/api-keys/${id}`)
   return res.data
 }
+
+// ─── Dynamic Clinical Cases API ─────────────────────────────────────────────
+export const getCases = async (params) => {
+  const res = await api.get('/api/practitioner/cases', { params })
+  return res.data
+}
+
+export const createCase = async (caseData) => {
+  const res = await api.post('/api/practitioner/cases', caseData)
+  return res.data
+}
+
+export const updateCase = async (id, caseData) => {
+  const res = await api.put(`/api/practitioner/cases/${id}`, caseData)
+  return res.data
+}
+
+export const deleteCase = async (id) => {
+  const res = await api.delete(`/api/practitioner/cases/${id}`)
+  return res.data
+}
+

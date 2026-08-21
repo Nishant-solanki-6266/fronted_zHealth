@@ -16,7 +16,7 @@ import { useClinicStore } from '../../../../store/clinicStore'
 const { Option } = Select
 const { TextArea } = Input
 
-export default function PractitionerNotesReports() {
+export default function PractitionerNotesReports({ patientId, clientPatient } = {}) {
   const location = useLocation()
   const store = useClinicStore()
 
@@ -37,10 +37,26 @@ export default function PractitionerNotesReports() {
     if (store.fetchDocuments) store.fetchDocuments()
   }, [])
 
+  useEffect(() => {
+    if (clientPatient?.name || clientPatient?.fullName || patientId) {
+      draftReportForm.setFieldsValue({
+        patientName: clientPatient?.name || clientPatient?.fullName || patientId
+      })
+    }
+  }, [clientPatient, patientId, draftReportForm])
+
   // Real DB dynamic lists
-  const notesReviewList = store.consultations
+  const allNotesReviewList = store.consultations
     ? store.consultations.filter(c => c.status === 'Draft' || c.status === 'Pending Review' || c.status === 'Pending')
     : []
+
+  const notesReviewList = (patientId || clientPatient)
+    ? allNotesReviewList.filter(c => 
+        (patientId && c.patientId === patientId) || 
+        (clientPatient?.id && c.patientId === clientPatient.id) ||
+        (clientPatient?.name && (c.patientName === clientPatient.name || c.client === clientPatient.name))
+      )
+    : allNotesReviewList
 
   const [reportPreviewText, setReportPreviewText] = useState('')
   const [generatedReportMeta, setGeneratedReportMeta] = useState(null)
@@ -50,15 +66,25 @@ export default function PractitionerNotesReports() {
   const availablePatients = store.patients || []
 
   // Real DB Draft & Pending Consultations
-  const combinedReviewList = (store.consultations || [])
+  const allCombinedReviewList = (store.consultations || [])
     .filter(c => c.status === 'Draft' || c.status === 'Pending' || c.status === 'Pending Review' || c.status === 'In Review')
     .map(c => ({
       id: c.id,
+      patientId: c.patientId,
       client: c.patientName || 'Client Patient',
       service: c.profession ? `${c.profession} Clinical Note` : 'Progress Note',
       date: c.date || (c.createdAt ? new Date(c.createdAt).toISOString().split('T')[0] : 'Today'),
       status: c.status || 'Draft Note'
     }))
+
+  const combinedReviewList = (patientId || clientPatient)
+    ? allCombinedReviewList.filter(c => 
+        (patientId && c.patientId === patientId) || 
+        (clientPatient?.id && c.patientId === clientPatient.id) ||
+        (clientPatient?.name && c.client === clientPatient.name) ||
+        (clientPatient?.fullName && c.client === clientPatient.fullName)
+      )
+    : allCombinedReviewList
 
   const handleApproveNote = async (id, client) => {
     try {

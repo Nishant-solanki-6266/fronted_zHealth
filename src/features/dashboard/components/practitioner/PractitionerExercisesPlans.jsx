@@ -12,7 +12,7 @@ import { useClinicStore } from '../../../../store/clinicStore'
 
 const { Option } = Select
 
-export default function PractitionerExercisesPlans() {
+export default function PractitionerExercisesPlans({ patientId, clientPatient } = {}) {
   const store = useClinicStore()
   const [assignForm] = Form.useForm()
 
@@ -29,7 +29,23 @@ export default function PractitionerExercisesPlans() {
     }
   }, [])
 
-  const activePrograms = store.prescribedExercises || []
+  useEffect(() => {
+    if (clientPatient?.id || patientId) {
+      assignForm.setFieldsValue({
+        patientName: clientPatient?.id || patientId
+      })
+    }
+  }, [clientPatient, patientId, assignForm])
+
+  const allPrograms = store.prescribedExercises || []
+  const activePrograms = (patientId || clientPatient)
+    ? allPrograms.filter(prog => 
+        (patientId && prog.patientId === patientId) || 
+        (clientPatient?.id && prog.patientId === clientPatient.id) ||
+        (clientPatient?.name && prog.patientName === clientPatient.name) ||
+        (clientPatient?.fullName && prog.patientName === clientPatient.fullName)
+      )
+    : allPrograms
 
   // Exercise Videos library
   const exerciseLibrary = [

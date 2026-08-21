@@ -14,7 +14,7 @@ import { useClinicStore } from '../../../../store/clinicStore'
 const { Option } = Select
 const { TextArea } = Input
 
-export default function PractitionerReferrals() {
+export default function PractitionerReferrals({ patientId, clientPatient } = {}) {
   const store = useClinicStore()
   const [form] = Form.useForm()
   
@@ -27,6 +27,14 @@ export default function PractitionerReferrals() {
     if (store.fetchDocuments) store.fetchDocuments()
     if (store.fetchContacts) store.fetchContacts()
   }, [])
+
+  useEffect(() => {
+    if (clientPatient?.name || clientPatient?.fullName || patientId) {
+      form.setFieldsValue({
+        patientName: clientPatient?.name || clientPatient?.fullName || patientId
+      })
+    }
+  }, [clientPatient, patientId, form])
 
   // Dynamic Contacts Directory combined with defaults
   const defaultPartners = [
@@ -57,14 +65,24 @@ export default function PractitionerReferrals() {
       ]
 
   // Map real database documents that are referrals
-  const referralsList = (store.documents || []).filter(d => d.type.includes('Referral')).map(d => ({
+  const allReferrals = (store.documents || []).filter(d => d.type && d.type.includes('Referral')).map(d => ({
     id: d.id,
+    patientId: d.patientId,
     patientName: d.patientName,
     recipient: d.sentTo || 'Unknown',
     recipientType: d.type.replace(' Referral', ''),
     date: d.date,
     status: d.status
   }))
+
+  const referralsList = (patientId || clientPatient)
+    ? allReferrals.filter(d => 
+        (patientId && d.patientId === patientId) || 
+        (clientPatient?.id && d.patientId === clientPatient.id) ||
+        (clientPatient?.name && d.patientName === clientPatient.name) ||
+        (clientPatient?.fullName && d.patientName === clientPatient.fullName)
+      )
+    : allReferrals
 
   const handleDraftAI = () => {
     const values = form.getFieldsValue()

@@ -13,7 +13,7 @@ import { useClinicStore } from '../../../../store/clinicStore'
 
 const { Option } = Select
 
-export default function PractitionerBilling() {
+export default function PractitionerBilling({ patientId, clientPatient } = {}) {
   const store = useClinicStore()
   const [invoiceForm] = Form.useForm()
 
@@ -26,6 +26,14 @@ export default function PractitionerBilling() {
     if (store.initStoreData) store.initStoreData()
     if (store.fetchInvoices) store.fetchInvoices()
   }, [])
+
+  useEffect(() => {
+    if (clientPatient?.name || clientPatient?.fullName || patientId) {
+      invoiceForm.setFieldsValue({
+        clientName: clientPatient?.name || clientPatient?.fullName || patientId
+      })
+    }
+  }, [clientPatient, patientId, invoiceForm])
 
   const toggleBillingPermission = (checked) => {
     store.setPractitionerBillingEnabled(checked)
@@ -134,8 +142,16 @@ export default function PractitionerBilling() {
     }
   ]
 
-  // Filter invoices to match practitioner's patients
-  const myInvoices = (store.invoices || []).filter(i => store.patients.some(p => p.name === i.clientName) || store.patients.some(p => p.name === i.patientName))
+  // Filter invoices to match practitioner's patients or specific client
+  const allMyInvoices = (store.invoices || []).filter(i => store.patients.some(p => p.name === i.clientName) || store.patients.some(p => p.name === i.patientName))
+  const myInvoices = (patientId || clientPatient)
+    ? (store.invoices || []).filter(i => 
+        (patientId && (i.patientId === patientId || i.clientId === patientId)) ||
+        (clientPatient?.id && (i.patientId === clientPatient.id || i.clientId === clientPatient.id)) ||
+        (clientPatient?.name && (i.clientName === clientPatient.name || i.patientName === clientPatient.name)) ||
+        (clientPatient?.fullName && (i.clientName === clientPatient.fullName || i.patientName === clientPatient.fullName))
+      )
+    : allMyInvoices
 
   // Calculated Stats
   const totalRevenue = myInvoices.reduce((sum, item) => sum + ((item.status || '').toLowerCase() === 'paid' ? parseFloat(item.amount) : 0), 0)

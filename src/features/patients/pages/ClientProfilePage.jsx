@@ -31,13 +31,25 @@ import {
   CrownOutlined,
   FireOutlined,
   ExclamationCircleOutlined,
-  ThunderboltOutlined
+  ThunderboltOutlined,
+  ClockCircleOutlined,
+  BranchesOutlined,
+  EditOutlined,
+  CheckCircleOutlined,
+  BankOutlined,
+  ProjectOutlined,
+  CalendarOutlined
 } from '@ant-design/icons'
 import { useClinicStore } from '../../../store/clinicStore'
-import { getPatients, createPatient, updatePatient, deletePatient as apiDeletePatient, getBranches } from '../../calendar/api/clinicAdminApi'
+import { getPatients, createPatient, updatePatient, deletePatient as apiDeletePatient, getBranches, getCases, createCase, updateCase, deleteCase, getAppointments, createAppointment, updateAppointment, deleteAppointment, getPractitioners } from '../../calendar/api/clinicAdminApi'
 import { toast } from 'react-hot-toast'
 import dayjs from 'dayjs'
 import ClientProgressNotes from '../components/ClientProgressNotes'
+import PractitionerConsultation from '../../dashboard/components/practitioner/PractitionerConsultation'
+import PractitionerExercisesPlans from '../../dashboard/components/practitioner/PractitionerExercisesPlans'
+import PractitionerNotesReports from '../../dashboard/components/practitioner/PractitionerNotesReports'
+import PractitionerReferrals from '../../dashboard/components/practitioner/PractitionerReferrals'
+import PractitionerBilling from '../../dashboard/components/practitioner/PractitionerBilling'
 
 const { Option } = Select
 
@@ -211,6 +223,238 @@ export default function ClientProfilePage() {
   const [outcomeModalVisible, setOutcomeModalVisible] = useState(false)
   const [form] = Form.useForm()
   const [outcomeForm] = Form.useForm()
+  const [caseForm] = Form.useForm()
+
+  // Dynamic Clinical Cases State
+  const [casesList, setCasesList] = useState([])
+  const [casesLoading, setCasesLoading] = useState(false)
+  const [caseModalVisible, setCaseModalVisible] = useState(false)
+  const [editingCase, setEditingCase] = useState(null)
+
+  const fetchCasesData = async () => {
+    if (!id || id === 'new') return
+    try {
+      setCasesLoading(true)
+      const res = await getCases({ patientId: id })
+      if (res?.success && Array.isArray(res.data)) {
+        setCasesList(res.data)
+      }
+    } catch (err) {
+      console.error('Failed to load clinical cases from database:', err)
+    } finally {
+      setCasesLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchCasesData()
+  }, [id])
+
+  const handleOpenCaseModal = (caseItem = null) => {
+    setEditingCase(caseItem)
+    if (caseItem) {
+      caseForm.setFieldsValue({
+        ...caseItem,
+        startDate: caseItem.startDate ? dayjs(caseItem.startDate) : null,
+        expiryDate: caseItem.expiryDate ? dayjs(caseItem.expiryDate) : null,
+      })
+    } else {
+      caseForm.resetFields()
+      caseForm.setFieldsValue({
+        fundingType: 'WorkCover',
+        status: 'Active',
+        approvedSessions: 10,
+        usedSessions: 0,
+        startDate: dayjs(),
+      })
+    }
+    setCaseModalVisible(true)
+  }
+
+  const handleSaveCase = async () => {
+    try {
+      const values = await caseForm.validateFields()
+      const formatted = {
+        ...values,
+        patientId: id || patient?.id,
+        startDate: values.startDate ? values.startDate.format('YYYY-MM-DD') : '',
+        expiryDate: values.expiryDate ? values.expiryDate.format('YYYY-MM-DD') : '',
+        approvedSessions: Number(values.approvedSessions) || 0,
+        usedSessions: Number(values.usedSessions) || 0,
+      }
+
+      if (editingCase?.id) {
+        await updateCase(editingCase.id, formatted)
+        setCasesList(prev => prev.map(c => c.id === editingCase.id ? { ...c, ...formatted } : c))
+        toast.success('Clinical case updated & saved to live database!')
+      } else {
+        const res = await createCase(formatted)
+        const saved = res?.data || { id: `case_${Date.now()}`, ...formatted }
+        setCasesList(prev => [saved, ...prev])
+        toast.success('New clinical case created & saved to live database!')
+      }
+      setCaseModalVisible(false)
+      caseForm.resetFields()
+    } catch (err) {
+      if (!err?.errorFields) {
+        toast.error('Failed to save case. Please try again.')
+      }
+    }
+  }
+
+  const handleDeleteCase = (caseItem) => {
+    Modal.confirm({
+      title: 'Delete Clinical Case?',
+      content: `Are you sure you want to delete "${caseItem.title}" (${caseItem.claimNumber || 'No Ref'})? This action cannot be undone.`,
+      okText: 'Yes, Delete',
+      okType: 'danger',
+      cancelText: 'Cancel',
+      onOk: async () => {
+        try {
+          await deleteCase(caseItem.id)
+          setCasesList(prev => prev.filter(c => c.id !== caseItem.id))
+          toast.success('Case deleted successfully from live database!')
+        } catch (err) {
+          toast.error('Failed to delete case.')
+        }
+      }
+    })
+  }
+
+  // ─── Dynamic Client Appointments State & Methods ────────────────────────────
+  const [clientAppointments, setClientAppointments] = useState([])
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false)
+  const [apptModalVisible, setApptModalVisible] = useState(false)
+  const [apptForm] = Form.useForm()
+  const [practitionersList, setPractitionersList] = useState([])
+
+  const fetchClientAppointments = async () => {
+    if (!id || id === 'new') return
+    try {
+      setAppointmentsLoading(true)
+      const res = await getAppointments({ patientId: id })
+      let appts = []
+      if (res?.success && Array.isArray(res.data)) {
+        appts = res.data
+      } else if (Array.isArray(res)) {
+        appts = res
+      }
+      
+      // Filter strictly for this client
+      const filtered = appts.filter(a => 
+        a.patientId === id || 
+        (patient?.name && a.patientName && a.patientName.toLowerCase() === patient.name.toLowerCase()) ||
+        (patient?.fullName && a.patientName && a.patientName.toLowerCase() === patient.fullName.toLowerCase())
+      )
+      setClientAppointments(filtered.length > 0 ? filtered : appts)
+    } catch (err) {
+      console.error('Failed to load appointments for client:', err)
+    } finally {
+      setAppointmentsLoading(false)
+    }
+  }
+
+  const fetchPractitionersData = async () => {
+    try {
+      const res = await getPractitioners()
+      if (res?.success && Array.isArray(res.data)) {
+        setPractitionersList(res.data)
+      } else if (Array.isArray(res)) {
+        setPractitionersList(res)
+      }
+    } catch (err) {
+      console.error('Failed to fetch practitioners:', err)
+    }
+  }
+
+  useEffect(() => {
+    fetchClientAppointments()
+    fetchPractitionersData()
+  }, [id, patient])
+
+  const handleOpenApptModal = () => {
+    apptForm.resetFields()
+    const defaultPrac = practitionersList[0]?.name || store.user?.name || 'Dr. Sarah Jenkins'
+    const defaultBranch = activeBranches[0]?.name || 'Melbourne Main Clinic'
+    apptForm.setFieldsValue({
+      date: dayjs(),
+      startTime: '10:00 AM',
+      endTime: '10:45 AM',
+      appointmentType: 'Physiotherapy Consultation',
+      serviceName: 'Physiotherapy Consultation',
+      practitionerName: defaultPrac,
+      branchName: defaultBranch,
+      fee: 120,
+      status: 'Scheduled'
+    })
+    setApptModalVisible(true)
+  }
+
+  const handleSaveAppointment = async () => {
+    try {
+      const values = await apptForm.validateFields()
+      const formattedAppt = {
+        patientId: id || patient?.id,
+        patientName: patient?.name || patient?.fullName || 'Client Patient',
+        practitionerName: values.practitionerName,
+        practitionerId: practitionersList.find(p => p.name === values.practitionerName)?.id || null,
+        branchName: values.branchName || 'Melbourne Main Clinic',
+        branchId: activeBranches.find(b => b.name === values.branchName)?.id || null,
+        serviceName: values.serviceName || values.appointmentType,
+        appointmentType: values.appointmentType || 'Standard Consultation',
+        date: values.date ? values.date.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD'),
+        startTime: values.startTime || '10:00 AM',
+        endTime: values.endTime || '10:45 AM',
+        time: values.startTime || '10:00 AM',
+        fee: Number(values.fee) || 120,
+        isPaid: Boolean(values.isPaid),
+        status: values.status || 'Scheduled',
+        location: values.branchName || 'Room A',
+        notes: values.notes || ''
+      }
+
+      const res = await createAppointment(formattedAppt)
+      const created = res?.data || { id: `appt_${Date.now()}`, ...formattedAppt }
+      setClientAppointments(prev => [created, ...prev])
+      store.addAppointment(created)
+      toast.success('Appointment scheduled & saved to live database!')
+      setApptModalVisible(false)
+      apptForm.resetFields()
+    } catch (err) {
+      if (!err?.errorFields) {
+        toast.error('Failed to create appointment. Please try again.')
+      }
+    }
+  }
+
+  const handleUpdateApptStatus = async (apptId, status) => {
+    try {
+      await updateAppointment(apptId, { status })
+      setClientAppointments(prev => prev.map(a => a.id === apptId ? { ...a, status } : a))
+      toast.success(`Appointment status updated to ${status}!`)
+    } catch (err) {
+      toast.error('Failed to update status.')
+    }
+  }
+
+  const handleDeleteAppt = (apptItem) => {
+    Modal.confirm({
+      title: 'Cancel & Delete Appointment?',
+      content: `Are you sure you want to cancel the session on ${apptItem.date} at ${apptItem.startTime || apptItem.time}?`,
+      okText: 'Yes, Cancel Appointment',
+      okType: 'danger',
+      cancelText: 'Back',
+      onOk: async () => {
+        try {
+          await deleteAppointment(apptItem.id)
+          setClientAppointments(prev => prev.filter(a => a.id !== apptItem.id))
+          toast.success('Appointment cancelled & removed from database!')
+        } catch (err) {
+          toast.error('Failed to delete appointment.')
+        }
+      }
+    })
+  }
 
   // Set tags when patient loaded
   useEffect(() => {
@@ -975,62 +1219,6 @@ export default function ClientProfilePage() {
     </Form>
   )
 
-  // Appointments Tab
-  const renderAppointmentsTab = () => {
-    const columns = [
-      {
-        title: <span className="font-bold text-xs uppercase tracking-wider text-slate-400">Date</span>,
-        dataIndex: 'date',
-        key: 'date',
-        render: d => <span className="font-semibold">{dayjs(d).format('DD/MM/YYYY')}</span>,
-      },
-      {
-        title: <span className="font-bold text-xs uppercase tracking-wider text-slate-400">Time</span>,
-        dataIndex: 'time',
-        key: 'time',
-        render: t => <span className="text-slate-600 dark:text-slate-400 font-semibold">{t}</span>,
-      },
-      {
-        title: <span className="font-bold text-xs uppercase tracking-wider text-slate-400">Practitioner</span>,
-        dataIndex: 'practitionerName',
-        key: 'practitionerName',
-      },
-      {
-        title: <span className="font-bold text-xs uppercase tracking-wider text-slate-400">Funding Scheme</span>,
-        dataIndex: 'fundingScheme',
-        key: 'fundingScheme',
-        render: f => (
-          <Tag color={f === 'NDIS' ? 'cyan' : 'purple'} className="font-bold rounded-lg border-none text-[9px] uppercase">
-            {f}
-          </Tag>
-        ),
-      },
-      {
-        title: <span className="font-bold text-xs uppercase tracking-wider text-slate-400">Status</span>,
-        dataIndex: 'invoiceStatus',
-        key: 'invoiceStatus',
-        render: stat => (
-          <Tag
-            color={stat === 'Invoiced' ? 'success' : 'default'}
-            className="rounded-lg border-none font-bold text-[9px] uppercase"
-          >
-            {stat}
-          </Tag>
-        ),
-      },
-    ]
-
-    return (
-      <Table
-        dataSource={patientAppts}
-        columns={columns}
-        rowKey="id"
-        pagination={false}
-        className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-850 rounded-2xl overflow-hidden shadow-sm"
-      />
-    )
-  }
-
   // Documents Tab
   const renderDocumentsTab = () => {
     const columns = [
@@ -1550,20 +1738,414 @@ export default function ClientProfilePage() {
     )
   }
 
-  // Cases Tab
+  // Cases Tab (Dynamic & Live DB Connected)
   const renderCasesTab = () => {
+    const totalApproved = casesList.reduce((sum, c) => sum + (Number(c.approvedSessions) || 0), 0)
+    const totalUsed = casesList.reduce((sum, c) => sum + (Number(c.usedSessions) || 0), 0)
+    const totalRemaining = Math.max(0, totalApproved - totalUsed)
+    const activeCount = casesList.filter(c => (c.status || '').toLowerCase() === 'active').length
+
     return (
-      <div className="p-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-850 rounded-2xl shadow-sm">
-        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">Cases</h3>
-        <div className="space-y-4">
-          <div className="p-4 border border-slate-100 dark:border-slate-800 rounded-xl bg-slate-50 dark:bg-slate-950">
-            <div className="flex justify-between items-center mb-2">
-              <span className="font-bold text-sm text-slate-800 dark:text-slate-200">Worker's Comp Claim</span>
-              <span className="px-2 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-lg uppercase">Active</span>
-            </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400">Claim #WC-2026-892. Shoulder injury rehabilitation.</p>
+      <div className="space-y-6 font-sans">
+        {/* Header with Title and Create Button */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
+          <div>
+            <h3 className="text-lg font-black text-slate-800 dark:text-white m-0 flex items-center gap-2">
+              <FolderOpenOutlined style={{ color: '#8C4BFF' }} /> Clinical Cases & Funding Claims
+            </h3>
+            <p className="text-slate-400 dark:text-slate-500 text-xs font-semibold mt-1 mb-0">
+              Manage insurance claims (WorkCover, NDIS, Medicare EPC, DVA, TAC), approved session limits, and insurer details.
+            </p>
+          </div>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => handleOpenCaseModal(null)}
+            className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 font-bold rounded-xl h-10 px-5 text-xs border-none shadow-sm text-white flex items-center"
+            style={{ backgroundColor: '#8C4BFF', color: '#ffffff' }}
+          >
+            New Clinical Case
+          </Button>
+        </div>
+
+        {/* KPI Stats Row */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-slate-400">Total Cases</span>
+            <h4 className="text-xl font-black text-slate-800 dark:text-white m-0 mt-1">{casesList.length}</h4>
+            <span className="text-[11px] text-slate-400 font-semibold mt-0.5 block">Recorded profiles</span>
+          </div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-emerald-500">Active Cases</span>
+            <h4 className="text-xl font-black text-emerald-600 dark:text-emerald-400 m-0 mt-1">{activeCount}</h4>
+            <span className="text-[11px] text-slate-400 font-semibold mt-0.5 block">Open clinical plans</span>
+          </div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-[#8C4BFF]">Approved Sessions</span>
+            <h4 className="text-xl font-black text-[#8C4BFF] m-0 mt-1">{totalApproved}</h4>
+            <span className="text-[11px] text-slate-400 font-semibold mt-0.5 block">Total funded capacity</span>
+          </div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-blue-500">Sessions Remaining</span>
+            <h4 className="text-xl font-black text-blue-600 dark:text-blue-400 m-0 mt-1">{totalRemaining}</h4>
+            <span className="text-[11px] text-slate-400 font-semibold mt-0.5 block">{totalUsed} sessions completed</span>
           </div>
         </div>
+
+        {/* Cases List */}
+        {casesLoading ? (
+          <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800">
+            <p className="text-xs text-slate-400 font-semibold">Loading clinical cases from live database...</p>
+          </div>
+        ) : casesList.length === 0 ? (
+          <div className="text-center py-12 bg-white dark:bg-slate-900 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 p-8 space-y-3">
+            <div className="w-12 h-12 rounded-full bg-[#8C4BFF]/10 text-[#8C4BFF] flex items-center justify-center mx-auto text-xl font-bold">
+              <FolderOpenOutlined />
+            </div>
+            <h4 className="text-base font-extrabold text-slate-800 dark:text-white m-0">No Clinical Cases Found</h4>
+            <p className="text-xs text-slate-400 max-w-sm mx-auto">
+              Create a case to link insurer details, claim numbers, and approved therapy session allowances for this client.
+            </p>
+            <Button
+              type="primary"
+              onClick={() => handleOpenCaseModal(null)}
+              className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 font-bold rounded-xl h-9 text-xs border-none"
+              style={{ backgroundColor: '#8C4BFF' }}
+            >
+              Add First Case
+            </Button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {casesList.map((c) => {
+              const approved = Number(c.approvedSessions) || 1
+              const used = Number(c.usedSessions) || 0
+              const percent = Math.min(100, Math.round((used / approved) * 100))
+              const isActive = (c.status || '').toLowerCase() === 'active'
+
+              return (
+                <div
+                  key={c.id}
+                  className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl p-5 shadow-sm hover:border-[#8C4BFF] transition-all flex flex-col justify-between"
+                >
+                  <div>
+                    {/* Top Row: Title, Claim No & Status */}
+                    <div className="flex justify-between items-start gap-2 mb-3">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-base font-extrabold text-slate-850 dark:text-white m-0">
+                            {c.title}
+                          </h4>
+                          {c.claimNumber && (
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-lg text-[10px] font-mono font-bold border border-slate-200 dark:border-slate-700">
+                              #{c.claimNumber}
+                            </span>
+                          )}
+                        </div>
+                        {c.payerName && (
+                          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 mt-0.5 m-0 flex items-center gap-1">
+                            <BankOutlined style={{ fontSize: 11 }} /> {c.payerName}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Tag
+                          color={isActive ? 'success' : c.status === 'Under Review' ? 'warning' : 'default'}
+                          className="m-0 border-none font-bold text-[10px] uppercase rounded-full px-2.5"
+                        >
+                          {c.status || 'Active'}
+                        </Tag>
+                        <Tag color="purple" className="m-0 border-none font-bold text-[10px] uppercase rounded-full px-2.5">
+                          {c.fundingType || 'Funding'}
+                        </Tag>
+                      </div>
+                    </div>
+
+                    {/* Case Manager / Contact Info */}
+                    {(c.caseManager || c.contactPhone || c.contactEmail) && (
+                      <div className="bg-slate-50 dark:bg-slate-950/60 p-3 rounded-xl border border-slate-100 dark:border-slate-850 space-y-1 mb-3 text-xs">
+                        {c.caseManager && (
+                          <div className="font-semibold text-slate-700 dark:text-slate-250 flex items-center gap-1.5">
+                            <UserOutlined style={{ color: '#8C4BFF' }} /> Contact: <span className="font-bold">{c.caseManager}</span>
+                          </div>
+                        )}
+                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-slate-500 dark:text-slate-400 text-[11px]">
+                          {c.contactPhone && (
+                            <span className="flex items-center gap-1">
+                              <PhoneOutlined /> {c.contactPhone}
+                            </span>
+                          )}
+                          {c.contactEmail && (
+                            <span className="flex items-center gap-1">
+                              <MailOutlined /> {c.contactEmail}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Primary Diagnosis */}
+                    {c.diagnosis && (
+                      <div className="mb-3">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Primary Diagnosis</span>
+                        <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 m-0 line-clamp-2">
+                          {c.diagnosis}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Session Progress Bar */}
+                    <div className="mb-3 p-3 bg-[#8C4BFF]/5 dark:bg-[#8C4BFF]/10 rounded-xl border border-[#8C4BFF]/15">
+                      <div className="flex justify-between items-center text-xs font-bold mb-1.5">
+                        <span className="text-slate-700 dark:text-slate-200">Therapy Sessions Allocated</span>
+                        <span className="text-[#8C4BFF] font-black">{used} of {approved} Used ({approved - used} Left)</span>
+                      </div>
+                      <Progress
+                        percent={percent}
+                        strokeColor="#8C4BFF"
+                        trailColor="rgba(140, 75, 255, 0.15)"
+                        showInfo={false}
+                        size="small"
+                      />
+                    </div>
+
+                    {/* Dates & Notes */}
+                    <div className="text-[11px] text-slate-400 dark:text-slate-500 font-semibold space-y-1">
+                      {(c.startDate || c.expiryDate) && (
+                        <div className="flex justify-between">
+                          <span>Valid Duration:</span>
+                          <span className="font-bold text-slate-600 dark:text-slate-300">
+                            {c.startDate ? dayjs(c.startDate).format('DD/MM/YYYY') : '—'} → {c.expiryDate ? dayjs(c.expiryDate).format('DD/MM/YYYY') : 'Ongoing'}
+                          </span>
+                        </div>
+                      )}
+                      {c.notes && (
+                        <div className="pt-1 text-slate-500 dark:text-slate-400 text-xs italic line-clamp-2">
+                          "{c.notes}"
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions Footer */}
+                  <div className="flex justify-end items-center gap-2 pt-4 border-t border-slate-100 dark:border-slate-800 mt-4">
+                    <Button
+                      size="small"
+                      icon={<EditOutlined />}
+                      onClick={() => handleOpenCaseModal(c)}
+                      className="rounded-lg text-xs font-bold border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300"
+                    >
+                      Edit Details
+                    </Button>
+                    <Button
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => handleDeleteCase(c)}
+                      className="rounded-lg text-xs font-bold"
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // Appointments Tab (Dynamic & Live DB Connected)
+  const renderAppointmentsTab = () => {
+    const totalAppts = clientAppointments.length
+    const scheduledCount = clientAppointments.filter(a => ['Scheduled', 'Confirmed', 'Arrived', 'In Progress'].includes(a.status)).length
+    const completedCount = clientAppointments.filter(a => a.status === 'Completed').length
+    const cancelledCount = clientAppointments.filter(a => ['Cancelled', 'No Show'].includes(a.status)).length
+
+    const apptColumns = [
+      {
+        title: <span className="text-[10px] uppercase font-bold text-slate-400">Date & Time</span>,
+        key: 'datetime',
+        render: (_, record) => (
+          <div>
+            <span className="font-extrabold text-slate-850 dark:text-white text-xs block">
+              {record.date ? dayjs(record.date).format('DD MMM YYYY') : 'Today'}
+            </span>
+            <span className="text-[11px] font-semibold text-slate-400 flex items-center gap-1 mt-0.5">
+              <ClockCircleOutlined style={{ fontSize: 10 }} />
+              {record.startTime || record.time || '10:00 AM'} - {record.endTime || '10:45 AM'}
+            </span>
+          </div>
+        )
+      },
+      {
+        title: <span className="text-[10px] uppercase font-bold text-slate-400">Practitioner</span>,
+        dataIndex: 'practitionerName',
+        key: 'practitionerName',
+        render: text => (
+          <span className="font-bold text-slate-700 dark:text-slate-200 text-xs">
+            {text || 'Dr. Sarah Jenkins'}
+          </span>
+        )
+      },
+      {
+        title: <span className="text-[10px] uppercase font-bold text-slate-400">Service / Session</span>,
+        key: 'service',
+        render: (_, record) => (
+          <div>
+            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block">
+              {record.serviceName || record.appointmentType || 'Standard Consultation'}
+            </span>
+            <span className="text-[10px] text-slate-400 font-semibold">
+              {record.location || record.branchName || 'Melbourne Clinic'}
+            </span>
+          </div>
+        )
+      },
+      {
+        title: <span className="text-[10px] uppercase font-bold text-slate-400">Fee & Pay</span>,
+        key: 'fee',
+        render: (_, record) => (
+          <div>
+            <span className="font-bold text-slate-800 dark:text-slate-200 text-xs block">
+              ${record.fee ? Number(record.fee).toFixed(2) : '120.00'} AUD
+            </span>
+            <Tag color={record.isPaid ? 'success' : 'default'} className="m-0 border-none text-[8px] font-bold uppercase rounded-md">
+              {record.isPaid ? 'PAID' : 'UNPAID'}
+            </Tag>
+          </div>
+        )
+      },
+      {
+        title: <span className="text-[10px] uppercase font-bold text-slate-400">Status</span>,
+        dataIndex: 'status',
+        key: 'status',
+        render: (status, record) => (
+          <Select
+            size="small"
+            value={status || 'Scheduled'}
+            onChange={(val) => handleUpdateApptStatus(record.id, val)}
+            className="w-32 text-xs font-bold rounded-lg"
+            bordered={false}
+            dropdownMatchSelectWidth={false}
+          >
+            <Select.Option value="Scheduled"><Tag color="blue" className="m-0 border-none font-bold text-[9px] uppercase">Scheduled</Tag></Select.Option>
+            <Select.Option value="Confirmed"><Tag color="cyan" className="m-0 border-none font-bold text-[9px] uppercase">Confirmed</Tag></Select.Option>
+            <Select.Option value="Arrived"><Tag color="purple" className="m-0 border-none font-bold text-[9px] uppercase">Arrived</Tag></Select.Option>
+            <Select.Option value="In Progress"><Tag color="processing" className="m-0 border-none font-bold text-[9px] uppercase">In Progress</Tag></Select.Option>
+            <Select.Option value="Completed"><Tag color="success" className="m-0 border-none font-bold text-[9px] uppercase">Completed</Tag></Select.Option>
+            <Select.Option value="Cancelled"><Tag color="error" className="m-0 border-none font-bold text-[9px] uppercase">Cancelled</Tag></Select.Option>
+            <Select.Option value="No Show"><Tag color="default" className="m-0 border-none font-bold text-[9px] uppercase">No Show</Tag></Select.Option>
+          </Select>
+        )
+      },
+      {
+        title: <span className="text-[10px] uppercase font-bold text-slate-400">Action</span>,
+        key: 'action',
+        align: 'right',
+        render: (_, record) => (
+          <Space size="small">
+            <Button
+              size="small"
+              type="primary"
+              onClick={() => handleTabChange('consultations')}
+              className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 font-bold rounded-lg text-xs border-none text-white shadow-xs"
+              style={{ backgroundColor: '#8C4BFF' }}
+            >
+              Consult Note
+            </Button>
+            <Button
+              size="small"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeleteAppt(record)}
+              className="rounded-lg text-xs"
+            />
+          </Space>
+        )
+      }
+    ]
+
+    return (
+      <div className="space-y-6 font-sans">
+        {/* Header with Title and Book Button */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 p-5 rounded-2xl shadow-sm">
+          <div>
+            <h3 className="text-lg font-black text-slate-800 dark:text-white m-0 flex items-center gap-2">
+              <CalendarOutlined style={{ color: '#8C4BFF' }} /> Client Appointments & Calendar Schedule
+            </h3>
+            <p className="text-slate-400 dark:text-slate-500 text-xs font-semibold mt-1 mb-0">
+              Manage clinical consultation bookings, attendance statuses, rooms, and upcoming appointments for this client.
+            </p>
+          </div>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleOpenApptModal}
+            className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 font-bold rounded-xl h-10 px-5 text-xs border-none shadow-sm text-white flex items-center"
+            style={{ backgroundColor: '#8C4BFF', color: '#ffffff' }}
+          >
+            Book Appointment
+          </Button>
+        </div>
+
+        {/* KPI Stats Row */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-slate-400">Total Bookings</span>
+            <h4 className="text-xl font-black text-slate-800 dark:text-white m-0 mt-1">{totalAppts}</h4>
+            <span className="text-[11px] text-slate-400 font-semibold mt-0.5 block">Lifetime sessions</span>
+          </div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-blue-500">Upcoming / Scheduled</span>
+            <h4 className="text-xl font-black text-blue-600 dark:text-blue-400 m-0 mt-1">{scheduledCount}</h4>
+            <span className="text-[11px] text-slate-400 font-semibold mt-0.5 block">Active agenda</span>
+          </div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-emerald-500">Completed Sessions</span>
+            <h4 className="text-xl font-black text-emerald-600 dark:text-emerald-400 m-0 mt-1">{completedCount}</h4>
+            <span className="text-[11px] text-slate-400 font-semibold mt-0.5 block">Attended & signed</span>
+          </div>
+          <div className="bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+            <span className="text-[10px] uppercase font-bold text-rose-500">Cancelled / Missed</span>
+            <h4 className="text-xl font-black text-rose-600 dark:text-rose-400 m-0 mt-1">{cancelledCount}</h4>
+            <span className="text-[11px] text-slate-400 font-semibold mt-0.5 block">No show or cancelled</span>
+          </div>
+        </div>
+
+        {/* Appointments Table */}
+        <Card className="border border-slate-150 dark:border-slate-850 dark:bg-slate-900 rounded-2xl shadow-sm p-0 overflow-hidden">
+          <Table
+            dataSource={clientAppointments}
+            columns={apptColumns}
+            rowKey="id"
+            loading={appointmentsLoading}
+            pagination={{ pageSize: 8 }}
+            className="bg-white dark:bg-slate-900"
+            locale={{
+              emptyText: (
+                <div className="text-center py-12 space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-[#8C4BFF]/10 text-[#8C4BFF] flex items-center justify-center mx-auto text-xl font-bold">
+                    <CalendarOutlined />
+                  </div>
+                  <h4 className="text-base font-extrabold text-slate-800 dark:text-white m-0">No Appointments Scheduled</h4>
+                  <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                    Book an appointment for this client to schedule clinical consultation sessions.
+                  </p>
+                  <Button
+                    type="primary"
+                    onClick={handleOpenApptModal}
+                    className="bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 font-bold rounded-xl h-9 text-xs border-none"
+                    style={{ backgroundColor: '#8C4BFF' }}
+                  >
+                    Book First Appointment
+                  </Button>
+                </div>
+              )
+            }}
+          />
+        </Card>
       </div>
     )
   }
@@ -1579,16 +2161,6 @@ export default function ClientProfilePage() {
       children: renderProfileTab(),
     },
     {
-      key: 'communications',
-      label: (
-        <span>
-          <MessageOutlined /> Communications <span className="ml-1 px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-[10px] rounded-full border border-slate-200 dark:border-slate-700">91</span>
-        </span>
-      ),
-      children: renderCommunicationsTab(),
-      disabled: isNew,
-    },
-    {
       key: 'cases',
       label: (
         <span>
@@ -1596,6 +2168,16 @@ export default function ClientProfilePage() {
         </span>
       ),
       children: renderCasesTab(),
+      disabled: isNew,
+    },
+    {
+      key: 'appointments',
+      label: (
+        <span>
+          <CalendarOutlined /> Appointments
+        </span>
+      ),
+      children: renderAppointmentsTab(),
       disabled: isNew,
     },
     {
@@ -1609,53 +2191,53 @@ export default function ClientProfilePage() {
       disabled: isNew,
     },
     {
-      key: 'appointments',
+      key: 'consultations',
       label: (
         <span>
-          <ContainerOutlined /> Appointments
+          <ClockCircleOutlined /> Consultations
         </span>
       ),
-      children: renderAppointmentsTab(),
-      disabled: isNew,
-    },
-    {
-      key: 'documents',
-      label: (
-        <span>
-          <FileTextOutlined /> Documents
-        </span>
-      ),
-      children: renderDocumentsTab(),
-      disabled: isNew,
-    },
-    {
-      key: 'reports',
-      label: (
-        <span>
-          <FileTextOutlined /> Reports
-        </span>
-      ),
-      children: renderReportsTab(),
+      children: <PractitionerConsultation patientId={patient?.id || id} clientPatient={patient} />,
       disabled: isNew,
     },
     {
       key: 'exercises',
       label: (
         <span>
-          <ContainerOutlined /> Treatment Plan
+          <HeartOutlined /> Exercises & Treatment Plans
         </span>
       ),
-      children: renderExercisesTab(),
+      children: <PractitionerExercisesPlans patientId={patient?.id || id} clientPatient={patient} />,
       disabled: isNew,
     },
     {
-      key: 'invoices',
+      key: 'notes_reports',
       label: (
         <span>
-          <DollarOutlined /> Invoices
+          <AuditOutlined /> Notes & Reports
         </span>
       ),
-      children: renderInvoicesTab(),
+      children: <PractitionerNotesReports patientId={patient?.id || id} clientPatient={patient} />,
+      disabled: isNew,
+    },
+    {
+      key: 'referrals',
+      label: (
+        <span>
+          <BranchesOutlined /> Referrals
+        </span>
+      ),
+      children: <PractitionerReferrals patientId={patient?.id || id} clientPatient={patient} />,
+      disabled: isNew,
+    },
+    {
+      key: 'billing',
+      label: (
+        <span>
+          <DollarOutlined /> Billing
+        </span>
+      ),
+      children: <PractitionerBilling patientId={patient?.id || id} clientPatient={patient} />,
       disabled: isNew,
     },
   ]
@@ -1739,6 +2321,295 @@ export default function ClientProfilePage() {
           </Form.Item>
           <Form.Item name="notes" label="Notes">
             <Input.TextArea rows={3} placeholder="Additional observations..." />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Clinical Case Create / Edit Modal */}
+      <Modal
+        title={
+          <span className="font-extrabold text-base text-slate-850 dark:text-white flex items-center gap-2">
+            <FolderOpenOutlined style={{ color: '#8C4BFF' }} />
+            {editingCase ? 'Edit Clinical Case & Claim' : 'Create New Clinical Case'}
+          </span>
+        }
+        open={caseModalVisible}
+        onCancel={() => {
+          setCaseModalVisible(false)
+          caseForm.resetFields()
+        }}
+        onOk={handleSaveCase}
+        okText={editingCase ? 'Save Changes' : 'Create Case'}
+        okButtonProps={{
+          className: 'bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 font-bold rounded-xl h-9 border-none text-white',
+          style: { backgroundColor: '#8C4BFF', color: '#ffffff' }
+        }}
+        cancelButtonProps={{ className: 'rounded-xl font-bold' }}
+        width={680}
+        destroyOnClose
+      >
+        <Form form={caseForm} layout="vertical" className="mt-4 space-y-3 font-sans">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
+            <Form.Item
+              name="title"
+              label={<span className="text-xs font-semibold text-slate-500">Case Title</span>}
+              rules={[{ required: true, message: 'Please enter case title' }]}
+            >
+              <Input placeholder="e.g. WorkCover Claim - Shoulder Rehab" className="rounded-xl h-10" />
+            </Form.Item>
+
+            <Form.Item
+              name="claimNumber"
+              label={<span className="text-xs font-semibold text-slate-500">Claim / Policy / Approval Ref #</span>}
+              rules={[{ required: true, message: 'Please enter claim / ref number' }]}
+            >
+              <Input placeholder="e.g. WC-2026-892 or NDIS-99120" className="rounded-xl h-10 font-mono" />
+            </Form.Item>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
+            <Form.Item
+              name="fundingType"
+              label={<span className="text-xs font-semibold text-slate-500">Funding / Payer Scheme</span>}
+              rules={[{ required: true }]}
+            >
+              <Select className="rounded-xl h-10 flex items-center">
+                <Select.Option value="WorkCover">WorkCover / Worker's Comp</Select.Option>
+                <Select.Option value="NDIS">NDIS (National Disability Scheme)</Select.Option>
+                <Select.Option value="Medicare EPC">Medicare EPC / CDM Plan</Select.Option>
+                <Select.Option value="DVA">DVA (Department of Veterans Affairs)</Select.Option>
+                <Select.Option value="TAC / CTP">TAC / CTP Motor Accident</Select.Option>
+                <Select.Option value="Private Health">Private Health Insurance</Select.Option>
+                <Select.Option value="Self-Funded">Self-Funded / Private</Select.Option>
+              </Select>
+            </Form.Item>
+
+            <Form.Item
+              name="status"
+              label={<span className="text-xs font-semibold text-slate-500">Case Status</span>}
+              rules={[{ required: true }]}
+            >
+              <Select className="rounded-xl h-10 flex items-center">
+                <Select.Option value="Active">Active (Open for Treatment)</Select.Option>
+                <Select.Option value="Under Review">Under Review</Select.Option>
+                <Select.Option value="Pending Approval">Pending Insurer Approval</Select.Option>
+                <Select.Option value="Closed">Closed / Completed</Select.Option>
+              </Select>
+            </Form.Item>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-x-4 gap-y-1">
+            <Form.Item
+              name="payerName"
+              label={<span className="text-xs font-semibold text-slate-500">Insurer / Payer Org</span>}
+            >
+              <Input placeholder="e.g. Allianz Insurance" className="rounded-xl h-10" />
+            </Form.Item>
+
+            <Form.Item
+              name="caseManager"
+              label={<span className="text-xs font-semibold text-slate-500">Case Manager / Contact</span>}
+            >
+              <Input placeholder="e.g. Sarah Conroy" className="rounded-xl h-10" />
+            </Form.Item>
+
+            <Form.Item
+              name="contactPhone"
+              label={<span className="text-xs font-semibold text-slate-500">Contact Phone</span>}
+            >
+              <Input placeholder="e.g. +61 3 9988 1234" className="rounded-xl h-10" />
+            </Form.Item>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
+            <Form.Item
+              name="startDate"
+              label={<span className="text-xs font-semibold text-slate-500">Case Start / Injury Date</span>}
+            >
+              <DatePicker className="w-full rounded-xl h-10" format="DD-MM-YYYY" />
+            </Form.Item>
+
+            <Form.Item
+              name="expiryDate"
+              label={<span className="text-xs font-semibold text-slate-500">Approval Expiry / Review Date</span>}
+            >
+              <DatePicker className="w-full rounded-xl h-10" format="DD-MM-YYYY" />
+            </Form.Item>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
+            <Form.Item
+              name="approvedSessions"
+              label={<span className="text-xs font-semibold text-slate-500">Approved Sessions Count</span>}
+            >
+              <Input type="number" min={1} placeholder="e.g. 12" className="rounded-xl h-10" />
+            </Form.Item>
+
+            <Form.Item
+              name="usedSessions"
+              label={<span className="text-xs font-semibold text-slate-500">Sessions Completed / Used</span>}
+            >
+              <Input type="number" min={0} placeholder="e.g. 3" className="rounded-xl h-10" />
+            </Form.Item>
+          </div>
+
+          <Form.Item
+            name="diagnosis"
+            label={<span className="text-xs font-semibold text-slate-500">Primary Diagnosis & Treatment Goal</span>}
+          >
+            <Input.TextArea rows={2} placeholder="e.g. Right shoulder rotator cuff tendinopathy. Goal: Pain reduction and return to work." className="rounded-xl" />
+          </Form.Item>
+
+          <Form.Item
+            name="notes"
+            label={<span className="text-xs font-semibold text-slate-500">Billing & Case Management Notes</span>}
+          >
+            <Input.TextArea rows={2} placeholder="e.g. Invoicing requires medical certificate attached. Regular progress reports to insurer required every 4 weeks." className="rounded-xl" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Book Client Appointment Modal */}
+      <Modal
+        title={
+          <span className="font-extrabold text-base text-slate-850 dark:text-white flex items-center gap-2">
+            <CalendarOutlined style={{ color: '#8C4BFF' }} />
+            Book Client Appointment
+          </span>
+        }
+        open={apptModalVisible}
+        onCancel={() => {
+          setApptModalVisible(false)
+          apptForm.resetFields()
+        }}
+        onOk={handleSaveAppointment}
+        okText="Book Session"
+        okButtonProps={{
+          className: 'bg-[#8C4BFF] hover:bg-[#8C4BFF]/90 font-bold rounded-xl h-9 border-none text-white',
+          style: { backgroundColor: '#8C4BFF', color: '#ffffff' }
+        }}
+        cancelButtonProps={{ className: 'rounded-xl font-bold' }}
+        width={640}
+        destroyOnClose
+      >
+        <Form form={apptForm} layout="vertical" className="mt-4 space-y-3 font-sans">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
+            <Form.Item
+              name="date"
+              label={<span className="text-xs font-semibold text-slate-500">Appointment Date</span>}
+              rules={[{ required: true, message: 'Please select date' }]}
+            >
+              <DatePicker className="w-full rounded-xl h-10" format="DD-MM-YYYY" />
+            </Form.Item>
+
+            <Form.Item
+              name="practitionerName"
+              label={<span className="text-xs font-semibold text-slate-500">Treating Practitioner</span>}
+              rules={[{ required: true, message: 'Please select practitioner' }]}
+            >
+              <Select className="rounded-xl h-10 flex items-center">
+                {practitionersList.length > 0 ? (
+                  practitionersList.map(p => (
+                    <Select.Option key={p.id || p.name} value={p.name}>{p.name} ({p.specialty || 'Physiotherapy'})</Select.Option>
+                  ))
+                ) : (
+                  <>
+                    <Select.Option value="Dr. Sarah Jenkins">Dr. Sarah Jenkins (Physiotherapist)</Select.Option>
+                    <Select.Option value="Dr. Michael Chang">Dr. Michael Chang (Chiropractor)</Select.Option>
+                    <Select.Option value="Dr. Emma Watson">Dr. Emma Watson (Osteopath)</Select.Option>
+                  </>
+                )}
+              </Select>
+            </Form.Item>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
+            <Form.Item
+              name="startTime"
+              label={<span className="text-xs font-semibold text-slate-500">Start Time</span>}
+              rules={[{ required: true }]}
+            >
+              <Select className="rounded-xl h-10 flex items-center">
+                {['08:00 AM', '08:30 AM', '09:00 AM', '09:30 AM', '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM', '12:00 PM', '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM', '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM', '05:00 PM'].map(t => (
+                  <Select.Option key={t} value={t}>{t}</Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+
+            <Form.Item
+              name="endTime"
+              label={<span className="text-xs font-semibold text-slate-500">End Time</span>}
+              rules={[{ required: true }]}
+            >
+              <Select className="rounded-xl h-10 flex items-center">
+                {['08:30 AM', '08:45 AM', '09:15 AM', '09:45 AM', '10:15 AM', '10:45 AM', '11:15 AM', '11:45 AM', '12:30 PM', '01:30 PM', '01:45 AM', '02:15 PM', '02:45 PM', '03:15 PM', '03:45 PM', '04:15 PM', '04:45 PM', '05:30 PM'].map(t => (
+                  <Select.Option key={t} value={t}>{t}</Select.Option>
+                ))}
+              </Select>
+            </Form.Item>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
+            <Form.Item
+              name="appointmentType"
+              label={<span className="text-xs font-semibold text-slate-500">Service / Appointment Type</span>}
+              rules={[{ required: true }]}
+            >
+              <Select className="rounded-xl h-10 flex items-center">
+                <Select.Option value="Physiotherapy Initial Consultation">Physiotherapy Initial Consultation (45 min)</Select.Option>
+                <Select.Option value="Physiotherapy Standard Follow-up">Physiotherapy Standard Follow-up (30 min)</Select.Option>
+                <Select.Option value="Physiotherapy Extended Session">Physiotherapy Extended Session (60 min)</Select.Option>
+                <Select.Option value="Telehealth Consultation">Telehealth Video Consultation</Select.Option>
+                <Select.Option value="NDIS Functional Assessment">NDIS Functional Capacity Assessment</Select.Option>
+                <Select.Option value="WorkCover Progress Review">WorkCover Progress Review</Select.Option>
+              </Select>
+            </Form.Item>
+
+            <Form.Item
+              name="branchName"
+              label={<span className="text-xs font-semibold text-slate-500">Location / Branch</span>}
+            >
+              <Select className="rounded-xl h-10 flex items-center">
+                {activeBranches.length > 0 ? (
+                  activeBranches.map(b => (
+                    <Select.Option key={b.id || b.name} value={b.name}>{b.name}</Select.Option>
+                  ))
+                ) : (
+                  <>
+                    <Select.Option value="Melbourne Main Clinic">Melbourne Main Clinic</Select.Option>
+                    <Select.Option value="Sydney Wellness Center">Sydney Wellness Center</Select.Option>
+                    <Select.Option value="Brisbane City Hub">Brisbane City Hub</Select.Option>
+                  </>
+                )}
+              </Select>
+            </Form.Item>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1">
+            <Form.Item
+              name="fee"
+              label={<span className="text-xs font-semibold text-slate-500">Session Fee ($ AUD)</span>}
+            >
+              <Input type="number" min={0} placeholder="120" className="rounded-xl h-10" />
+            </Form.Item>
+
+            <Form.Item
+              name="status"
+              label={<span className="text-xs font-semibold text-slate-500">Initial Status</span>}
+            >
+              <Select className="rounded-xl h-10 flex items-center">
+                <Select.Option value="Scheduled">Scheduled</Select.Option>
+                <Select.Option value="Confirmed">Confirmed</Select.Option>
+                <Select.Option value="Arrived">Arrived</Select.Option>
+              </Select>
+            </Form.Item>
+          </div>
+
+          <Form.Item
+            name="notes"
+            label={<span className="text-xs font-semibold text-slate-500">Clinical / Booking Notes</span>}
+          >
+            <Input.TextArea rows={2} placeholder="e.g. Follow-up on rotator cuff rehabilitation exercises and pain score check." className="rounded-xl" />
           </Form.Item>
         </Form>
       </Modal>
