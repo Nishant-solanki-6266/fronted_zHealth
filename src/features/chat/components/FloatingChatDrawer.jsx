@@ -112,10 +112,10 @@ export default function FloatingChatDrawer() {
           </div>
         }
         placement="right"
-        width={780}
+        size={780}
         onClose={() => setOpen(false)}
         open={open}
-        bodyStyle={{ padding: 0, overflow: 'hidden' }}
+        styles={{ body: { padding: 0, overflow: 'hidden' } }}
         className="dark:bg-slate-900"
       >
         {open && <UniversalLiveChat isDrawer={true} />}

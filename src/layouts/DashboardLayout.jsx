@@ -44,7 +44,8 @@ import {
   CheckCircleOutlined,
   ShoppingOutlined,
   AppstoreOutlined,
-  MessageFilled
+  MessageFilled,
+  MessageOutlined
 } from '@ant-design/icons'
 import { toast } from 'react-hot-toast'
 import logoImg from '../assets/logo2.png'
@@ -215,7 +216,6 @@ const getNavItems = (role) => {
         { label: 'AI Notes', path: '/head-admin/ai-notes' },
         { label: 'Global Templates', path: '/head-admin/global-templates' },
         { label: 'Compliance', path: '/head-admin/audit-logs' },
-        { label: 'Messages', path: '/head-admin/live-chat' },
         { label: 'Support', path: '/head-admin/support-centre' },
         { label: 'Reports', path: '/head-admin/platform-analytics' },
       ]
@@ -228,7 +228,6 @@ const getNavItems = (role) => {
         { label: 'Clinics', path: '/sales/sales-clinics' },
         { label: 'Commissions', path: '/sales/commissions' },
         { label: 'Tasks', path: '/sales/tasks' },
-        { label: 'Messages', path: '/sales/live-chat' },
         { label: 'Reports', path: '/sales/sales-reports' },
         { label: 'Settings', path: '/sales/settings' },
       ]
@@ -237,7 +236,6 @@ const getNavItems = (role) => {
         { label: 'Dashboard', path: '/practitioner/dashboard' },
         { label: 'Calendar', path: '/practitioner/calendar' },
         { label: 'Clients', path: '/practitioner/patients' },
-        { label: 'Messages', path: '/practitioner/live-chat' },
         { label: 'Contacts', path: '/practitioner/contacts' },
         { label: 'Waitlist', path: '/practitioner/waitlist' },
         { label: 'Payments', path: '/practitioner/payments-centre' },
@@ -255,7 +253,6 @@ const getNavItems = (role) => {
         { label: 'Forms & Documents', path: '/patient/forms-documents' },
         { label: 'Funding & Claims', path: '/patient/funding' },
         { label: 'Invoices & Payments', path: '/patient/payments' },
-        { label: 'Messages', path: '/patient/live-chat' },
         { label: 'Health Record Sharing', path: '/patient/health-sharing' },
         { label: 'Profile & Settings', path: '/patient/settings' },
       ]
@@ -264,7 +261,6 @@ const getNavItems = (role) => {
       return [
         { label: 'Dashboard', path: '/clinic-admin/dashboard' },
         { label: 'Calendar', path: '/clinic-admin/calendar' },
-        { label: 'Messages', path: '/clinic-admin/live-chat' },
         { label: 'Details', path: '/clinic-admin/details' },
         { label: 'Clients', path: '/clinic-admin/patients' },
         { label: 'Contacts', path: '/clinic-admin/contacts' },
@@ -303,13 +299,16 @@ export default function DashboardLayout({ children }) {
   const toggleDarkMode = store.toggleDarkMode
   const navItems = getNavItems(userRole)
 
-  const rolePrefix = (userRole === 'head_admin' || userRole === 'super_admin' || userRole === 'super-admin')
+  const storedRole = localStorage.getItem('userRole') || userRole || 'clinic'
+  const activeRole = userRole || storedRole
+  const rolePrefix = (activeRole === 'head_admin' || activeRole === 'super_admin' || activeRole === 'super-admin')
     ? 'head-admin'
-    : userRole === 'clinic'
+    : activeRole === 'clinic'
       ? 'clinic-admin'
-      : userRole;
+      : activeRole;
 
   const [notificationsList, setNotificationsList] = useState([])
+  const [unreadChatCount, setUnreadChatCount] = useState(0)
 
   const fetchNotifications = async () => {
     try {
@@ -322,16 +321,37 @@ export default function DashboardLayout({ children }) {
     }
   }
 
+  const fetchUnreadChat = async () => {
+    try {
+      const res = await api.get('/api/chat/contacts')
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        const totalUnread = res.data.data.reduce((acc, c) => acc + (Number(c.unreadCount) || 0), 0)
+        setUnreadChatCount(totalUnread)
+      }
+    } catch (error) {
+      // Suppress unhandled logging if route is offline
+    }
+  }
+
   useEffect(() => {
     fetchNotifications()
-    const interval = setInterval(fetchNotifications, 30000)
+    fetchUnreadChat()
+    const interval = setInterval(() => {
+      fetchNotifications()
+      fetchUnreadChat()
+    }, 30000)
     
-    const handleCustomRefetch = () => fetchNotifications()
+    const handleCustomRefetch = () => {
+      fetchNotifications()
+      fetchUnreadChat()
+    }
     window.addEventListener('notification:refetch', handleCustomRefetch)
+    window.addEventListener('chat:refetch', handleCustomRefetch)
 
     return () => {
       clearInterval(interval)
       window.removeEventListener('notification:refetch', handleCustomRefetch)
+      window.removeEventListener('chat:refetch', handleCustomRefetch)
     }
   }, [userRole])
 
@@ -966,10 +986,10 @@ export default function DashboardLayout({ children }) {
     const headAdminSections = [
       'clinics-manage', 'admin-management', 'subscriptions', 'billing',
       'sales-affiliates', 'ai-settings', 'audit-logs', 'support-centre',
-      'messages', 'platform-analytics', 'global-templates', 'notifications', 'documents'
+      'messages', 'live-chat', 'platform-analytics', 'global-templates', 'notifications', 'documents'
     ]
     const isHeadAdminSection = headAdminSections.some(sec => path.includes(`/head-admin/${sec}`))
-    const hasHeadAdminAccess = isHeadAdminSection && userRole === 'head_admin'
+    const hasHeadAdminAccess = isHeadAdminSection && (userRole === 'head_admin' || userRole === 'super_admin' || localStorage.getItem('userRole') === 'head_admin' || localStorage.getItem('userRole') === 'super_admin')
 
     const isSalesPath = path.startsWith('/sales')
     const hasSalesAccess = isSalesPath && (userRole === 'sales' || userRole === 'head_admin' || userRole === 'clinic' || (typeof window !== 'undefined' && localStorage.getItem('userRole') === 'sales'))
@@ -987,12 +1007,18 @@ export default function DashboardLayout({ children }) {
       path.startsWith('/practitioner/referrals') ||
       path.startsWith('/practitioner/billing') ||
       path.startsWith('/practitioner/messages') ||
+      path.startsWith('/practitioner/live-chat') ||
+      path.startsWith('/practitioner/waitlist') ||
+      path.startsWith('/practitioner/payments-centre') ||
+      path.startsWith('/practitioner/products') ||
+      path.startsWith('/practitioner/documents') ||
+      path.startsWith('/practitioner/contacts') ||
       path.startsWith('/practitioner/tasks') ||
       path.startsWith('/practitioner/settings')
     const hasPractitionerAccess = isPractitionerPath && (userRole === 'practitioner' || userRole === 'clinic' || userRole === 'head_admin' || userRole === 'patient')
 
     const hasProfileAccess = path.includes('/profile');
-    const hasSharedFeatureAccess = path.includes('/ai-notes') || path.includes('/notifications');
+    const hasSharedFeatureAccess = path.includes('/ai-notes') || path.includes('/notifications') || path.includes('/live-chat') || path.includes('/messages');
 
     const hasAccess = hasNavAccess || hasSettingsAccess || hasHeadAdminAccess || hasSalesAccess || hasPatientAccess || hasPractitionerAccess || hasProfileAccess || hasSharedFeatureAccess
 
@@ -1347,6 +1373,27 @@ export default function DashboardLayout({ children }) {
               </button>
             </Tooltip>
 
+
+            {/* Messages / Live Chat */}
+            <div className="relative">
+              <Tooltip title="Messages">
+                <button
+                  className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+                  onClick={() => navigate(`/${rolePrefix}/live-chat`)}
+                  style={{
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.backgroundColor = darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'}
+                  onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+                >
+                  <Badge count={unreadChatCount} size="small" offset={[2, -2]}>
+                    <MessageOutlined style={{ fontSize: 16, color: darkMode ? '#94A3B8' : '#475569' }} />
+                  </Badge>
+                </button>
+              </Tooltip>
+            </div>
 
             {/* Notifications Bell */}
             <div className="relative">

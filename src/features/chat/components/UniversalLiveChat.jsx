@@ -39,39 +39,63 @@ export default function UniversalLiveChat({ isDrawer = false, defaultContactId =
   const currentUserRole = (localStorage.getItem('userRole') || '').toUpperCase()
 
   // 1. Fetch available contacts for current logged in user & role
-  const fetchContacts = async () => {
+  const fetchContacts = async (isInitial = false) => {
     try {
-      setLoadingContacts(true)
+      if (isInitial) setLoadingContacts(true)
       const res = await api.get('/api/chat/contacts')
       if (res.data?.success && Array.isArray(res.data.data)) {
         const list = res.data.data
         setContacts(list)
 
-        // Select initial contact if none selected
-        if (!activeContact && list.length > 0) {
-          const matchDefault = defaultContactId ? list.find(c => c.id === defaultContactId || c.targetId === defaultContactId) : null
-          setActiveContact(matchDefault || list[0])
+        // Join all conversation rooms via socket
+        if (socket && list.length > 0) {
+          list.forEach(c => {
+            if (c.conversationId) socket.emit('chat:join', c.conversationId)
+          })
+          if (currentUserId) socket.emit('join:room', `room:user_${currentUserId}`)
         }
+
+        // Select initial contact if none selected
+        setActiveContact(prev => {
+          if (prev) {
+            const updated = list.find(c => c.targetId === prev.targetId || c.id === prev.id)
+            return updated || prev
+          }
+          if (list.length > 0) {
+            const matchDefault = defaultContactId ? list.find(c => c.id === defaultContactId || c.targetId === defaultContactId) : null
+            return matchDefault || list[0]
+          }
+          return null
+        })
       }
     } catch (err) {
       console.warn('Live chat contacts fetch notice:', err?.message)
     } finally {
-      setLoadingContacts(false)
+      if (isInitial) setLoadingContacts(false)
     }
   }
 
   useEffect(() => {
-    fetchContacts()
+    fetchContacts(true)
   }, [defaultContactId])
 
   // 2. Fetch conversation messages when activeContact changes
-  const fetchMessages = async (convId) => {
+  const fetchMessages = async (convId, isInitial = false) => {
     if (!convId) return
     try {
-      setLoadingMessages(true)
+      if (isInitial) setLoadingMessages(true)
       const res = await api.get(`/api/chat/messages/${convId}`)
       if (res.data?.success && Array.isArray(res.data.data)) {
-        setMessages(res.data.data)
+        // Deduplicate messages by unique id
+        const unique = []
+        const seen = new Set()
+        for (const item of res.data.data) {
+          if (item?.id && !seen.has(item.id)) {
+            seen.add(item.id)
+            unique.push(item)
+          }
+        }
+        setMessages(unique)
         // Mark as read in DB
         api.put(`/api/chat/read/${convId}`).catch(() => null)
         // Update contact unread count locally
@@ -80,16 +104,17 @@ export default function UniversalLiveChat({ isDrawer = false, defaultContactId =
     } catch (err) {
       console.warn('Live chat messages fetch notice:', err?.message)
     } finally {
-      setLoadingMessages(false)
+      if (isInitial) setLoadingMessages(false)
     }
   }
 
   useEffect(() => {
     if (activeContact?.conversationId) {
-      fetchMessages(activeContact.conversationId)
+      fetchMessages(activeContact.conversationId, true)
       // Join WebSocket chat room
       if (socket) {
         socket.emit('chat:join', activeContact.conversationId)
+        if (currentUserId) socket.emit('join:room', `room:user_${currentUserId}`)
       }
     }
 
@@ -98,7 +123,7 @@ export default function UniversalLiveChat({ isDrawer = false, defaultContactId =
         socket.emit('chat:leave', activeContact.conversationId)
       }
     }
-  }, [activeContact?.conversationId, socket])
+  }, [activeContact?.conversationId])
 
   // 3. Auto scroll to bottom
   useEffect(() => {
@@ -111,17 +136,33 @@ export default function UniversalLiveChat({ isDrawer = false, defaultContactId =
 
     const handleNewMessage = (msg) => {
       if (!msg) return
-      if (activeContact?.conversationId === msg.conversationId) {
-        setMessages(prev => [...prev.filter(m => m.id !== msg.id), msg])
+      
+      const isCurrentActive = activeContact && (
+        activeContact.conversationId === msg.conversationId ||
+        msg.senderId === activeContact.targetId ||
+        (msg.recipientId === activeContact.targetId && msg.senderId === currentUserId)
+      )
+
+      if (isCurrentActive) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === msg.id)) {
+            return prev
+          }
+          return [...prev, msg]
+        })
         // Mark as read immediately if current chat is open
-        if (msg.senderId !== currentUserId) {
+        if (msg.senderId !== currentUserId && msg.conversationId) {
           api.put(`/api/chat/read/${msg.conversationId}`).catch(() => null)
         }
       }
 
       // Update last message in contact list
       setContacts(prev => prev.map(c => {
-        if (c.conversationId === msg.conversationId) {
+        const isThisContact = c.conversationId === msg.conversationId ||
+          c.targetId === msg.senderId ||
+          (c.targetId === msg.recipientId && msg.senderId === currentUserId)
+
+        if (isThisContact) {
           return {
             ...c,
             lastMessage: {
@@ -163,7 +204,7 @@ export default function UniversalLiveChat({ isDrawer = false, defaultContactId =
       socket.off('chat:typing', handleTyping)
       socket.off('chat:stop_typing', handleStopTyping)
     }
-  }, [socket, activeContact?.conversationId, currentUserId])
+  }, [socket, activeContact?.conversationId, activeContact?.targetId, currentUserId])
 
   // Handle typing indicator emissions
   const handleInputChange = (e) => {
@@ -233,7 +274,12 @@ export default function UniversalLiveChat({ isDrawer = false, defaultContactId =
 
       if (res.data?.success && res.data.data) {
         const savedMsg = res.data.data
-        setMessages(prev => prev.map(m => m.id === tempId ? savedMsg : m))
+        setMessages(prev => {
+          if (prev.some(m => m.id === savedMsg.id)) {
+            return prev.filter(m => m.id !== tempId)
+          }
+          return prev.map(m => m.id === tempId ? savedMsg : m)
+        })
       }
     } catch (err) {
       console.error('Failed to send live chat message:', err)
@@ -241,12 +287,33 @@ export default function UniversalLiveChat({ isDrawer = false, defaultContactId =
     }
   }
 
+  const isSuperAdmin = ['HEAD_ADMIN', 'SUPER_ADMIN', 'SUPER-ADMIN'].includes(currentUserRole)
+
   // Filter contacts by search & role
   const filteredContacts = contacts.filter(c => {
+    // Super Admin should strictly only see Clinic Admin and Sales Executive
+    if (isSuperAdmin && c.roleCategory !== 'CLINIC_ADMIN' && c.roleCategory !== 'SALES_EXECUTIVE') {
+      return false
+    }
     const matchesSearch = !searchTerm || c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || c.role?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesRole = roleFilter === 'ALL' || c.roleCategory === roleFilter
     return matchesSearch && matchesRole
   })
+
+  // Dynamic role filter pills
+  const roleFilterTabs = isSuperAdmin
+    ? [
+        { key: 'ALL', label: 'All Channels' },
+        { key: 'CLINIC_ADMIN', label: 'Clinic Admin' },
+        { key: 'SALES_EXECUTIVE', label: 'Sales Executive' }
+      ]
+    : [
+        { key: 'ALL', label: 'All Channels' },
+        ...Array.from(new Set(contacts.map(c => c.roleCategory).filter(Boolean))).map(role => ({
+          key: role,
+          label: role.replace('_', ' ')
+        }))
+      ]
 
   return (
     <div className={`w-full flex flex-col ${isDrawer ? 'h-[85vh]' : 'h-full'} rounded-2xl overflow-hidden bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-xl transition-all`}>
@@ -298,17 +365,17 @@ export default function UniversalLiveChat({ isDrawer = false, defaultContactId =
             />
             {/* Quick role filter pills */}
             <div className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none text-[10px]">
-              {['ALL', 'PRACTITIONER', 'CLINIC_ADMIN', 'PATIENT', 'SALES_EXECUTIVE'].map(role => (
+              {roleFilterTabs.map(({ key, label }) => (
                 <button
-                  key={role}
-                  onClick={() => setRoleFilter(role)}
+                  key={key}
+                  onClick={() => setRoleFilter(key)}
                   className={`px-2.5 py-1 rounded-full font-bold whitespace-nowrap transition-all ${
-                    roleFilter === role
+                    roleFilter === key
                       ? 'bg-[#8C4BFF] text-white shadow-sm'
                       : 'bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
                   }`}
                 >
-                  {role === 'ALL' ? 'All Channels' : role.replace('_', ' ')}
+                  {label}
                 </button>
               ))}
             </div>
@@ -415,10 +482,11 @@ export default function UniversalLiveChat({ isDrawer = false, defaultContactId =
                     <span className="text-xs font-medium">Decrypting live messages...</span>
                   </div>
                 ) : messages.length > 0 ? (
-                  messages.map(m => {
+                  messages.map((m, idx) => {
                     const isSelf = m.senderId === currentUserId
+                    const messageKey = m.id ? `${m.id}-${idx}` : `msg-${idx}`
                     return (
-                      <div key={m.id} className={`flex ${isSelf ? 'justify-end' : 'justify-start'} transition-all`}>
+                      <div key={messageKey} className={`flex ${isSelf ? 'justify-end' : 'justify-start'} transition-all`}>
                         <div className={`max-w-[78%] md:max-w-[65%] space-y-1`}>
                           {!isSelf && (
                             <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 ml-1 block">
@@ -439,8 +507,8 @@ export default function UniversalLiveChat({ isDrawer = false, defaultContactId =
                             {/* Attachments preview */}
                             {m.attachments && m.attachments.length > 0 && (
                               <div className="mt-2.5 pt-2 border-t border-white/20 dark:border-slate-700 flex flex-wrap gap-2">
-                                {m.attachments.map(att => (
-                                  <div key={att.name} className="px-2.5 py-1.5 rounded-xl bg-black/15 flex items-center gap-2 text-[10px] font-bold">
+                                {m.attachments.map((att, attIdx) => (
+                                  <div key={att.name || att.url ? `${att.name || 'att'}-${attIdx}` : `att-${attIdx}`} className="px-2.5 py-1.5 rounded-xl bg-black/15 flex items-center gap-2 text-[10px] font-bold">
                                     {att.type?.includes('image') ? <PictureOutlined /> : <FileTextOutlined />}
                                     <span className="truncate max-w-[150px]">{att.name}</span>
                                   </div>
